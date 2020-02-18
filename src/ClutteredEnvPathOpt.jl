@@ -11,12 +11,14 @@ function bfs(graph::Dict{T, Set{T}}, root::T)::Dict{T, T} where {T}
             if !in(neighbor, visited)
                 push!(visited, neighbor)
                 pushfirst!(queue, neighbor)
-                parent[neighbor] = node
+                parents[neighbor] = node
             end
         end
     end
 
     return parents
 end
+
+bfs(graph::Dict{T, Set{T}}) where {T} = bfs(graph, collect(keys(graph))[1])
 
 end # module
