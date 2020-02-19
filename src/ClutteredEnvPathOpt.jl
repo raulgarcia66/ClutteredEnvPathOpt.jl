@@ -57,4 +57,32 @@ function find_fundamental_cycle(parents::Dict{T, T}, non_tree_edge::Set{T})::Set
     end
 end
 
+function find_smaller_component(graph::Dict{T, Set{T}}, separator::Set{T})::Set{T} where {T}
+    non_separator_nodes = setdiff(keys(graph), separator)
+    if isempty(non_separator_nodes)
+        return Set()
+    end
+    root = collect(non_separator_nodes)[1]
+
+    visited = Set(root)
+    queue = [root]
+
+    while !isempty(queue)
+        node = pop!(queue)
+        for neighbor in graph[node]
+            if !in(neighbor, visited) && !in(neighbor, separator)
+                push!(visited, neighbor)
+                pushfirst!(queue, neighbor)
+            end
+        end
+    end
+
+    # return the smaller connected component
+    if length(visited) < length(graph) - (length(separator) + length(visited))
+        return visited
+    else
+        return setdiff(keys(graph), separator, visited)
+    end
+end
+
 end # module

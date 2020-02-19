@@ -9,6 +9,18 @@ small_ring = Dict(
     5 => Set([4, 1]),
 )
 
+small_grid = Dict(
+    1 => Set([2, 4]),
+    2 => Set([1, 3, 5]),
+    3 => Set([2, 6]),
+    4 => Set([1, 5, 7]),
+    5 => Set([2, 4, 6, 7, 8]),
+    6 => Set([3, 5, 9]),
+    7 => Set([4, 8]),
+    8 => Set([5, 7, 9]),
+    9 => Set([6, 8]),
+)
+
 cross = Dict(
     1 => Set([2]),
     2 => Set([1, 3, 4, 5]),
@@ -68,4 +80,13 @@ end
 
 @testset "fundamental cycle identifying tests" begin
     @test ClutteredEnvPathOpt.find_fundamental_cycle(ClutteredEnvPathOpt.bfs(small_ring, 1), Set([3, 4])) == keys(small_ring)
+end
+
+@testset "find component" begin
+    @test ClutteredEnvPathOpt.find_smaller_component(small_ring, Set([1, 2, 3, 4, 5])) == Set()
+    @test ClutteredEnvPathOpt.find_smaller_component(small_ring, Set{Int}()) == Set()
+    @test ClutteredEnvPathOpt.find_smaller_component(small_grid, Set([3, 4, 5, 6])) == Set([1, 2])
+    @test ClutteredEnvPathOpt.find_smaller_component(small_grid, Set([2, 3, 4, 5, 6])) == Set(1)
+    @test ClutteredEnvPathOpt.find_smaller_component(small_grid, Set([7, 8, 9])) == Set()
+
 end
