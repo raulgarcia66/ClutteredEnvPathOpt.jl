@@ -82,3 +82,12 @@ function find_smaller_component(graph::Dict{T, Set{T}}, separator::Set{T})::Set{
         return setdiff(keys(graph), separator, visited)
     end
 end
+
+function pp_expell(graph::Dict{T, Set{T}}, separator::Set{T}, component_A::Set{T})::Set{T} where {T}
+    added_to_component_A = Set{T}()
+    component_B = setdiff(keys(graph), separator, component_A)
+
+    for node in separator
+        
+    end
+end
