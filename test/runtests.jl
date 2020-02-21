@@ -10,40 +10,23 @@ using Test
 
 include("../src/separator.jl")
 @testset "separator tests" begin
-    small_cycle = cycle_graph(9)
-    small_grid = grid([3, 3])
-    small_ladder = ladder_graph(5)
-    small_wheel = wheel_graph(8)
-    big_grid = grid([64, 64])
+    for graph_function in [cycle_graph, ladder_graph, wheel_graph, x -> grid([x, x])]
+        for i in 3:20
+            graph = graph_function(i)
+            separator = fundamental_cycle_separator(graph, 1)
 
-    pairs = map(
-        graph -> (graph, fundamental_cycle_separator(graph, 1)),
-        [small_cycle, small_grid, small_ladder, small_wheel, big_grid],
-    )
+            # separator is nonempty
+            @test length(separator) > 0
 
-    for (graph, separator) in pairs
-        # separator is nonempty
-        @test length(separator) > 0
-
-        # separator is connected
-        is_separator_connected = true
-        ordered_vertices = collect(separator)
-        for i in 1:length(ordered_vertices)
-            for j in 1:length(ordered_vertices)
-                if !has_path(graph, ordered_vertices[i], ordered_vertices[j])
-                    is_separator_connected = false
-                end
-            end
+            # separator breaks graph into no more than 2 components
+            separated_edges = filter(edge -> !(in(src(edge), separator) || in(dst(edge), separator)), collect(edges(graph)))
+            separated = SimpleGraphFromIterator(separated_edges)
+            components = filter(component -> !(length(component) == 1 && in(component[1], separator)), connected_components(separated))
+            @test length(components) < 3
         end
-        @test is_separator_connected
-
-        # separator breaks graph into no more than 2 components
-        separated_edges = filter(edge -> !(in(src(edge), separator) || in(dst(edge), separator)), collect(edges(graph)))
-        separated = SimpleGraphFromIterator(separated_edges)
-        components = filter(component -> !(length(component) == 1 && in(component[1], separator)), connected_components(separated))
-        @test length(components) < 3
     end
 end
+
 
 @testset "separator helper tests" begin
     @test _find_fundamental_cycle(bfs_parents(cycle_graph(3), 1), 1, Edge(2 => 3)) == Set(1:3)
