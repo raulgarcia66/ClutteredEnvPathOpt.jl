@@ -17,6 +17,60 @@ function fundamental_cycle_separator(graph::SimpleGraph, root::Int)::Set{Int}
 end
 fundamental_cycle_separator(graph::SimpleGraph) = fundamental_cycle_separator(graph, 1)
 
+function pp_expell(graph::SimpleGraph, separator::Set{Int})::Set{Int}
+    res = copy(separator)
+    component_a = _find_component(graph, separator)
+    component_b = Set(setdiff(vertices(graph), component_a, separator))
+
+    # if |a| == 0 then first fill it with serparator vertices not adjacent to b
+    if isempty(component_a)
+        for vertex in res
+            if isempty(intersect(neighbors(graph, vertex), component_b))
+                delete!(res, vertex)
+                push!(component_a, vertex)
+                break
+            end
+        end
+
+        # if a started empty and nothing could be initially added expullsion cannot occur
+        if isempty(component_a) return separator end
+    end
+
+    if isempty(component_b)
+        for vertex in res
+            if isempty(intersect(neighbors(graph, vertex), component_a))
+                delete!(res, vertex)
+                push!(component_b, vertex)
+                break
+            end
+        end
+
+        # if b started empty and nothing could be initially added expullsion cannot occur
+        if isempty(component_b) return separator end 
+    end
+
+    changes_made = true
+    while changes_made
+        changes_made = false
+        for vertex in res
+            adjacent_to_a = !isempty(intersect(neighbors(graph, vertex), component_a))
+            adjacent_to_b = !isempty(intersect(neighbors(graph, vertex), component_b))
+            
+            if (!adjacent_to_a && adjacent_to_b)
+                changes_made = true
+                delete!(res, vertex)
+                push!(component_b, vertex)
+            elseif (adjacent_to_a && !adjacent_to_b)
+                changes_made = true
+                delete!(res, vertex)
+                push!(component_a, vertex)
+            end
+        end
+    end
+
+    return res
+end
+
 function _find_fundamental_cycle(parents::Array{Int, 1}, root::Int64, non_tree_edge::Edge)::Set{Int}
     left_vertex = src(non_tree_edge)
     left_path = [left_vertex]
@@ -53,4 +107,21 @@ function _find_balance(graph::SimpleGraph, separator::Set{Int})::Number
     else
         return min(length(components[1]) / length(components[2]), length(components[2]) / length(components[1]))
     end
+end
+
+function _find_component(graph::SimpleGraph, separator::Set{Int})::Set{Int}
+    non_seporator_vertices = Set(setdiff(vertices(graph), separator))
+    if isempty(non_seporator_vertices)
+        return Set{Int}()
+    end
+
+    root = collect(non_seporator_vertices)[1]
+    component = Set(filter(vertex -> has_path(graph, root, vertex, exclude_vertices=collect(separator)), non_seporator_vertices))
+
+    # return component
+    # Return the smaller component
+    if 2 * length(component) < nv(graph) - length(separator)
+        return component
+    end
+    return setdiff(non_seporator_vertices, component)
 end

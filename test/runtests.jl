@@ -27,6 +27,29 @@ include("../src/separator.jl")
     end
 end
 
+@testset "separator postprocessing tests" begin
+    for graph_function in [cycle_graph, ladder_graph, wheel_graph, x -> grid([x, x])]
+        for i in 3:20
+            graph = graph_function(i)
+            separator = fundamental_cycle_separator(graph, 1)
+            pp_separator = pp_expell(graph, separator)
+
+            # pp_separator is nonempty
+            if length(pp_separator) == 0 println(graph_function, i, separator, pp_separator) end
+            @test length(pp_separator) > 0
+
+            # pp_separator breaks graph into no more than 2 components
+            separated_edges = filter(edge -> !(in(src(edge), pp_separator) || in(dst(edge), pp_separator)), collect(edges(graph)))
+            separated = SimpleGraphFromIterator(separated_edges)
+            components = filter(component -> !(length(component) == 1 && in(component[1], pp_separator)), connected_components(separated))
+            @test length(components) < 3
+
+            # pp_separator is smaller
+            @test length(pp_separator) <= length(separator)
+        end
+    end
+end
+
 
 @testset "separator helper tests" begin
     @test _find_fundamental_cycle(bfs_parents(cycle_graph(3), 1), 1, Edge(2 => 3)) == Set(1:3)
