@@ -17,7 +17,7 @@ include("../src/separator.jl")
     big_grid = grid([64, 64])
 
     pairs = map(
-        graph -> (graph, @time fundamental_cycle_separator(graph, 1)),
+        graph -> (graph, fundamental_cycle_separator(graph, 1)),
         [small_cycle, small_grid, small_ladder, small_wheel, big_grid],
     )
 
