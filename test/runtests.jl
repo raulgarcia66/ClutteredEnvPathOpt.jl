@@ -3,6 +3,8 @@ using ClutteredEnvPathOpt
 using LightGraphs
 using Test
 
+GENERATORS = [cycle_graph, ladder_graph, wheel_graph, x -> grid([x, x])]
+RANGE_NODES = 3:32
 
 # @testset "ClutteredEnvPathOpt.jl" begin
 #     # Write your own tests here.
@@ -10,8 +12,8 @@ using Test
 
 include("../src/separator.jl")
 @testset "separator tests" begin
-    for graph_function in [cycle_graph, ladder_graph, wheel_graph, x -> grid([x, x])]
-        for i in 3:20
+    for graph_function in GENERATORS
+        for i in RANGE_NODES
             graph = graph_function(i)
             separator = fundamental_cycle_separator(graph, 1)
 
@@ -28,8 +30,8 @@ include("../src/separator.jl")
 end
 
 @testset "separator postprocessing tests" begin
-    for graph_function in [cycle_graph, ladder_graph, wheel_graph, x -> grid([x, x])]
-        for i in 3:20
+    for graph_function in GENERATORS
+        for i in RANGE_NODES
             graph = graph_function(i)
             separator = fundamental_cycle_separator(graph, 1)
             pp_separator = pp_expell(graph, separator)
