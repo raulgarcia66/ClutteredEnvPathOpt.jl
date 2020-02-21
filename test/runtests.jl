@@ -13,11 +13,12 @@ include("../src/separator.jl")
     small_cycle = cycle_graph(9)
     small_grid = grid([3, 3])
     small_ladder = ladder_graph(5)
+    small_wheel = wheel_graph(8)
     big_grid = grid([64, 64])
 
     pairs = map(
-        graph -> (graph, fundamental_cycle_separator(graph, 1)),
-        [small_cycle, small_grid, small_ladder, big_grid],
+        graph -> (graph, @time fundamental_cycle_separator(graph, 1)),
+        [small_cycle, small_grid, small_ladder, small_wheel, big_grid],
     )
 
     for (graph, separator) in pairs

@@ -9,8 +9,11 @@ function fundamental_cycle_separator(graph::SimpleGraph, root::Int)::Set{Int}
     fundamental_cycles = map(non_tree_edge -> _find_fundamental_cycle(parents, root, non_tree_edge), non_tree_edges)
 
     balances = map(separator -> _find_balance(graph, Set(separator)), fundamental_cycles)
-
-    return fundamental_cycles[findall(balance -> balance == max(balances...), balances)[1]]
+    max_balance = max(balances...)
+    for i in 1:length(balances)
+        if balances[i] == max_balance return fundamental_cycles[i] end
+    end
+    return fundamental_cycles[1]
 end
 fundamental_cycle_separator(graph::SimpleGraph) = fundamental_cycle_separator(graph, 1)
 
