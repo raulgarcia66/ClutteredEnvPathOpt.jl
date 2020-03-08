@@ -125,3 +125,8 @@ function _find_component(graph::SimpleGraph, separator::Set{Int})::Set{Int}
     end
     return setdiff(non_seporator_vertices, component)
 end
+
+function _is_separator(graph::SimpleGraph, A::Set{Int}, B::Set{Int}, separator::Set{Int})
+    reduce(&, map(a -> reduce(&, map(b -> !has_path(graph, a, b, exclude_vertices=collect(separator)), B)), A))
+    
+end
