@@ -29,6 +29,8 @@ end
                 if break_early break end
             end
             @test is_valid
+
+            @test all(map(vertex -> in(vertex, union(separator, a, b)), collect(keys(lg.labels))))
         end
     end
 end
@@ -58,6 +60,8 @@ GENERATORS = [ClutteredEnvPathOpt.LightGraphs.cycle_graph, ClutteredEnvPathOpt.L
                 if break_early break end
             end
             @test is_valid
+
+            @test all(map(vertex -> in(vertex, union(pp_separator, pp_a, pp_b)), collect(keys(lg.labels))))
 
             @test length(pp_separator) <= length(separator)
         end
