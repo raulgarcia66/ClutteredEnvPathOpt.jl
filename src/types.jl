@@ -1,5 +1,3 @@
-import LightGraphs
-
 struct LabeledGraph{T}
     graph::LightGraphs.AbstractGraph
     labels::Dict{T, Int}

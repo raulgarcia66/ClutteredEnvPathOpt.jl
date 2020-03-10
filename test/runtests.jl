@@ -1,19 +1,12 @@
 using ClutteredEnvPathOpt
-
-import LightGraphs
-
-using Pipe
 using Test
-
-include("../src/separator.jl")
-include("../src/types.jl")
 
 @testset "ClutteredEnvPathOpt.jl" begin
     # Write your own tests here.
 end
 
-@testset "Separator tests" begin
-    GENERATORS = [LightGraphs.cycle_graph, LightGraphs.ladder_graph, LightGraphs.wheel_graph, x -> LightGraphs.grid([x, x])]
+@testset "fundamental cycle separator tests" begin
+    GENERATORS = [ClutteredEnvPathOpt.LightGraphs.cycle_graph, ClutteredEnvPathOpt.LightGraphs.ladder_graph, ClutteredEnvPathOpt.LightGraphs.wheel_graph, x -> ClutteredEnvPathOpt.LightGraphs.grid([x, x])]
     RANGE_NODES = 4:32
 
     for graph_function in GENERATORS
@@ -25,7 +18,7 @@ end
             for source in a
                 break_early = false
                 for destination in b
-                    is_path = LightGraphs.has_path(lg.graph, source, destination, exclude_vertices=collect(separator))
+                    is_path = ClutteredEnvPathOpt.LightGraphs.has_path(lg.graph, source, destination, exclude_vertices=collect(separator))
                     is_valid = is_valid && !is_path
                     if !is_valid
                         break_early = true
@@ -41,7 +34,7 @@ end
 end
 
 @testset "separator postprocessing tests" begin
-GENERATORS = [LightGraphs.cycle_graph, LightGraphs.ladder_graph, LightGraphs.wheel_graph, x -> LightGraphs.grid([x, x])]
+GENERATORS = [ClutteredEnvPathOpt.LightGraphs.cycle_graph, ClutteredEnvPathOpt.LightGraphs.ladder_graph, ClutteredEnvPathOpt.LightGraphs.wheel_graph, x -> ClutteredEnvPathOpt.LightGraphs.grid([x, x])]
     RANGE_NODES = 4:32
 
     for graph_function in GENERATORS
@@ -54,7 +47,7 @@ GENERATORS = [LightGraphs.cycle_graph, LightGraphs.ladder_graph, LightGraphs.whe
             for source in pp_a
                 break_early = false
                 for destination in pp_b
-                    is_path = LightGraphs.has_path(lg.graph, source, destination, exclude_vertices=collect(pp_separator))
+                    is_path = ClutteredEnvPathOpt.LightGraphs.has_path(lg.graph, source, destination, exclude_vertices=collect(pp_separator))
                     is_valid = is_valid && !is_path
                     if !is_valid
                         break_early = true
@@ -82,11 +75,11 @@ end
 #     for filename in filenames
 #         open(("test/delaunay-graphs/$filename.tsp")) do file
 #             lines = readlines(file)
-#             graph = @pipe match(r"\d+", lines[1]) |> parse(Int, _.match) |> LightGraphs.SimpleGraph
+#             graph = @pipe match(r"\d+", lines[1]) |> parse(Int, _.match) |> ClutteredEnvPathOpt.LightGraphs.SimpleGraph
     
 #             for line in lines[7:end - 1]
 #                 edge = map(rm -> parse(Int, rm.match), collect(eachmatch(r"\d+", line)))
-#                 LightGraphs.add_edge!(graph, edge[2], edge[3]);
+#                 ClutteredEnvPathOpt.LightGraphs.add_edge!(graph, edge[2], edge[3]);
 #             end
     
 #             lg = LabeledGraph(graph)
@@ -96,7 +89,7 @@ end
 #             for source in a
 #                 break_early = false
 #                 for destination in b
-#                     is_path = LightGraphs.has_path(lg.graph, source, destination, exclude_vertices=collect(separator))
+#                     is_path = ClutteredEnvPathOpt.LightGraphs.has_path(lg.graph, source, destination, exclude_vertices=collect(separator))
 #                     is_valid = is_valid && !is_path
 #                     if !is_valid
 #                         break_early = true

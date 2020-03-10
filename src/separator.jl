@@ -1,9 +1,3 @@
-using Pipe
-
-import LightGraphs
-
-include("types.jl")
-
 # Returns (Separator, A, B)
 function find_separator_fcs(lg::LabeledGraph{T}, root::T)::Tuple{Set{T}, Set{T}, Set{T}} where {T}
     parents = LightGraphs.bfs_parents(lg.graph, lg.labels[root])
@@ -23,7 +17,7 @@ function find_separator_fcs(lg::LabeledGraph{T}, root::T)::Tuple{Set{T}, Set{T},
 end
 
 function find_separator_lt(lg::LabeledGraph{T}, root::T)::Tuple{Set{T}, Set{T}, Set{T}} where {T}
-    levels = @pipe LightGraphs.bfs_tree(lg.graph, lg.labels[root]) |> _find_bfs_levels(_, lg.labels[root])
+    levels = @pipe LightGraphs.bfs_tree(lg.graph, lg.labels[root]) |> _find_bfs_levels(_, lg.labels[root]) |> map(level -> Set(convert_vertices(lg.labels, collect(level))), _)
 
     for i in 2:length(levels)
         if sum(map(j -> length(levels[j]), 1:i)) > (LightGraphs.nv(lg.graph) / 2) break end
@@ -31,10 +25,12 @@ function find_separator_lt(lg::LabeledGraph{T}, root::T)::Tuple{Set{T}, Set{T}, 
     middle = levels[i]
 
     if (length(middle) < 2 * sqrt(2 * LightGraphs.nv(lg.graph)))
-        return (middle, _find_partitions(lg, middle)...)
+        return (middle, reduce((j, k) -> union(levels[j], levels[k]), 1:(i - 1)), reduce((j, k) -> union(levels[j], levels[k]), (i + 1):length(levels)))
     end
 
-    # TODO
+    # Phase II
+
+    # Phase III
 end
 
 function pp_expell(lg::LabeledGraph{T}, separator::Set{T}, a::Set{T}, b::Set{T})::Tuple{Set{T}, Set{T}, Set{T}} where {T}
