@@ -22,6 +22,21 @@ function find_separator_fcs(lg::LabeledGraph{T}, root::T)::Tuple{Set{T}, Set{T},
     return partitions[1]
 end
 
+function find_separator_lt(lg::LabeledGraph{T}, root::T)::Tuple{Set{T}, Set{T}, Set{T}} where {T}
+    levels = @pipe LightGraphs.bfs_tree(lg.graph, lg.labels[root]) |> _find_bfs_levels(_, lg.labels[root])
+
+    for i in 2:length(levels)
+        if sum(map(j -> length(levels[j]), 1:i)) > (LightGraphs.nv(lg.graph) / 2) break end
+    end
+    middle = levels[i]
+
+    if (length(middle) < 2 * sqrt(2 * LightGraphs.nv(lg.graph)))
+        return (middle, _find_partitions(lg, middle)...)
+    end
+
+    # TODO
+end
+
 function pp_expell(lg::LabeledGraph{T}, separator::Set{T}, a::Set{T}, b::Set{T})::Tuple{Set{T}, Set{T}, Set{T}} where {T}
     new_separator = copy(separator)
     new_a = copy(a)
@@ -104,4 +119,25 @@ function _find_fundamental_cycle(parents::Array{Int, 1}, root::Int, non_tree_edg
     end
 
     return Set(union(left_path, right_path))
+end
+
+function _find_bfs_levels(t::LightGraphs.AbstractGraph, root::Int)::Array{Set{Int}, 1}
+    levels = Dict{Int, Set{Int}}()
+
+    levels[1] = Set([root])
+    i = 2
+    while true
+        levels[i] = Set(reduce(union, map(vertex -> LightGraphs.outneighbors(t, vertex), collect(levels[i - 1]))))
+
+        if isempty(levels[i]) break end
+
+        i += 1
+    end
+
+    res = Array{Set{Int}}(undef, i - 1)
+    for i in 1:length(res)
+        res[i] = levels[i]
+    end
+
+    return res
 end
