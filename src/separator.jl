@@ -59,7 +59,7 @@ function pp_expell(lg::LabeledGraph{T}, separator::Set{T}, a::Set{T}, b::Set{T})
         is_connected_b = @pipe map(destination -> LightGraphs.has_path(lg.graph, vertex, destination, exclude_vertices=collect(setdiff(new_separator, vertex))), collect(new_b)) |> reduce(|, _)
 
         if !is_connected_a && !is_connected_b
-            push!(length(new_a) < length(new_b) ? a : b, vertex)
+            push!(length(new_a) < length(new_b) ? new_a : new_b, vertex)
             delete!(new_separator, vertex)
         elseif is_connected_a && !is_connected_b
             push!(new_a, vertex)
