@@ -1,3 +1,5 @@
+using Pipe
+
 import LightGraphs
 
 include("types.jl")
@@ -18,6 +20,47 @@ function find_separator_fcs(lg::LabeledGraph{T}, root::T)::Tuple{Set{T}, Set{T},
         if balances[i] == max_balance return partitions[i] end
     end
     return partitions[1]
+end
+
+function pp_expell(lg::LabeledGraph{T}, separator::Set{T}, a::Set{T}, b::Set{T})::Tuple{Set{T}, Set{T}, Set{T}} where {T}
+    new_separator = copy(separator)
+    new_a = copy(a)
+    new_b = copy(b)
+
+    if isempty(a)
+        availible = filter(
+            vertex -> reduce(|, map(destination -> LightGraphs.has_path(lg.graph, vertex, destination, exclude_vertices=collect(separator)), collect(new_b))),
+            collect(separator)
+        )
+        if !isempty(availible) push!(new_a, availible[1]) end
+    end
+
+    if isempty(b)
+        availible = filter(
+            vertex -> reduce(|, map(destination -> LightGraphs.has_path(lg.graph, vertex, destination, exclude_vertices=collect(separator)), collect(new_a))),
+            collect(separator)
+        )
+        if !isempty(availible) push!(new_b, availible[1]) end
+    end
+
+    for vertex in new_separator
+        is_connected_a = @pipe map(destination -> LightGraphs.has_path(lg.graph, vertex, destination, exclude_vertices=collect(setdiff(new_separator, vertex))), collect(new_a)) |> reduce(|, _)
+        is_connected_b = @pipe map(destination -> LightGraphs.has_path(lg.graph, vertex, destination, exclude_vertices=collect(setdiff(new_separator, vertex))), collect(new_b)) |> reduce(|, _)
+
+        if !is_connected_a && !is_connected_b
+            push!(length(new_a) < length(new_b) ? a : b, vertex)
+            delete!(new_separator, vertex)
+        elseif is_connected_a && !is_connected_b
+            push!(new_a, vertex)
+            delete!(new_separator, vertex)
+        elseif !is_connected_a && is_connected_b
+            push!(new_b, vertex)
+            delete!(new_separator, vertex)
+        end
+
+    end
+
+    return (new_separator, new_a, new_b)
 end
 
 function _find_partitions(lg::LabeledGraph{T}, separator::Set{T})::Tuple{Set{T}, Set{T}} where {T}
