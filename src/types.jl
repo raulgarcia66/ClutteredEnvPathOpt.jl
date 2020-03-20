@@ -24,6 +24,15 @@ function lg_rem_vertex!(lg::LabeledGraph{T}, v::T)::Bool where {T}
     return LightGraphs.rem_vertex!(lg.graph, n)
 end
 
+function lg_add_vertex!(lg::LabeledGraph{T}, v::T)::Bool where {T}
+    lg.labels[T] = LightGraphs.nv(lg.graph) + 1
+    return LightGraphs.add_vertex!(lg.graph)
+end
+
+function lg_add_edge!(lg::LabeledGraph{T}, x::T, y::T)::Bool where {T}
+    return LightGraphs.add_edge!(lg.labels[x], lg.labels[y])
+end
+
 function _reverse_labels(labels::Dict{K, V})::Dict{V, K} where {K, V}
     return Dict(value => key for (key, value) in labels)
 end
