@@ -48,7 +48,7 @@ function find_separator_lt(lg::LabeledGraph{T}, root::T)::Tuple{Set{T}, Set{T}, 
     end
     if sum(map(i -> length(levels[i]), 1:upper_index)) > 1/3
         # upper is separator
-        above = @pipe map(i -> levels[i], 1:(upper_index - 1)) |> reduce(union, _)
+        above = upper_index > 1 ? (@pipe map(i -> levels[i], 1:(upper_index - 1)) |> reduce(union, _)) : Set()
         below = upper_index < length(levels) ? (@pipe map(i -> levels[i], (upper_index + 1):length(levels)) |> reduce(union, _)) : Set()
         a = length(above) < length(below) ? above : below;
         b = length(above) < length(below) ? below : above;
@@ -65,7 +65,7 @@ function find_separator_lt(lg::LabeledGraph{T}, root::T)::Tuple{Set{T}, Set{T}, 
     end
     if sum(map(i -> length(levels[i]), lower_index:length(levels))) > 1/3
         # lower is separator
-        above = @pipe map(i -> levels[i], 1:(lower_index - 1)) |> reduce(union, _)
+        above = lower_index > 1 ? (@pipe map(i -> levels[i], 1:(lower_index - 1)) |> reduce(union, _)) : Set()
         below = lower_index < length(levels) ? (@pipe map(i -> levels[i], (lower_index + 1):length(levels)) |> reduce(union, _)) : Set()
         a = length(above) < length(below) ? above : below;
         b = length(above) < length(below) ? below : above;
