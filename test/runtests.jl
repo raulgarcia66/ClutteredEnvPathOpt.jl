@@ -1,5 +1,6 @@
 using ClutteredEnvPathOpt
 using Test
+using Pipe
 
 @testset "ClutteredEnvPathOpt.jl" begin
     # Write your own tests here.
@@ -99,7 +100,7 @@ end
     for filename in filenames
         open(("delaunay-graphs/$filename.tsp.del")) do file
             lines = readlines(file)
-            graph = @ClutteredEnvPathOpt.pipe match(r"\d+", lines[1]) |> parse(Int, _.match) |> ClutteredEnvPathOpt.LightGraphs.SimpleGraph
+            graph = @pipe match(r"\d+", lines[1]) |> parse(Int, _.match) |> ClutteredEnvPathOpt.LightGraphs.SimpleGraph
     
             for line in lines[2:end]
                 edge = map(rm -> parse(Int, rm.match), collect(eachmatch(r"\d+", line)))
