@@ -19,18 +19,65 @@ end
 function find_separator_lt(lg::LabeledGraph{T}, root::T)::Tuple{Set{T}, Set{T}, Set{T}} where {T}
     levels = @pipe LightGraphs.bfs_tree(lg.graph, lg.labels[root]) |> _find_bfs_levels(_, lg.labels[root]) |> map(level -> Set(convert_vertices(lg.labels, collect(level))), _)
 
+    # Phase I
+    middle_index = -1
     for i in 2:length(levels)
-        if sum(map(j -> length(levels[j]), 1:i)) > (LightGraphs.nv(lg.graph) / 2) break end
+        if sum(map(j -> length(levels[j]), 1:i)) > (LightGraphs.nv(lg.graph) / 2)
+            middle_index = i
+            break
+        end
     end
-    middle = levels[i]
+    middle = levels[middle_index]
 
-    if (length(middle) < 2 * sqrt(2 * LightGraphs.nv(lg.graph)))
-        return (middle, reduce((j, k) -> union(levels[j], levels[k]), 1:(i - 1)), reduce((j, k) -> union(levels[j], levels[k]), (i + 1):length(levels)))
+    if length(middle) < (2 * sqrt(2 * LightGraphs.nv(lg.graph)))
+        above = @pipe map(i -> levels[i], 1:(middle_index - 1)) |> reduce(union, _)
+        below = middle_index < length(levels) ? (@pipe map(i -> levels[i], (middle_index + 1):length(levels)) |> reduce(union, _)) : Set()
+        a = length(above) < length(below) ? above : below;
+        b = length(above) < length(below) ? below : above;
+        return (middle, a, b)
     end
 
     # Phase II
+    upper_index = -1;
+    for i in middle_index:-1:1
+        distance = middle_index - i
+        if length(levels[i]) < 2 * (sqrt(LightGraphs.nv(lg.graph)) - distance)
+            upper_index = i
+            break
+        end
+    end
+    if sum(map(i -> length(levels[i]), 1:upper_index)) > 1/3
+        # upper is separator
+        above = @pipe map(i -> levels[i], 1:(upper_index - 1)) |> reduce(union, _)
+        below = upper_index < length(levels) ? (@pipe map(i -> levels[i], (upper_index + 1):length(levels)) |> reduce(union, _)) : Set()
+        a = length(above) < length(below) ? above : below;
+        b = length(above) < length(below) ? below : above;
+        return (levels[upper_index], a, b)
+    end
 
-    # Phase III
+    lower_index = -1;
+    for i in middle_index:length(levels)
+        distance = i - middle_index
+        if length(levels[i]) < 2 * (sqrt(LightGraphs.nv(lg.graph)) - distance)
+            lower_index = i
+            break
+        end
+    end
+    if sum(map(i -> length(levels[i]), lower_index:length(levels))) > 1/3
+        # lower is separator
+        above = @pipe map(i -> levels[i], 1:(lower_index - 1)) |> reduce(union, _)
+        below = lower_index < length(levels) ? (@pipe map(i -> levels[i], (lower_index + 1):length(levels)) |> reduce(union, _)) : Set()
+        a = length(above) < length(below) ? above : below;
+        b = length(above) < length(below) ? below : above;
+        return (levels[lower_index], a, b)
+    end
+
+    # TODO: Phase III
+    ## Find a cycle between upper and lower by adding a non-tree edge
+    ## Find nodes in the inner bit to the left and right of the cycle
+    ## add larger of left/right to smaller of above/below and vice versa
+    return find_separator_fcs(lg, root)
+
 end
 
 function pp_expell(lg::LabeledGraph{T}, separator::Set{T}, a::Set{T}, b::Set{T})::Tuple{Set{T}, Set{T}, Set{T}} where {T}
