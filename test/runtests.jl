@@ -43,7 +43,7 @@ end
     for graph_function in GENERATORS
         for i in RANGE_NODES
             lg = LabeledGraph(graph_function(i))
-            (separator, a, b) = find_separator_fc_best(lg, 1)
+            (separator, a, b) = find_separator_fcs_best(lg, 1)
 
             is_valid = true
             for source in a
