@@ -44,4 +44,10 @@ function compare(metric, generator, range, filename)
     savefig(string("stats/", filename, ".png"))
 end
 
-compare(gen_balance, i -> ClutteredEnvPathOpt.LightGraphs.grid([i, i]), (3:20), "time")
+# compare(gen_separator_size, ClutteredEnvPathOpt.LightGraphs.ladder_graph, 4:50, "size")
+# compare(gen_balance, ClutteredEnvPathOpt.LightGraphs.ladder_graph, 4:50, "balance")
+# compare(gen_elapsed, ClutteredEnvPathOpt.LightGraphs.ladder_graph, 4:50, "time")
+
+compare(gen_separator_size, i -> ClutteredEnvPathOpt.LightGraphs.grid([i, i]), 4:50, "size")
+compare(gen_balance, i -> ClutteredEnvPathOpt.LightGraphs.grid([i, i]), 4:50, "balance")
+compare(gen_elapsed, i -> ClutteredEnvPathOpt.LightGraphs.grid([i, i]), 4:50, "time")
