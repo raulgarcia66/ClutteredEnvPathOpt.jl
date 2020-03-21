@@ -1,21 +1,4 @@
 # Returns (Separator, A, B)
-function find_separator_fcs(lg::LabeledGraph{T}, root::T)::Tuple{Set{T}, Set{T}, Set{T}} where {T}
-    parents = LightGraphs.bfs_parents(lg.graph, lg.labels[root])
-
-    tree_edges = map(tup -> LightGraphs.Edge(tup[1] => tup[2]), zip(parents, 1:length(parents)))
-    non_tree_edges = filter(edge -> !(in(edge, tree_edges) || in(reverse(edge), tree_edges)), collect(LightGraphs.edges(lg.graph)))
-
-    fundamental_cycles = @pipe map(non_tree_edge -> _find_fundamental_cycle(parents, root, non_tree_edge), non_tree_edges) |> map(cycle -> Set(convert_vertices(lg.labels, collect(cycle))), _)
-    partitions = map(cycle -> (cycle, _find_partitions(lg, cycle)...), fundamental_cycles)
-    balances = map(partition -> min(length(partition[2]) / length(partition[3]), length(partition[3]) / length(partition[2])), partitions)
-
-    max_balance = max(balances...)
-    for i in 1:length(balances)
-        if balances[i] == max_balance return partitions[i] end
-    end
-    return partitions[1]
-end
-
 function find_separator_lt(lg::LabeledGraph{T}, root::T)::Tuple{Set{T}, Set{T}, Set{T}} where {T}
     levels = @pipe LightGraphs.bfs_tree(lg.graph, lg.labels[root]) |> _find_bfs_levels(_, lg.labels[root]) |> map(level -> Set(convert_vertices(lg.labels, collect(level))), _)
 
@@ -78,6 +61,34 @@ function find_separator_lt(lg::LabeledGraph{T}, root::T)::Tuple{Set{T}, Set{T}, 
     ## add larger of left/right to smaller of above/below and vice versa
     return find_separator_fcs(lg, root)
 
+end
+
+function find_separator_fcs(lg::LabeledGraph{T}, root::T)::Tuple{Set{T}, Set{T}, Set{T}} where {T}
+    parents = LightGraphs.bfs_parents(lg.graph, lg.labels[root])
+
+    tree_edges = map(tup -> LightGraphs.Edge(tup[1] => tup[2]), zip(parents, 1:length(parents)))
+    non_tree_edge = filter(edge -> !(in(edge, tree_edges) || in(reverse(edge), tree_edges)), collect(LightGraphs.edges(lg.graph)))[1]
+
+    fundamental_cycle = @pipe _find_fundamental_cycle(parents, root, non_tree_edge) |> Set(convert_vertices(lg.labels, collect(_)))
+    return (fundamental_cycle, _find_partitions(lg, fundamental_cycle)...)
+end
+
+function find_separator_fcs_best(lg::LabeledGraph{T}, root::T)::Tuple{Set{T}, Set{T}, Set{T}} where {T}
+    # THIS ALGORITHM IS O(n^2) BECAUSE IT CHOOSES THE MOST BALANCED
+    parents = LightGraphs.bfs_parents(lg.graph, lg.labels[root])
+
+    tree_edges = map(tup -> LightGraphs.Edge(tup[1] => tup[2]), zip(parents, 1:length(parents)))
+    non_tree_edges = filter(edge -> !(in(edge, tree_edges) || in(reverse(edge), tree_edges)), collect(LightGraphs.edges(lg.graph)))
+
+    fundamental_cycles = @pipe map(non_tree_edge -> _find_fundamental_cycle(parents, root, non_tree_edge), non_tree_edges) |> map(cycle -> Set(convert_vertices(lg.labels, collect(cycle))), _)
+    partitions = map(cycle -> (cycle, _find_partitions(lg, cycle)...), fundamental_cycles)
+    balances = map(partition -> min(length(partition[2]) / length(partition[3]), length(partition[3]) / length(partition[2])), partitions)
+
+    max_balance = max(balances...)
+    for i in 1:length(balances)
+        if balances[i] == max_balance return partitions[i] end
+    end
+    return partitions[1]
 end
 
 function pp_expell(lg::LabeledGraph{T}, separator::Set{T}, a::Set{T}, b::Set{T})::Tuple{Set{T}, Set{T}, Set{T}} where {T}
