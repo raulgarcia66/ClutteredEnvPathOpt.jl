@@ -195,3 +195,34 @@ function _find_bfs_levels(t::LightGraphs.AbstractGraph, root::Int)::Array{Set{In
 
     return res
 end
+
+function find_feg_separator_lt(skeleton::LabeledGraph{T}, faces::Set{Pair{T, T}})::Tuple{Set{T}, Set{T}, Set{T}} where {T}
+    # TODO
+end
+
+function find_feg_separator_lt(skeleton::LabeledGraph{T})::Tuple{Set{T}, Set{T}, Set{T}} where {T}
+    return find_feg_separator_lt(skeleton, _find_faces(skeleton))
+end
+
+function _find_faces(embedding::Dict{T, Array{T, 1}})::Set{Pair{T, T}} where {T}
+    ordered_vertices = map(pair -> push!(pair.second, pair.first), collect(embedding))
+    return map(
+        face -> begin
+            face_pairs = Set()
+            for i in 1:(length(face) - 1)
+                push!(face_pairs, Pair(face[i], face[i + 1]))
+            end
+            push!(face_pairs, Pair(face[end], face[1]))
+        end,
+        ordered_vertices
+    )
+end
+
+function _find_faces(lg::LabeledGraph{T})::Set{Pair{T, T}} where {T}
+    return _find_faces(_find_embedding(lg))
+end
+
+# Returns vertex => clockwise ordering of neighbors
+function _find_embedding(lg::LabeledGraph{T})::Dict{T, Array{T, 1}} where {T}
+    # TODO
+end
