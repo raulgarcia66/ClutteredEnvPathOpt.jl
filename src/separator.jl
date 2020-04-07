@@ -196,33 +196,39 @@ function _find_bfs_levels(t::LightGraphs.AbstractGraph, root::Int)::Array{Set{In
     return res
 end
 
-function find_feg_separator_lt(skeleton::LabeledGraph{T}, faces::Set{Pair{T, T}})::Tuple{Set{T}, Set{T}, Set{T}} where {T}
-    # TODO
-end
-
-function find_feg_separator_lt(skeleton::LabeledGraph{T})::Tuple{Set{T}, Set{T}, Set{T}} where {T}
-    return find_feg_separator_lt(skeleton, _find_faces(skeleton))
-end
-
-function _find_faces(embedding::Dict{T, Array{T, 1}})::Set{Pair{T, T}} where {T}
-    ordered_vertices = map(pair -> push!(pair.second, pair.first), collect(embedding))
-    return map(
-        face -> begin
-            face_pairs = Set()
-            for i in 1:(length(face) - 1)
-                push!(face_pairs, Pair(face[i], face[i + 1]))
+function find_feg_separator_lt(skeleton::LabeledGraph{T}, faces::Set{LightGraphs.AbstractEdge})::Tuple{Set{T}, Set{T}, Set{T}} where {T}
+    g = copy(skeleton)
+    
+    for face in faces
+        face_vertices = reduce((x, y) -> push!(x, y.src), face, init=Set{Number}())
+        for edge in face
+            for dest in face_vertices
+                lg_add_edge!(g, edge.src, dest)
             end
-            push!(face_pairs, Pair(face[end], face[1]))
-        end,
-        ordered_vertices
-    )
-end
+        end
+    end
 
-function _find_faces(lg::LabeledGraph{T})::Set{Pair{T, T}} where {T}
-    return _find_faces(_find_embedding(lg))
-end
+    g_star_star = copy(skeleton)
+    new_vertices = Set{Number}()
+    for face in faces
+        new_vertex = rand()
+        push!(new_vertices, new_vertex)
+        lg_add_vertex!(g_star_star, new_vertex)
+        for edge in face
+            lg_add_edge!(g_star_star, edge.first, new_vertex)
+        end
+    end
 
-# Returns vertex => clockwise ordering of neighbors
-function _find_embedding(lg::LabeledGraph{T})::Dict{T, Array{T, 1}} where {T}
-    # TODO
+    (c_star_star, a_star_star, b_star_star) = find_separator_lt(g_star_star, 1)
+
+    bad_faces = nothing;    # How do I find this in linear time???
+    # How do you detect bad faces without G?
+    # Why form G here?
+    # Why add stuff to G** here?
+
+    for face in bad_faces
+        
+    end
+
+    
 end
