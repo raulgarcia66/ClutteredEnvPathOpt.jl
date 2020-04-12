@@ -9,9 +9,13 @@ end
 
 Base.copy(lg::LabeledGraph) = LabeledGraph(copy(lg.graph), copy(lg.labels))
 
+function lg_vertices(lg::LabeledGraph{T})::Set{T} where {T}
+    return Set(keys(lg.labels))
+end
+
 function convert_vertices(labels::Dict{T, Int}, vertices) where {T}
     rev = _reverse_labels(labels)
-    map(vertex -> rev[vertex], vertices)
+    return map(vertex -> rev[vertex], vertices)
 end
 
 function lg_rem_vertex!(lg::LabeledGraph{T}, v::T)::Bool where {T}
@@ -25,12 +29,12 @@ function lg_rem_vertex!(lg::LabeledGraph{T}, v::T)::Bool where {T}
 end
 
 function lg_add_vertex!(lg::LabeledGraph{T}, v::T)::Bool where {T}
-    lg.labels[T] = LightGraphs.nv(lg.graph) + 1
+    lg.labels[v] = LightGraphs.nv(lg.graph) + 1
     return LightGraphs.add_vertex!(lg.graph)
 end
 
 function lg_add_edge!(lg::LabeledGraph{T}, x::T, y::T)::Bool where {T}
-    return LightGraphs.add_edge!(lg.labels[x], lg.labels[y])
+    return LightGraphs.add_edge!(lg.graph, lg.labels[x], lg.labels[y])
 end
 
 function _reverse_labels(labels::Dict{K, V})::Dict{V, K} where {K, V}
