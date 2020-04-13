@@ -1,0 +1,60 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amssymb}
+\usepackage{amsmath}
+\usepackage{algpseudocode}
+
+
+\title{Writeup}
+\author{Miles Olson}
+\date{Spring 2020}
+
+\begin{document}
+
+\maketitle
+
+\begin{algorithmic}[1]
+    \Procedure{Separate}{$G^*, F$}
+        \State $G \gets copy(G^*)$   \Comment{Construct the finite element graph $G$}
+        \ForAll{$f \in F$}
+            \State $V \gets \text{vertices}(f)$
+            \ForAll{$(i, j) \in V \times V$}
+                \State $\text{add\_edge}(G, i, j)$
+            \EndFor
+        \EndFor
+
+        \State $G^{**} \gets copy(G^*)$ \Comment{Construct the planar reduction $G^{**}$}
+        \State $M \gets \varnothing$
+        \ForAll{$f \in F$}
+            \State $\mu \gets \text{some new vertex}$
+            \State $M[\mu] \gets f$
+            \State $V \gets \text{vertices}(f)$
+            \ForAll{$v \in V$}
+                $\text{add\_edge}(G, v, \mu)$
+            \EndFor
+        \EndFor
+
+        \State $(A^{**}, B^{**}, C^{**}) \gets \text{planar\_separator}(G^{**})$
+        
+        \State $A \gets v$ for  $v \in A^{**}$ if $v \notin NV$ \Comment{Remove ``bad face'' vertices}
+        \State $B \gets v$ for  $v \in B^{**}$ if $v \notin NV$
+
+        \ForAll{$(\mu, f) \in M$}
+            \If{$\mu \in C^{**}$}
+                \State $X \gets \text{vertices}(f)$
+                \State $\chi_a \gets v$ for $v \in X$ if $v \in A^{**}$
+                \State $\chi_b \gets v$ for $v \in X$ if $v \in B^{**}$
+
+                \If{$|\chi_a| < |\chi_b|$}
+                    \State $A \gets A \setminus \chi_a$
+                \Else
+                    \State $B \gets B \setminus \chi_b$
+                \EndIf
+            \EndIf
+        \EndFor
+
+        \State \textbf{return} $(A, B, \text{vertices}(G) \setminus (A \cup B))$
+    \EndProcedure
+\end{algorithmic}
+
+\end{document}

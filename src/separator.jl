@@ -16,11 +16,12 @@ function find_feg_separator_lt(skeleton::LabeledGraph{T}, faces::Set{Set{Pair{T,
     g_star_star = copy(skeleton)
     new_vertices = Dict{Number, Set{Pair{T, T}}}()
     for face in faces
-        new_vertex = rand(Int64)
+        new_vertex = rand(T)
         push!(new_vertices, new_vertex => face)
         lg_add_vertex!(g_star_star, new_vertex)
-        for edge in face
-            lg_add_edge!(g_star_star, edge.first, new_vertex)
+        face_vertices = reduce((x, y) -> union!(x, Set([y.first, y.second])), face, init=Set{Number}())
+        for vertex in face_vertices
+            lg_add_edge!(g_star_star, vertex, new_vertex)
         end
     end
 
