@@ -1,4 +1,52 @@
 # Returns (Separator, A, B)
+function find_feg_separator_lt(skeleton::LabeledGraph{T}, faces::Set{Set{Pair{T, T}}})::Tuple{Set{T}, Set{T}, Set{T}} where {T}
+    g = copy(skeleton)
+    
+    for face in faces
+        face_vertices = reduce((x, y) -> union!(x, Set([y.first, y.second])), face, init=Set{Number}())
+        for edge in face
+            for dest in face_vertices
+                if (edge.first != dest)
+                    lg_add_edge!(g, edge.first, dest)
+                end
+            end
+        end
+    end
+
+    g_star_star = copy(skeleton)
+    new_vertices = Dict{Number, Set{Pair{T, T}}}()
+    for face in faces
+        new_vertex = rand(Int64)
+        push!(new_vertices, new_vertex => face)
+        lg_add_vertex!(g_star_star, new_vertex)
+        for edge in face
+            lg_add_edge!(g_star_star, edge.first, new_vertex)
+        end
+    end
+
+    (c_star_star, a_star_star, b_star_star) = find_separator_lt(g_star_star, 1)
+
+    a = filter(vertex -> !(vertex in keys(new_vertices)), a_star_star)
+    b = filter(vertex -> !(vertex in keys(new_vertices)), b_star_star)
+
+    for pair in new_vertices
+        if (pair.first in c_star_star)
+            bad_face_vertecies =  reduce((x, y) -> union!(x, Set([y.first, y.second])), pair.second, init=Set{Number}())
+
+            a_star_star_boundry = filter(vertex -> vertex in a_star_star, bad_face_vertecies)
+            b_star_star_boundry = filter(vertex -> vertex in b_star_star, bad_face_vertecies)
+            
+            if length(a_star_star_boundry) < length(b_star_star_boundry)
+                setdiff!(a, a_star_star_boundry)
+            else
+                setdiff!(b, b_star_star_boundry)
+            end
+        end
+    end
+
+    return (setdiff(lg_vertices(g), a, b), a, b)
+end
+
 function find_separator_lt(lg::LabeledGraph{T}, root::T)::Tuple{Set{T}, Set{T}, Set{T}} where {T}
     levels = @pipe LightGraphs.bfs_tree(lg.graph, lg.labels[root]) |> _find_bfs_levels(_, lg.labels[root]) |> map(level -> Set(convert_vertices(lg.labels, collect(level))), _)
 
@@ -194,58 +242,6 @@ function _find_bfs_levels(t::LightGraphs.AbstractGraph, root::Int)::Array{Set{In
     end
 
     return res
-end
-
-function find_feg_separator_lt(skeleton::LabeledGraph{T}, faces::Set{Set{Pair{T, T}}})::Tuple{Set{T}, Set{T}, Set{T}} where {T}
-    g = copy(skeleton)
-    
-    for face in faces
-        face_vertices = reduce((x, y) -> union!(x, Set([y.first, y.second])), face, init=Set{Number}())
-        for edge in face
-            for dest in face_vertices
-                if (edge.first != dest)
-                    lg_add_edge!(g, edge.first, dest)
-                end
-            end
-        end
-    end
-
-    # println(collect(LightGraphs.edges(g.graph)))
-
-    g_star_star = copy(skeleton)
-    new_vertices = Dict{Number, Set{Pair{T, T}}}()
-    for face in faces
-        new_vertex = rand(Int64)
-        push!(new_vertices, new_vertex => face)
-        lg_add_vertex!(g_star_star, new_vertex)
-        for edge in face
-            lg_add_edge!(g_star_star, edge.first, new_vertex)
-        end
-    end
-
-    # println(collect(LightGraphs.edges(g_star_star.graph)))
-
-    (c_star_star, a_star_star, b_star_star) = find_separator_lt(g_star_star, 1)
-
-    a = filter(vertex -> !(vertex in keys(new_vertices)), a_star_star)
-    b = filter(vertex -> !(vertex in keys(new_vertices)), b_star_star)
-
-    for pair in new_vertices
-        if (pair.first in c_star_star)
-            bad_face_vertecies =  reduce((x, y) -> union!(x, Set([y.first, y.second])), pair.second, init=Set{Number}())
-
-            a_star_star_boundry = filter(vertex -> vertex in a_star_star, bad_face_vertecies)
-            b_star_star_boundry = filter(vertex -> vertex in b_star_star, bad_face_vertecies)
-            
-            if length(a_star_star_boundry) < length(b_star_star_boundry)
-                setdiff!(a, a_star_star_boundry)
-            else
-                setdiff!(b, b_star_star_boundry)
-            end
-        end
-    end
-
-    return (setdiff(lg_vertices(g), a, b), a, b)
 end
 
 function _is_valid_separator(lg::LabeledGraph{T}, separator::Set{T}, a::Set{T}, b::Set{T})::Bool where T
