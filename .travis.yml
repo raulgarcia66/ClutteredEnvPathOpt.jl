@@ -2,7 +2,6 @@ language: julia
 codecov: true
 os:
   - linux
-  - osx
 julia:
   - nightly
   - 1.0
