@@ -103,10 +103,7 @@ function find_separator_lt(lg::LabeledGraph{T}, root::T)::Tuple{Set{T}, Set{T}, 
         return (levels[lower_index], a, b)
     end
 
-    # TODO: Phase III
-    ## Find a cycle between upper and lower by adding a non-tree edge
-    ## Find nodes in the inner bit to the left and right of the cycle
-    ## add larger of left/right to smaller of above/below and vice versa
+    # Phase III
     return find_separator_fcs(lg, root)
 
 end
