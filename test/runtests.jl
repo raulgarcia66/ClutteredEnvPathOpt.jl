@@ -15,23 +15,7 @@ end
             lg = LabeledGraph(graph_function(i))
             (separator, a, b) = find_separator_fcs(lg, 1)
 
-            is_valid = true
-            for source in a
-                break_early = false
-                for destination in b
-                    is_path = ClutteredEnvPathOpt.LightGraphs.has_path(lg.graph, source, destination, exclude_vertices=collect(separator))
-                    is_valid = is_valid && !is_path
-                    if !is_valid
-                        break_early = true
-                        break
-                    end
-                end
-
-                if break_early break end
-            end
-            @test is_valid
-
-            @test all(map(vertex -> in(vertex, union(separator, a, b)), collect(keys(lg.labels))))
+            @test ClutteredEnvPathOpt._is_valid_separator(lg, separator, a, b)
         end
     end
 end
@@ -45,23 +29,7 @@ end
             lg = LabeledGraph(graph_function(i))
             (separator, a, b) = find_separator_fcs_best(lg, 1)
 
-            is_valid = true
-            for source in a
-                break_early = false
-                for destination in b
-                    is_path = ClutteredEnvPathOpt.LightGraphs.has_path(lg.graph, source, destination, exclude_vertices=collect(separator))
-                    is_valid = is_valid && !is_path
-                    if !is_valid
-                        break_early = true
-                        break
-                    end
-                end
-
-                if break_early break end
-            end
-            @test is_valid
-
-            @test all(map(vertex -> in(vertex, union(separator, a, b)), collect(keys(lg.labels))))
+            @test ClutteredEnvPathOpt._is_valid_separator(lg, separator, a, b)
         end
     end
 end
@@ -75,23 +43,7 @@ end
             lg = LabeledGraph(graph_function(i))
             (separator, a, b) = find_separator_lt(lg, 1)
 
-            is_valid = true
-            for source in a
-                break_early = false
-                for destination in b
-                    is_path = ClutteredEnvPathOpt.LightGraphs.has_path(lg.graph, source, destination, exclude_vertices=collect(separator))
-                    is_valid = is_valid && !is_path
-                    if !is_valid
-                        break_early = true
-                        break
-                    end
-                end
-
-                if break_early break end
-            end
-            @test is_valid
-
-            @test all(map(vertex -> in(vertex, union(separator, a, b)), collect(keys(lg.labels))))
+            @test ClutteredEnvPathOpt._is_valid_separator(lg, separator, a, b)
         end
     end
 end
@@ -137,23 +89,7 @@ end
             
             (separator, a, b) = find_separator_fcs(lg, 1)
 
-            is_valid = true
-            for source in a
-                break_early = false
-                for destination in b
-                    is_path = ClutteredEnvPathOpt.LightGraphs.has_path(lg.graph, source, destination, exclude_vertices=collect(separator))
-                    is_valid = is_valid && !is_path
-                    if !is_valid
-                        break_early = true
-                        break
-                    end
-                end
-
-                if break_early break end
-            end
-            @test is_valid
-
-            @test all(map(vertex -> in(vertex, union(separator, a, b)), collect(keys(lg.labels))))
+            @test ClutteredEnvPathOpt._is_valid_separator(lg, separator, a, b)
         end
     end
 end
@@ -199,23 +135,7 @@ end
             
             (separator, a, b) = find_separator_fcs_best(lg, 1)
 
-            is_valid = true
-            for source in a
-                break_early = false
-                for destination in b
-                    is_path = ClutteredEnvPathOpt.LightGraphs.has_path(lg.graph, source, destination, exclude_vertices=collect(separator))
-                    is_valid = is_valid && !is_path
-                    if !is_valid
-                        break_early = true
-                        break
-                    end
-                end
-
-                if break_early break end
-            end
-            @test is_valid
-
-            @test all(map(vertex -> in(vertex, union(separator, a, b)), collect(keys(lg.labels))))
+            @test ClutteredEnvPathOpt._is_valid_separator(lg, separator, a, b)
         end
     end
 end
@@ -261,23 +181,7 @@ end
             
             (separator, a, b) = find_separator_lt(lg, 1)
 
-            is_valid = true
-            for source in a
-                break_early = false
-                for destination in b
-                    is_path = ClutteredEnvPathOpt.LightGraphs.has_path(lg.graph, source, destination, exclude_vertices=collect(separator))
-                    is_valid = is_valid && !is_path
-                    if !is_valid
-                        break_early = true
-                        break
-                    end
-                end
-
-                if break_early break end
-            end
-            @test is_valid
-
-            @test all(map(vertex -> in(vertex, union(separator, a, b)), collect(keys(lg.labels))))
+            @test ClutteredEnvPathOpt._is_valid_separator(lg, separator, a, b)
         end
     end
 end
@@ -292,23 +196,7 @@ GENERATORS = [ClutteredEnvPathOpt.LightGraphs.cycle_graph, ClutteredEnvPathOpt.L
             (separator, a, b) = find_separator_fcs(lg, 1)
             (pp_separator, pp_a, pp_b) = pp_expell(lg, separator, a, b)
 
-            is_valid = true
-            for source in pp_a
-                break_early = false
-                for destination in pp_b
-                    is_path = ClutteredEnvPathOpt.LightGraphs.has_path(lg.graph, source, destination, exclude_vertices=collect(pp_separator))
-                    is_valid = is_valid && !is_path
-                    if !is_valid
-                        break_early = true
-                        break
-                    end
-                end
-
-                if break_early break end
-            end
-            @test is_valid
-
-            @test all(map(vertex -> in(vertex, union(pp_separator, pp_a, pp_b)), collect(keys(lg.labels))))
+            @test ClutteredEnvPathOpt._is_valid_separator(lg, pp_separator, pp_a, pp_b)
 
             @test length(pp_separator) <= length(separator)
         end

@@ -247,3 +247,29 @@ function find_feg_separator_lt(skeleton::LabeledGraph{T}, faces::Set{Set{Pair{T,
 
     return (setdiff(lg_vertices(g), a, b), a, b)
 end
+
+function _is_valid_separator(lg::LabeledGraph{T}, separator::Set{T}, a::Set{T}, b::Set{T})::Bool where T
+    is_separating = true
+    for source in a
+        break_early = false
+        for destination in b
+            is_path = ClutteredEnvPathOpt.LightGraphs.has_path(lg.graph, source, destination, exclude_vertices=collect(separator))
+            is_valid = is_separating && !is_path
+            if !is_valid
+                break_early = true
+                break
+            end
+        end
+
+        if break_early break end
+    end
+
+   is_covering =  all(map(vertex -> in(vertex, union(separator, a, b)), collect(keys(lg.labels))))
+
+   is_disjoint =
+    all(map(vertex -> !in(vertex, union(a, b)), collect(separator))) &&
+    all(map(vertex -> !in(vertex, union(b, separator)), collect(a))) &&
+    all(map(vertex -> !in(vertex, union(a, separator)), collect(b)))
+
+    return is_separating && is_covering && is_disjoint
+end
