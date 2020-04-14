@@ -6,4 +6,5 @@ export LabeledGraph, find_feg_separator_lt, find_separator_lt, find_separator_fc
 
 include("types.jl")
 include("separator.jl")
+include("biclique.jl")
 end # module

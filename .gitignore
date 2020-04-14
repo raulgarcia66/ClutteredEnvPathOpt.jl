@@ -3,3 +3,9 @@
 /dev/
 *.png
 
+*.aux
+*.log
+*.pdf
+*.fdb_latexmk
+*.fls
+*.synctex(busy)
