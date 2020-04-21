@@ -37,6 +37,12 @@ function lg_add_edge!(lg::LabeledGraph{T}, x::T, y::T)::Bool where {T}
     return LightGraphs.add_edge!(lg.graph, lg.labels[x], lg.labels[y])
 end
 
+function lg_is_complete(lg::LabeledGraph{T})::Bool where {T}
+    num_edges = LightGraphs.ne(lg.graph)
+    num_vertices = LightGraphs.nv(lg.graph)
+    return num_edges == (num_vertices * (num_vertices - 1)) / 2
+end
+
 function _reverse_labels(labels::Dict{K, V})::Dict{V, K} where {K, V}
     return Dict(value => key for (key, value) in labels)
 end
@@ -69,7 +75,8 @@ function flatten(tree::BinaryTree{T}, array::Array{Union{T, Nothing}, 1}, index:
 end
 
 function flatten(tree::BinaryTree{T})::Array{Union{T, Nothing}, 1} where {T}
-    array = Array{Union{T, Nothing}, 1}(undef, height(tree) ^ 2 - 1)
+    array = Array{Union{T, Nothing}, 1}(nothing, height(tree) ^ 2 - 1)
     flatten(tree, array, 1)
     return array
 end
+

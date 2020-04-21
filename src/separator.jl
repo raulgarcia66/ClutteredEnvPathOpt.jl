@@ -1,17 +1,6 @@
 # Returns (Separator, A, B)
-function find_feg_separator_lt(skeleton::LabeledGraph{T}, faces::Set{Set{Pair{T, T}}})::Tuple{Set{T}, Set{T}, Set{T}} where {T}
-    g = copy(skeleton)
-    
-    for face in faces
-        face_vertices = reduce((x, y) -> union!(x, Set([y.first, y.second])), face, init=Set{Number}())
-        for edge in face
-            for dest in face_vertices
-                if (edge.first != dest)
-                    lg_add_edge!(g, edge.first, dest)
-                end
-            end
-        end
-    end
+function find_feg_separator_lt(skeleton::LabeledGraph{T}, faces::Set{Set{Pair{T, T}}}, root::T)::Tuple{Set{T}, Set{T}, Set{T}} where {T}
+    g = _find_finite_element_graph(skeleton, faces)
 
     g_star_star = copy(skeleton)
     new_vertices = Dict{Number, Set{Pair{T, T}}}()
@@ -25,7 +14,7 @@ function find_feg_separator_lt(skeleton::LabeledGraph{T}, faces::Set{Set{Pair{T,
         end
     end
 
-    (c_star_star, a_star_star, b_star_star) = find_separator_lt(g_star_star, 1)
+    (c_star_star, a_star_star, b_star_star) = find_separator_lt(g_star_star, root)
 
     a = filter(vertex -> !(vertex in keys(new_vertices)), a_star_star)
     b = filter(vertex -> !(vertex in keys(new_vertices)), b_star_star)
@@ -49,7 +38,9 @@ function find_feg_separator_lt(skeleton::LabeledGraph{T}, faces::Set{Set{Pair{T,
 end
 
 function find_separator_lt(lg::LabeledGraph{T}, root::T)::Tuple{Set{T}, Set{T}, Set{T}} where {T}
-    levels = @pipe LightGraphs.bfs_tree(lg.graph, lg.labels[root]) |> _find_bfs_levels(_, lg.labels[root]) |> map(level -> Set(convert_vertices(lg.labels, collect(level))), _)
+    temp = @pipe LightGraphs.bfs_tree(lg.graph, lg.labels[root])
+    temp2 = _find_bfs_levels(temp, lg.labels[root])
+    levels = map(level -> Set(convert_vertices(lg.labels, collect(level))), temp2)
 
     # Phase I
     middle_index = -1
@@ -266,4 +257,21 @@ function _is_valid_separator(lg::LabeledGraph{T}, separator::Set{T}, a::Set{T}, 
     all(map(vertex -> !in(vertex, union(a, separator)), collect(b)))
 
     return is_separating && is_covering && is_disjoint
+end
+
+function _find_finite_element_graph(skeleton::LabeledGraph{T}, faces::Set{Set{Pair{T, T}}})::LabeledGraph{T} where {T}
+    g = copy(skeleton)
+    
+    for face in faces
+        face_vertices = reduce((x, y) -> union!(x, Set([y.first, y.second])), face, init=Set{Number}())
+        for edge in face
+            for dest in face_vertices
+                if (edge.first != dest)
+                    lg_add_edge!(g, edge.first, dest)
+                end
+            end
+        end
+    end
+
+    return g
 end
