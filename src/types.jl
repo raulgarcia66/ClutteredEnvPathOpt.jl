@@ -18,6 +18,10 @@ function convert_vertices(labels::Dict{T, Int}, vertices) where {T}
     return map(vertex -> rev[vertex], vertices)
 end
 
+function convert_vertices_rev(labels::Dict{T, Int}, vertices) where {T}
+    return map(vertex -> labels[vertex], collect(vertices))
+end
+
 function lg_rem_vertex!(lg::LabeledGraph{T}, v::T)::Bool where {T}
     rev = _reverse_labels(lg.labels)
 
@@ -46,37 +50,3 @@ end
 function _reverse_labels(labels::Dict{K, V})::Dict{V, K} where {K, V}
     return Dict(value => key for (key, value) in labels)
 end
-
-struct BinaryTree{T}
-    value::T
-    left::Union{BinaryTree{T}, Nothing}
-    right::Union{BinaryTree{T}, Nothing}
-end
-
-Base.length(tree::BinaryTree{T}) where {T} = begin
-    left_length = !isnothing(tree.left) ? length(tree.left) : 0
-    right_length = !isnothing(tree.right) ? length(tree.right) : 0
-
-    return 1 + left_length + right_length
-end
-
-function height(tree::BinaryTree{T}) where {T}
-    left_height = !isnothing(tree.left) ? length(tree.left) : 0
-    right_height = !isnothing(tree.right) ? length(tree.right) : 0
-
-    return 1 + max(left_height, right_height)
-end
-
-function flatten(tree::BinaryTree{T}, array::Array{Union{T, Nothing}, 1}, index::Int) where {T}
-    array[index] = tree.value
-
-    if !isnothing(tree.left) flatten(tree.left, array, index * 2) end
-    if !isnothing(tree.right) flatten(tree.right, array, index * 2 + 1) end
-end
-
-function flatten(tree::BinaryTree{T})::Array{Union{T, Nothing}, 1} where {T}
-    array = Array{Union{T, Nothing}, 1}(nothing, height(tree) ^ 2 - 1)
-    flatten(tree, array, 1)
-    return array
-end
-

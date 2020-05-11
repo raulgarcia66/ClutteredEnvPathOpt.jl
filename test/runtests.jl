@@ -196,18 +196,18 @@ end
 # end
 
 @testset "biclique cover tests" begin
-    # for i in 2:2
+    # for i in 32:32
     #     skeleton = LabeledGraph(ClutteredEnvPathOpt.LightGraphs.grid([i, i]))
 
-    #     faces = Set{Set{Pair{Int, Int}}}()
+    #     faces = Set{Vector{Int}}()
     #     for j in 1:((i ^ 2) - i)
     #         if j % i != 0
-    #             face = Set([
-    #                 j => j + 1,         # left
-    #                 j + 1 => j + i + 1, # down
-    #                 j + i + 1 => j + i, # right
-    #                 j + i => j,         # up
-    #             ])
+    #             face = [
+    #                 j,
+    #                 j + 1,      # right
+    #                 j + i + 1,  # down
+    #                 j + i,      # left
+    #             ]
 
     #             push!(faces, face)
     #         end
@@ -215,17 +215,25 @@ end
 
     #     cover = find_biclique_cover(skeleton, faces)
 
-    #     @test ClutteredEnvPathOpt._is_valid_biclique_cover(ClutteredEnvPathOpt._find_finite_element_graph(skeleton, faces), cover)
+    #     @test ClutteredEnvPathOpt._is_valid_biclique_cover(ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(faces)), cover)
     # end
 
-    skeleton = LabeledGraph(ClutteredEnvPathOpt.LightGraphs.grid([2, 3]))
+    for i in 7:7
+        skeleton = LabeledGraph(ClutteredEnvPathOpt.LightGraphs.wheel_graph(i))
 
-    faces = Set{Set{Pair{Int, Int}}}([
-        Set{Pair{Int, Int}}([1 => 2, 2 => 4, 4 => 3, 3 => 1]),
-        Set{Pair{Int, Int}}([3 => 4, 4 => 6, 6 => 5, 5 => 3]),
-    ])
+        faces = Set{Vector{Int}}()
+        for j in 2:(i - 1)
+            face = [1, j, j + 1]
 
-    cover = find_biclique_cover(skeleton, faces)
+            push!(faces, face)
+        end
+        push!(faces, [1, i, 2])
 
-    @test ClutteredEnvPathOpt._is_valid_biclique_cover(ClutteredEnvPathOpt._find_finite_element_graph(skeleton, faces), cover)
+        @show faces
+
+        cover = find_biclique_cover(skeleton, faces)
+
+        @test ClutteredEnvPathOpt._is_valid_biclique_cover(ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(faces)), cover)
+
+    end
 end

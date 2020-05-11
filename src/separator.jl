@@ -37,13 +37,25 @@ function find_feg_separator_lt(skeleton::LabeledGraph{T}, faces::Set{Set{Pair{T,
     return (setdiff(lg_vertices(g), a, b), a, b)
 end
 
+function find_feg_separator_lt_best_root(skeleton::LabeledGraph{T}, faces::Set{Set{Pair{T, T}}})::Tuple{Set{T}, Set{T}, Set{T}} where {T}
+    separators = map(root -> find_feg_separator_lt(skeleton, faces, root), collect(keys(skeleton.labels)))
+    balances = map(separator -> min(length(separator[2]) / length(separator[3]), length(separator[3]) / length(separator[2])), separators)
+
+    max_balance = max(balances...)
+    for i in 1:length(balances)
+        if balances[i] == max_balance return separators[i] end
+    end
+    return separators[1]
+
+end
+
 function find_separator_lt(lg::LabeledGraph{T}, root::T)::Tuple{Set{T}, Set{T}, Set{T}} where {T}
     temp = @pipe LightGraphs.bfs_tree(lg.graph, lg.labels[root])
     temp2 = _find_bfs_levels(temp, lg.labels[root])
     levels = map(level -> Set(convert_vertices(lg.labels, collect(level))), temp2)
 
     # Phase I
-    middle_index = -1
+    middle_index = 1
     for i in 2:length(levels)
         if sum(map(j -> length(levels[j]), 1:i)) > (LightGraphs.nv(lg.graph) / 2)
             middle_index = i
@@ -53,7 +65,7 @@ function find_separator_lt(lg::LabeledGraph{T}, root::T)::Tuple{Set{T}, Set{T}, 
     middle = levels[middle_index]
 
     if length(middle) < (2 * sqrt(2 * LightGraphs.nv(lg.graph)))
-        above = @pipe map(i -> levels[i], 1:(middle_index - 1)) |> reduce(union, _)
+        above = middle_index == 1 ? Set() : @pipe map(i -> levels[i], 1:(middle_index - 1)) |> reduce(union, _)
         below = middle_index < length(levels) ? (@pipe map(i -> levels[i], (middle_index + 1):length(levels)) |> reduce(union, _)) : Set()
         a = length(above) < length(below) ? above : below;
         b = length(above) < length(below) ? below : above;
@@ -126,47 +138,6 @@ function find_separator_fcs_best(lg::LabeledGraph{T}, root::T)::Tuple{Set{T}, Se
         if balances[i] == max_balance return partitions[i] end
     end
     return partitions[1]
-end
-
-function pp_expell(lg::LabeledGraph{T}, separator::Set{T}, a::Set{T}, b::Set{T})::Tuple{Set{T}, Set{T}, Set{T}} where {T}
-    new_separator = copy(separator)
-    new_a = copy(a)
-    new_b = copy(b)
-
-    if isempty(a)
-        availible = filter(
-            vertex -> reduce(|, map(destination -> LightGraphs.has_path(lg.graph, vertex, destination, exclude_vertices=collect(separator)), collect(new_b))),
-            collect(separator)
-        )
-        if !isempty(availible) push!(new_a, availible[1]) end
-    end
-
-    if isempty(b)
-        availible = filter(
-            vertex -> reduce(|, map(destination -> LightGraphs.has_path(lg.graph, vertex, destination, exclude_vertices=collect(separator)), collect(new_a))),
-            collect(separator)
-        )
-        if !isempty(availible) push!(new_b, availible[1]) end
-    end
-
-    for vertex in new_separator
-        is_connected_a = @pipe map(destination -> LightGraphs.has_path(lg.graph, vertex, destination, exclude_vertices=collect(setdiff(new_separator, vertex))), collect(new_a)) |> reduce(|, _)
-        is_connected_b = @pipe map(destination -> LightGraphs.has_path(lg.graph, vertex, destination, exclude_vertices=collect(setdiff(new_separator, vertex))), collect(new_b)) |> reduce(|, _)
-
-        if !is_connected_a && !is_connected_b
-            push!(length(new_a) < length(new_b) ? new_a : new_b, vertex)
-            delete!(new_separator, vertex)
-        elseif is_connected_a && !is_connected_b
-            push!(new_a, vertex)
-            delete!(new_separator, vertex)
-        elseif !is_connected_a && is_connected_b
-            push!(new_b, vertex)
-            delete!(new_separator, vertex)
-        end
-
-    end
-
-    return (new_separator, new_a, new_b)
 end
 
 function _find_partitions(lg::LabeledGraph{T}, separator::Set{T})::Tuple{Set{T}, Set{T}} where {T}
@@ -274,4 +245,41 @@ function _find_finite_element_graph(skeleton::LabeledGraph{T}, faces::Set{Set{Pa
     end
 
     return g
+end
+
+function pp_expell(lg::LabeledGraph{T}, separator::Set{T}, a::Set{T}, b::Set{T})::Tuple{Set{T}, Set{T}, Set{T}} where {T}
+    pp_separator = copy(separator)
+    pp_a = copy(a)
+    pp_b = copy(b)
+    
+    for separator_vertex in separator
+        source = lg.labels[separator_vertex]
+
+        is_connected_a = any(
+            map(
+                destination -> LightGraphs.has_path(lg.graph, source, destination, exclude_vertices=collect(convert_vertices_rev(lg.labels, setdiff(pp_separator, Set([separator_vertex]))))),
+                collect(convert_vertices_rev(lg.labels, pp_a))
+            )
+        )
+
+        is_connected_b = any(
+            map(
+                destination -> LightGraphs.has_path(lg.graph, source, destination, exclude_vertices=collect(convert_vertices_rev(lg.labels, setdiff(pp_separator, Set([separator_vertex]))))),
+                collect(convert_vertices_rev(lg.labels, pp_b))
+            )
+        )
+
+        if !is_connected_a && !is_connected_b
+            push!(length(pp_a) < length(pp_b) ? pp_a : pp_b, separator_vertex)
+            delete!(pp_separator, separator_vertex)
+        elseif is_connected_a && !is_connected_b
+            push!(pp_a, separator_vertex)
+            delete!(pp_separator, separator_vertex)
+        elseif !is_connected_a && is_connected_b
+            push!(pp_b, separator_vertex)
+            delete!(pp_separator, separator_vertex)
+        end
+    end
+
+    return (pp_separator, pp_a, pp_b)
 end
