@@ -1,7 +1,6 @@
 # Faces must be given in their clockwise embedding
 function find_biclique_cover(skeleton::LabeledGraph{T}, faces::Set{Vector{T}})::Set{Pair{Set{T}, Set{T}}} where {T}
-    @show face_pairs = _find_face_pairs(faces)
-
+    face_pairs = _find_face_pairs(faces)
     feg = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, face_pairs)
 
     if ClutteredEnvPathOpt.lg_is_complete(feg)
@@ -69,8 +68,8 @@ function _find_feg_separator_lt_no_empty(skeleton::LabeledGraph{T}, face_pairs::
     feg = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, face_pairs)
     for root in keys(skeleton.labels)
         (C, A, B) = find_feg_separator_lt(skeleton, face_pairs, root)
-        # (C, A, B) = pp_expell(feg, C, A, B)
-        @show root, C, A, B
+        (C, A, B) = pp_expell(feg, C, A, B)
+        # @show root, C, A, B
 
         if !isempty(A) && !isempty(B)
             return (C, A, B)
