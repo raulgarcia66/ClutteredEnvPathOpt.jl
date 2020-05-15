@@ -4,7 +4,7 @@ struct LabeledGraph{T}
 end
 
 function LabeledGraph(g::LightGraphs.AbstractGraph)
-    return LabeledGraph(g, Dict(i => i for i = LightGraphs.vertices(g)))
+    return LabeledGraph{Int}(g, Dict(i => i for i = LightGraphs.vertices(g)))
 end
 
 Base.copy(lg::LabeledGraph) = LabeledGraph(copy(lg.graph), copy(lg.labels))
