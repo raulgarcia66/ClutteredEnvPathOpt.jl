@@ -1,4 +1,8 @@
-# Returns (Separator, A, B)
+"""
+Finds the a valid separator for a finite element graph given its skeleton and
+faces of its planar embedding represented as a set of sets of edges. The search
+will initiate on a bfs tree rooted at the given vertex.
+"""
 function find_feg_separator_lt(skeleton::LabeledGraph{T}, faces::Set{Set{Pair{T, T}}}, root::T)::Tuple{Set{T}, Set{T}, Set{T}} where {T}
     g = _find_finite_element_graph(skeleton, faces)
 
@@ -37,6 +41,12 @@ function find_feg_separator_lt(skeleton::LabeledGraph{T}, faces::Set{Set{Pair{T,
     return (setdiff(lg_vertices(g), a, b), a, b)
 end
 
+"""
+Finds the a valid separator for a finite element graph given its skeleton and
+faces of its planar embedding represented as a set of sets of edges. Repeats
+the search from every possible BFS root and returns the most balanced
+separator. 
+"""
 function find_feg_separator_lt_best_root(skeleton::LabeledGraph{T}, faces::Set{Set{Pair{T, T}}})::Tuple{Set{T}, Set{T}, Set{T}} where {T}
     separators = map(root -> find_feg_separator_lt(skeleton, faces, root), collect(keys(skeleton.labels)))
     balances = map(separator -> min(length(separator[2]) / length(separator[3]), length(separator[3]) / length(separator[2])), separators)
@@ -49,10 +59,12 @@ function find_feg_separator_lt_best_root(skeleton::LabeledGraph{T}, faces::Set{S
 
 end
 
+"""
+Finds a valid separator for a planar graph using the Lipton-Tarjan algorithm.
+The search will initiate on a bfs tree rooted at the given vertex.
+"""
 function find_separator_lt(lg::LabeledGraph{T}, root::T)::Tuple{Set{T}, Set{T}, Set{T}} where {T}
-    temp = @pipe LightGraphs.bfs_tree(lg.graph, lg.labels[root])
-    temp2 = _find_bfs_levels(temp, lg.labels[root])
-    levels = map(level -> Set(convert_vertices(lg.labels, collect(level))), temp2)
+    levels = @pipe LightGraphs.bfs_tree(lg.graph, lg.labels[root]) |> _find_bfs_levels(_, lg.labels[root]) |> map(level -> Set(convert_vertices(lg.labels, collect(level))), _)
 
     # Phase I
     middle_index = 1
@@ -112,16 +124,25 @@ function find_separator_lt(lg::LabeledGraph{T}, root::T)::Tuple{Set{T}, Set{T}, 
 
 end
 
+"""
+Finds a valid separator for a planar graph using finite cycles as separators.
+The search will initiate on a bfs tree rooted at the given vertex.
+"""
 function find_separator_fcs(lg::LabeledGraph{T}, root::T)::Tuple{Set{T}, Set{T}, Set{T}} where {T}
     parents = LightGraphs.bfs_parents(lg.graph, lg.labels[root])
 
     tree_edges = map(tup -> LightGraphs.Edge(tup[1] => tup[2]), zip(parents, 1:length(parents)))
     non_tree_edge = filter(edge -> !(in(edge, tree_edges) || in(reverse(edge), tree_edges)), collect(LightGraphs.edges(lg.graph)))[1]
 
-    fundamental_cycle = @pipe _find_fundamental_cycle(parents, root, non_tree_edge) |> Set(convert_vertices(lg.labels, collect(_)))
+    fundamental_cycle = @pipe _find_fundamental_cycle(parents, non_tree_edge) |> Set(convert_vertices(lg.labels, collect(_)))
     return (fundamental_cycle, _find_partitions(lg, fundamental_cycle)...)
 end
 
+"""
+Finds a valid separator for a planar graph using finite cycles as separators.
+Repeats the search from every possible BFS root and returns the most balanced
+separator.
+"""
 function find_separator_fcs_best(lg::LabeledGraph{T}, root::T)::Tuple{Set{T}, Set{T}, Set{T}} where {T}
     # THIS ALGORITHM IS O(n^2) BECAUSE IT CHOOSES THE MOST BALANCED
     parents = LightGraphs.bfs_parents(lg.graph, lg.labels[root])
@@ -129,7 +150,7 @@ function find_separator_fcs_best(lg::LabeledGraph{T}, root::T)::Tuple{Set{T}, Se
     tree_edges = map(tup -> LightGraphs.Edge(tup[1] => tup[2]), zip(parents, 1:length(parents)))
     non_tree_edges = filter(edge -> !(in(edge, tree_edges) || in(reverse(edge), tree_edges)), collect(LightGraphs.edges(lg.graph)))
 
-    fundamental_cycles = @pipe map(non_tree_edge -> _find_fundamental_cycle(parents, root, non_tree_edge), non_tree_edges) |> map(cycle -> Set(convert_vertices(lg.labels, collect(cycle))), _)
+    fundamental_cycles = @pipe map(non_tree_edge -> _find_fundamental_cycle(parents, non_tree_edge), non_tree_edges) |> map(cycle -> Set(convert_vertices(lg.labels, collect(cycle))), _)
     partitions = map(cycle -> (cycle, _find_partitions(lg, cycle)...), fundamental_cycles)
     balances = map(partition -> min(length(partition[2]) / length(partition[3]), length(partition[3]) / length(partition[2])), partitions)
 
@@ -140,6 +161,9 @@ function find_separator_fcs_best(lg::LabeledGraph{T}, root::T)::Tuple{Set{T}, Se
     return partitions[1]
 end
 
+"""
+Given a graph and separator find the sets of vertices separated.
+"""
 function _find_partitions(lg::LabeledGraph{T}, separator::Set{T})::Tuple{Set{T}, Set{T}} where {T}
     lg_without_separator = copy(lg)
 
@@ -159,7 +183,11 @@ function _find_partitions(lg::LabeledGraph{T}, separator::Set{T})::Tuple{Set{T},
     return (Set(a), Set(b))
 end
 
-function _find_fundamental_cycle(parents::Array{Int, 1}, root::Int, non_tree_edge::LightGraphs.Edge)::Set{Int}
+"""
+Given a bfs tree (in array form as provided by LightGraphs) and a non tree edge
+return the fundamtal cycle as a set of vertices.
+"""
+function _find_fundamental_cycle(parents::Array{Int, 1}, non_tree_edge::LightGraphs.Edge)::Set{Int}
     left_vertex = LightGraphs.src(non_tree_edge)
     left_path = [left_vertex]
     while left_vertex != parents[left_vertex]
@@ -183,6 +211,10 @@ function _find_fundamental_cycle(parents::Array{Int, 1}, root::Int, non_tree_edg
     return Set(union(left_path, right_path))
 end
 
+"""
+Run breadth first search on a graph and return its BFS tree as an array of sets
+representing levels of the tree.
+"""
 function _find_bfs_levels(t::LightGraphs.AbstractGraph, root::Int)::Array{Set{Int}, 1}
     levels = Dict{Int, Set{Int}}()
 
@@ -204,6 +236,9 @@ function _find_bfs_levels(t::LightGraphs.AbstractGraph, root::Int)::Array{Set{In
     return res
 end
 
+"""
+Checks if a separator is valid on graph lg and separates A and B
+"""
 function _is_valid_separator(lg::LabeledGraph{T}, separator::Set{T}, a::Set{T}, b::Set{T})::Bool where T
     is_separating = true
     for source in a
@@ -230,6 +265,10 @@ function _is_valid_separator(lg::LabeledGraph{T}, separator::Set{T}, a::Set{T}, 
     return is_separating && is_covering && is_disjoint
 end
 
+"""
+Creates a finite element graph from a skeleton and set of sets of edges
+representing faces.
+"""
 function _find_finite_element_graph(skeleton::LabeledGraph{T}, faces::Set{Set{Pair{T, T}}})::LabeledGraph{T} where {T}
     g = copy(skeleton)
     
@@ -247,6 +286,10 @@ function _find_finite_element_graph(skeleton::LabeledGraph{T}, faces::Set{Set{Pa
     return g
 end
 
+"""
+A prostprocessing algorithm to shrink the size of a separator by expelling
+vertices in the separator not connected to both A and B.
+"""
 function pp_expell(lg::LabeledGraph{T}, separator::Set{T}, a::Set{T}, b::Set{T})::Tuple{Set{T}, Set{T}, Set{T}} where {T}
     pp_separator = copy(separator)
     pp_a = copy(a)

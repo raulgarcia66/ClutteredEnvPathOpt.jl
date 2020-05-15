@@ -1,4 +1,11 @@
-# Faces must be given in their clockwise embedding
+"""
+Given a finite element graph's skeleton and the faces of its planar embedding,
+return the biclique cover as a set of pairs of sets. This algorithm uses a
+divide and conquere approach, though it has not been optimized for parallelism
+nor tail-recursion.
+
+Note: ensure the faces are passed in as a set of clockwise-ordered vertices
+"""
 function find_biclique_cover(skeleton::LabeledGraph{T}, faces::Set{Vector{T}})::Set{Pair{Set{T}, Set{T}}} where {T}
     face_pairs = _find_face_pairs(faces)
     feg = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, face_pairs)
@@ -19,7 +26,13 @@ function find_biclique_cover(skeleton::LabeledGraph{T}, faces::Set{Vector{T}})::
     )
 end
 
-# Faces must be given in their clockwise embedding
+"""
+Find the skeleton and faces of a finite element subgraphgraph given a subset of
+vertices, a finite element graph's skeleton and the faces of its planar
+embedding. Returns a (skeleton, face vector) tuple.
+
+Note: ensure the faces are passed in as a set of clockwise-ordered vertices
+"""
 function _find_skeleton_faces(vertices::Set{T}, old_skeleton::LabeledGraph{T}, old_faces::Set{Vector{T}})::Tuple{LabeledGraph{T}, Set{Vector{T}}} where {T}
     skeleton = copy(old_skeleton)
     for vertex in keys(old_skeleton.labels)
@@ -47,6 +60,10 @@ function _find_skeleton_faces(vertices::Set{T}, old_skeleton::LabeledGraph{T}, o
     return skeleton, faces
 end
 
+"""
+Convert a set of list of vertices included in a face to a set of sets of edges
+comprising a face.
+"""
 function _find_face_pairs(faces::Set{Vector{T}})::Set{Set{Pair{T, T}}} where {T}
     face_pairs = Set{Set{Pair{T, T}}}()
     for face in faces
@@ -64,23 +81,27 @@ function _find_face_pairs(faces::Set{Vector{T}})::Set{Set{Pair{T, T}}} where {T}
     return face_pairs
 end
 
+"""
+Find the separator of a finite element graph, repeating the process if for some
+given root either A or B is empty.
+"""
 function _find_feg_separator_lt_no_empty(skeleton::LabeledGraph{T}, face_pairs::Set{Set{Pair{T, T}}})::Tuple{Set{T}, Set{T}, Set{T}} where {T}
     feg = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, face_pairs)
     for root in keys(skeleton.labels)
         (C, A, B) = find_feg_separator_lt(skeleton, face_pairs, root)
         (C, A, B) = pp_expell(feg, C, A, B)
-        # @show root, C, A, B
 
         if !isempty(A) && !isempty(B)
             return (C, A, B)
         end
     end
-
-    println("OWIE")
     
     return ([], [], [])
 end
 
+"""
+Tests whether or not a cover is a valid biclique cover of a griven graph.
+"""
 function _is_valid_biclique_cover(lg::LabeledGraph{T}, cover::Set{Pair{Set{T}, Set{T}}})::Bool where {T}
     e_bar = LightGraphs.edges(LightGraphs.complement(lg.graph))
 
@@ -92,16 +113,12 @@ function _is_valid_biclique_cover(lg::LabeledGraph{T}, cover::Set{Pair{Set{T}, S
         LightGraphs.add_edge!(test, rev[edge.first], rev[edge.second])
     end
 
-    res = LightGraphs.edges(test) == e_bar
-
-    if !res
-        println("OOP!!! ", length(LightGraphs.edges(test)) - length(e_bar))
-        println(setdiff(LightGraphs.edges(test), e_bar))
-        println(cover)
-    end
-    return res
+    return LightGraphs.edges(test) == e_bar
 end
 
+"""
+Returns the cartesian product of two sets
+"""
 function _cartesian_product(A::Set{V}, B::Set{W})::Set{Pair{V, W}} where {V, W}
     res = Set{Pair{V, W}}()
 
