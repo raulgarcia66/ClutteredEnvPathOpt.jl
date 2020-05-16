@@ -47,7 +47,7 @@ faces of its planar embedding represented as a set of sets of edges. Repeats
 the search from every possible BFS root and returns the most balanced
 separator. 
 """
-function find_feg_separator_lt_best_root(skeleton::LabeledGraph{T}, faces::Set{Set{Pair{T, T}}})::Tuple{Set{T}, Set{T}, Set{T}} where {T}
+function find_feg_separator_lt_best(skeleton::LabeledGraph{T}, faces::Set{Set{Pair{T, T}}})::Tuple{Set{T}, Set{T}, Set{T}} where {T}
     separators = map(root -> find_feg_separator_lt(skeleton, faces, root), collect(keys(skeleton.labels)))
     balances = map(separator -> min(length(separator[2]) / length(separator[3]), length(separator[3]) / length(separator[2])), separators)
 
