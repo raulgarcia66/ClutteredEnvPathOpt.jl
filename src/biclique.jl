@@ -1,4 +1,6 @@
 """
+    find_biclique_cover(skeleton, faces)
+
 Given a finite element graph's skeleton and the faces of its planar embedding,
 return the biclique cover as a set of pairs of sets. This algorithm uses a
 divide and conquere approach, though it has not been optimized for parallelism
@@ -27,6 +29,8 @@ function find_biclique_cover(skeleton::LabeledGraph{T}, faces::Set{Vector{T}})::
 end
 
 """
+    _find_skeleton_faces(vertices, old_skeleton, old_faces)
+
 Find the skeleton and faces of a finite element subgraphgraph given a subset of
 vertices, a finite element graph's skeleton and the faces of its planar
 embedding. Returns a (skeleton, face vector) tuple.
@@ -61,6 +65,8 @@ function _find_skeleton_faces(vertices::Set{T}, old_skeleton::LabeledGraph{T}, o
 end
 
 """
+    _find_face_pairs(faces)
+
 Convert a set of list of vertices included in a face to a set of sets of edges
 comprising a face.
 """
@@ -82,6 +88,8 @@ function _find_face_pairs(faces::Set{Vector{T}})::Set{Set{Pair{T, T}}} where {T}
 end
 
 """
+    _find_feg_separator_lt_no_empty(skeleton, face_pairs)
+
 Find the separator of a finite element graph, repeating the process if for some
 given root either A or B is empty.
 """
@@ -100,6 +108,8 @@ function _find_feg_separator_lt_no_empty(skeleton::LabeledGraph{T}, face_pairs::
 end
 
 """
+    _is_valid_biclique_cover(lg, cover)
+
 Tests whether or not a cover is a valid biclique cover of a griven graph.
 """
 function _is_valid_biclique_cover(lg::LabeledGraph{T}, cover::Set{Pair{Set{T}, Set{T}}})::Bool where {T}
@@ -117,6 +127,8 @@ function _is_valid_biclique_cover(lg::LabeledGraph{T}, cover::Set{Pair{Set{T}, S
 end
 
 """
+    _cartesian_product(A, B)
+
 Returns the cartesian product of two sets
 """
 function _cartesian_product(A::Set{V}, B::Set{W})::Set{Pair{V, W}} where {V, W}

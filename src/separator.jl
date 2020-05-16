@@ -1,4 +1,6 @@
 """
+    find_feg_separator_lt(skeleton, faces, root)
+
 Finds the a valid separator for a finite element graph given its skeleton and
 faces of its planar embedding represented as a set of sets of edges. The search
 will initiate on a bfs tree rooted at the given vertex.
@@ -42,6 +44,8 @@ function find_feg_separator_lt(skeleton::LabeledGraph{T}, faces::Set{Set{Pair{T,
 end
 
 """
+    find_feg_separator_lt_best(skeleton, faces)
+
 Finds the a valid separator for a finite element graph given its skeleton and
 faces of its planar embedding represented as a set of sets of edges. Repeats
 the search from every possible BFS root and returns the most balanced
@@ -60,6 +64,8 @@ function find_feg_separator_lt_best(skeleton::LabeledGraph{T}, faces::Set{Set{Pa
 end
 
 """
+    find_separator_lt(lg, root)
+
 Finds a valid separator for a planar graph using the Lipton-Tarjan algorithm.
 The search will initiate on a bfs tree rooted at the given vertex.
 """
@@ -125,6 +131,8 @@ function find_separator_lt(lg::LabeledGraph{T}, root::T)::Tuple{Set{T}, Set{T}, 
 end
 
 """
+    find_separator_fcs(lg, root)
+
 Finds a valid separator for a planar graph using finite cycles as separators.
 The search will initiate on a bfs tree rooted at the given vertex.
 """
@@ -139,6 +147,8 @@ function find_separator_fcs(lg::LabeledGraph{T}, root::T)::Tuple{Set{T}, Set{T},
 end
 
 """
+    find_separator_fcs_best(lg, root)
+
 Finds a valid separator for a planar graph using finite cycles as separators.
 Repeats the search from every possible BFS root and returns the most balanced
 separator.
@@ -162,6 +172,8 @@ function find_separator_fcs_best(lg::LabeledGraph{T}, root::T)::Tuple{Set{T}, Se
 end
 
 """
+    _find_partitions(lg, separator)
+
 Given a graph and separator find the sets of vertices separated.
 """
 function _find_partitions(lg::LabeledGraph{T}, separator::Set{T})::Tuple{Set{T}, Set{T}} where {T}
@@ -184,10 +196,12 @@ function _find_partitions(lg::LabeledGraph{T}, separator::Set{T})::Tuple{Set{T},
 end
 
 """
+    _find_fundamental_cycle(parents, non_tree_edge)
+
 Given a bfs tree (in array form as provided by LightGraphs) and a non tree edge
 return the fundamtal cycle as a set of vertices.
 """
-function _find_fundamental_cycle(parents::Array{Int, 1}, non_tree_edge::LightGraphs.Edge)::Set{Int}
+function _find_fundamental_cycle(parents::Vector{Int}, non_tree_edge::LightGraphs.Edge)::Set{Int}
     left_vertex = LightGraphs.src(non_tree_edge)
     left_path = [left_vertex]
     while left_vertex != parents[left_vertex]
@@ -212,16 +226,18 @@ function _find_fundamental_cycle(parents::Array{Int, 1}, non_tree_edge::LightGra
 end
 
 """
+    _find_bfs_levels(tree, root)
+
 Run breadth first search on a graph and return its BFS tree as an array of sets
 representing levels of the tree.
 """
-function _find_bfs_levels(t::LightGraphs.AbstractGraph, root::Int)::Array{Set{Int}, 1}
+function _find_bfs_levels(tree::LightGraphs.AbstractGraph, root::Int)::Array{Set{Int}, 1}
     levels = Dict{Int, Set{Int}}()
 
     levels[1] = Set([root])
     i = 2
     while true
-        levels[i] = Set(reduce(union, map(vertex -> LightGraphs.outneighbors(t, vertex), collect(levels[i - 1]))))
+        levels[i] = Set(reduce(union, map(vertex -> LightGraphs.outneighbors(tree, vertex), collect(levels[i - 1]))))
 
         if isempty(levels[i]) break end
 
@@ -237,6 +253,8 @@ function _find_bfs_levels(t::LightGraphs.AbstractGraph, root::Int)::Array{Set{In
 end
 
 """
+    _is_valid_separator(lg, separator, a, b)
+
 Checks if a separator is valid on graph lg and separates A and B
 """
 function _is_valid_separator(lg::LabeledGraph{T}, separator::Set{T}, a::Set{T}, b::Set{T})::Bool where T
@@ -266,6 +284,8 @@ function _is_valid_separator(lg::LabeledGraph{T}, separator::Set{T}, a::Set{T}, 
 end
 
 """
+    _find_finite_element_graph(skeleton, faces)
+
 Creates a finite element graph from a skeleton and set of sets of edges
 representing faces.
 """
@@ -287,6 +307,8 @@ function _find_finite_element_graph(skeleton::LabeledGraph{T}, faces::Set{Set{Pa
 end
 
 """
+    pp_expell(lg, separator, a, b)
+
 A prostprocessing algorithm to shrink the size of a separator by expelling
 vertices in the separator not connected to both A and B.
 """
