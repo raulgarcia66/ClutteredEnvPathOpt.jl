@@ -8,12 +8,12 @@ nor tail-recursion.
 
 Note: ensure the faces are passed in as a set of clockwise-ordered vertices
 """
-function find_biclique_cover(skeleton::LabeledGraph{T}, faces::Set{Vector{T}})::Set{Pair{Set{T}, Set{T}}} where {T}
+function find_biclique_cover(skeleton::VertexSafeGraphs.VSafeGraph, faces::Set{Vector{Int}})::Set{Pair{Set{Int}, Set{Int}}}
     face_pairs = _find_face_pairs(faces)
     feg = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, face_pairs)
 
-    if ClutteredEnvPathOpt.lg_is_complete(feg)
-        return Set{Pair{Set{T}, Set{T}}}()
+    if LightGraphs.ne(feg) == (LightGraphs.nv(feg) * (LightGraphs.nv(feg) - 1) / 2) # if feg is complete graph
+        return Set{Pair{Set{Int}, Set{Int}}}()
     end
 
     (C, A, B) = _find_feg_separator_lt_no_empty(skeleton, face_pairs)
@@ -37,11 +37,11 @@ embedding. Returns a (skeleton, face vector) tuple.
 
 Note: ensure the faces are passed in as a set of clockwise-ordered vertices
 """
-function _find_skeleton_faces(vertices::Set{T}, old_skeleton::LabeledGraph{T}, old_faces::Set{Vector{T}})::Tuple{LabeledGraph{T}, Set{Vector{T}}} where {T}
+function _find_skeleton_faces(vertices::Set{Int}, old_skeleton::VertexSafeGraphs.VSafeGraph, old_faces::Set{Vector{Int}})::Tuple{VertexSafeGraphs.VSafeGraph, Set{Vector{Int}}}
     skeleton = copy(old_skeleton)
-    for vertex in keys(old_skeleton.labels)
+    for vertex in LightGraphs.vertices(old_skeleton)
         if !in(vertex, vertices)
-            ClutteredEnvPathOpt.lg_rem_vertex!(skeleton, vertex)
+            LightGraphs.rem_vertex!(skeleton, vertex)
         end
     end
 
@@ -49,13 +49,13 @@ function _find_skeleton_faces(vertices::Set{T}, old_skeleton::LabeledGraph{T}, o
 
     for face in faces
         if length(face) == 2
-            ClutteredEnvPathOpt.lg_add_edge!(skeleton, face[1], face[2])
+            LightGraphs.add_edge!(skeleton, face[1], face[2])
         end
 
         if length(face) == 3
-            ClutteredEnvPathOpt.lg_add_edge!(skeleton, face[1], face[2])
-            ClutteredEnvPathOpt.lg_add_edge!(skeleton, face[2], face[3])
-            ClutteredEnvPathOpt.lg_add_edge!(skeleton, face[1], face[3])
+            LightGraphs.add_edge!(skeleton, face[1], face[2])
+            LightGraphs.add_edge!(skeleton, face[2], face[3])
+            LightGraphs.add_edge!(skeleton, face[1], face[3])
         end
     end
 
@@ -70,16 +70,16 @@ end
 Convert a set of list of vertices included in a face to a set of sets of edges
 comprising a face.
 """
-function _find_face_pairs(faces::Set{Vector{T}})::Set{Set{Pair{T, T}}} where {T}
-    face_pairs = Set{Set{Pair{T, T}}}()
+function _find_face_pairs(faces::Set{Vector{Int}})::Set{Set{LightGraphs.Edge}}
+    face_pairs = Set{Set{LightGraphs.Edge}}()
     for face in faces
-        pairs = Set{Pair{T, T}}()
+        pairs = Set{LightGraphs.Edge}()
 
         for i in 2:length(face)
-            push!(pairs, face[i - 1] => face[i])
+            push!(pairs, LightGraphs.Edge(face[i - 1], face[i]))
         end
 
-        push!(pairs, face[end] => face[1])
+        push!(pairs, LightGraphs.Edge(face[end], face[1]))
 
         push!(face_pairs, pairs)
     end
@@ -93,18 +93,18 @@ end
 Find the separator of a finite element graph, repeating the process if for some
 given root either A or B is empty.
 """
-function _find_feg_separator_lt_no_empty(skeleton::LabeledGraph{T}, face_pairs::Set{Set{Pair{T, T}}})::Tuple{Set{T}, Set{T}, Set{T}} where {T}
+function _find_feg_separator_lt_no_empty(skeleton::VertexSafeGraphs.VSafeGraph, face_pairs::Set{Set{LightGraphs.Edge}})::Tuple{Set{Int}, Set{Int}, Set{Int}}
     feg = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, face_pairs)
-    for root in keys(skeleton.labels)
+    for root in LightGraphs.vertices(skeleton)
         (C, A, B) = find_feg_separator_lt(skeleton, face_pairs, root)
-        (C, A, B) = pp_expell(feg, C, A, B)
+        # (C, A, B) = pp_expell(feg, C, A, B)
 
         if !isempty(A) && !isempty(B)
             return (C, A, B)
         end
     end
     
-    return ([], [], [])
+    return (Set{Int}(), Set{Int}(), Set{Int}())
 end
 
 """
@@ -112,15 +112,14 @@ end
 
 Tests whether or not a cover is a valid biclique cover of a griven graph.
 """
-function _is_valid_biclique_cover(lg::LabeledGraph{T}, cover::Set{Pair{Set{T}, Set{T}}})::Bool where {T}
-    e_bar = LightGraphs.edges(LightGraphs.complement(lg.graph))
+function _is_valid_biclique_cover(vsg::VertexSafeGraphs.VSafeGraph, cover::Set{Pair{Set{Int}, Set{Int}}})::Bool
+    e_bar = LightGraphs.edges(LightGraphs.complement(vsg.g))
 
-    edges = @pipe map(pair -> _cartesian_product(pair.first, pair.second), collect(cover)) |> reduce(union!, _, init=Set{Pair{T, T}}())
-    test = LightGraphs.SimpleGraph(LightGraphs.nv(lg.graph))
-    rev = _reverse_labels(lg.labels)
+    edges = @pipe map(pair -> _cartesian_product(pair.first, pair.second), collect(cover)) |> reduce(union!, _, init=Set{Pair{Int, Int}}())
+    test = LightGraphs.SimpleGraph(LightGraphs.nv(vsg))
 
     for edge in edges
-        LightGraphs.add_edge!(test, rev[edge.first], rev[edge.second])
+        LightGraphs.add_edge!(test, edge.first, edge.second)
     end
 
     return LightGraphs.edges(test) == e_bar

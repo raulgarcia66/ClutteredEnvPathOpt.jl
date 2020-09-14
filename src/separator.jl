@@ -5,18 +5,17 @@ Finds the a valid separator for a finite element graph given its skeleton and
 faces of its planar embedding represented as a set of sets of edges. The search
 will initiate on a bfs tree rooted at the given vertex.
 """
-function find_feg_separator_lt(skeleton::LabeledGraph{T}, faces::Set{Set{Pair{T, T}}}, root::T)::Tuple{Set{T}, Set{T}, Set{T}} where {T}
+function find_feg_separator_lt(skeleton::LightGraphs.AbstractGraph, faces::Set{Set{LightGraphs.Edge}}, root::Int)::Tuple{Set{Int}, Set{Int}, Set{Int}}
     g = _find_finite_element_graph(skeleton, faces)
 
     g_star_star = copy(skeleton)
-    new_vertices = Dict{Number, Set{Pair{T, T}}}()
+    new_vertices = Dict{Int, Set{LightGraphs.Edge}}()
     for face in faces
-        new_vertex = rand(T)
+        LightGraphs.add_vertex!(g_star_star)
+        new_vertex = LightGraphs.nv(g_star_star)
         push!(new_vertices, new_vertex => face)
-        lg_add_vertex!(g_star_star, new_vertex)
-        face_vertices = reduce((x, y) -> union!(x, Set([y.first, y.second])), face, init=Set{Number}())
-        for vertex in face_vertices
-            lg_add_edge!(g_star_star, vertex, new_vertex)
+        for vertex in _face_vertices(face)
+            LightGraphs.add_edge!(g_star_star, vertex, new_vertex)
         end
     end
 
@@ -27,7 +26,7 @@ function find_feg_separator_lt(skeleton::LabeledGraph{T}, faces::Set{Set{Pair{T,
 
     for pair in new_vertices
         if (pair.first in c_star_star)
-            bad_face_vertecies =  reduce((x, y) -> union!(x, Set([y.first, y.second])), pair.second, init=Set{Number}())
+            bad_face_vertecies =  _face_vertices(pair.second)
 
             a_star_star_boundry = filter(vertex -> vertex in a_star_star, bad_face_vertecies)
             b_star_star_boundry = filter(vertex -> vertex in b_star_star, bad_face_vertecies)
@@ -40,7 +39,7 @@ function find_feg_separator_lt(skeleton::LabeledGraph{T}, faces::Set{Set{Pair{T,
         end
     end
 
-    return (setdiff(lg_vertices(g), a, b), a, b)
+    return (setdiff(Set(LightGraphs.vertices(g)), a, b), a, b)
 end
 
 """
@@ -51,8 +50,8 @@ faces of its planar embedding represented as a set of sets of edges. Repeats
 the search from every possible BFS root and returns the most balanced
 separator. 
 """
-function find_feg_separator_lt_best(skeleton::LabeledGraph{T}, faces::Set{Set{Pair{T, T}}})::Tuple{Set{T}, Set{T}, Set{T}} where {T}
-    separators = map(root -> find_feg_separator_lt(skeleton, faces, root), collect(keys(skeleton.labels)))
+function find_feg_separator_lt_best(skeleton::LightGraphs.AbstractGraph, faces::Set{Set{LightGraphs.Edge}})::Tuple{Set{Int}, Set{Int}, Set{Int}}
+    separators = map(root -> find_feg_separator_lt(skeleton, faces, root), LightGraphs.vertices(skeleton))
     balances = map(separator -> min(length(separator[2]) / length(separator[3]), length(separator[3]) / length(separator[2])), separators)
 
     max_balance = max(balances...)
@@ -64,25 +63,25 @@ function find_feg_separator_lt_best(skeleton::LabeledGraph{T}, faces::Set{Set{Pa
 end
 
 """
-    find_separator_lt(lg, root)
+    find_separator_lt(g, root)
 
 Finds a valid separator for a planar graph using the Lipton-Tarjan algorithm.
 The search will initiate on a bfs tree rooted at the given vertex.
 """
-function find_separator_lt(lg::LabeledGraph{T}, root::T)::Tuple{Set{T}, Set{T}, Set{T}} where {T}
-    levels = @pipe LightGraphs.bfs_tree(lg.graph, lg.labels[root]) |> _find_bfs_levels(_, lg.labels[root]) |> map(level -> Set(convert_vertices(lg.labels, collect(level))), _)
+function find_separator_lt(g::LightGraphs.AbstractGraph, root::Int)::Tuple{Set{Int}, Set{Int}, Set{Int}}
+    levels = @pipe LightGraphs.bfs_tree(g, root) |> _find_bfs_levels(_, root)
 
     # Phase I
     middle_index = 1
     for i in 2:length(levels)
-        if sum(map(j -> length(levels[j]), 1:i)) > (LightGraphs.nv(lg.graph) / 2)
+        if sum(map(j -> length(levels[j]), 1:i)) > (LightGraphs.nv(g) / 2)
             middle_index = i
             break
         end
     end
     middle = levels[middle_index]
 
-    if length(middle) < (2 * sqrt(2 * LightGraphs.nv(lg.graph)))
+    if length(middle) < (2 * sqrt(2 * LightGraphs.nv(g)))
         above = middle_index == 1 ? Set() : @pipe map(i -> levels[i], 1:(middle_index - 1)) |> reduce(union, _)
         below = middle_index < length(levels) ? (@pipe map(i -> levels[i], (middle_index + 1):length(levels)) |> reduce(union, _)) : Set()
         a = length(above) < length(below) ? above : below;
@@ -90,78 +89,78 @@ function find_separator_lt(lg::LabeledGraph{T}, root::T)::Tuple{Set{T}, Set{T}, 
         return (middle, a, b)
     end
 
-    # Phase II
-    upper_index = -1;
-    for i in middle_index:-1:1
-        distance = middle_index - i
-        if length(levels[i]) < 2 * (sqrt(LightGraphs.nv(lg.graph)) - distance)
-            upper_index = i
-            break
-        end
-    end
-    if sum(map(i -> length(levels[i]), 1:upper_index)) > 1/3
-        # upper is separator
-        above = upper_index > 1 ? (@pipe map(i -> levels[i], 1:(upper_index - 1)) |> reduce(union, _)) : Set()
-        below = upper_index < length(levels) ? (@pipe map(i -> levels[i], (upper_index + 1):length(levels)) |> reduce(union, _)) : Set()
-        a = length(above) < length(below) ? above : below;
-        b = length(above) < length(below) ? below : above;
-        return (levels[upper_index], a, b)
-    end
+    # TODO Phase II
+    # upper_index = -1;
+    # for i in middle_index:-1:1
+    #     distance = middle_index - i
+    #     if length(levels[i]) < 2 * (sqrt(LightGraphs.nv(lg.graph)) - distance)
+    #         upper_index = i
+    #         break
+    #     end
+    # end
+    # if sum(map(i -> length(levels[i]), 1:upper_index)) > 1/3
+    #     # upper is separator
+    #     above = upper_index > 1 ? (@pipe map(i -> levels[i], 1:(upper_index - 1)) |> reduce(union, _)) : Set()
+    #     below = upper_index < length(levels) ? (@pipe map(i -> levels[i], (upper_index + 1):length(levels)) |> reduce(union, _)) : Set()
+    #     a = length(above) < length(below) ? above : below;
+    #     b = length(above) < length(below) ? below : above;
+    #     return (levels[upper_index], a, b)
+    # end
 
-    lower_index = -1;
-    for i in middle_index:length(levels)
-        distance = i - middle_index
-        if length(levels[i]) < 2 * (sqrt(LightGraphs.nv(lg.graph)) - distance)
-            lower_index = i
-            break
-        end
-    end
-    if sum(map(i -> length(levels[i]), lower_index:length(levels))) > 1/3
-        # lower is separator
-        above = lower_index > 1 ? (@pipe map(i -> levels[i], 1:(lower_index - 1)) |> reduce(union, _)) : Set()
-        below = lower_index < length(levels) ? (@pipe map(i -> levels[i], (lower_index + 1):length(levels)) |> reduce(union, _)) : Set()
-        a = length(above) < length(below) ? above : below;
-        b = length(above) < length(below) ? below : above;
-        return (levels[lower_index], a, b)
-    end
+    # lower_index = -1;
+    # for i in middle_index:length(levels)
+    #     distance = i - middle_index
+    #     if length(levels[i]) < 2 * (sqrt(LightGraphs.nv(lg.graph)) - distance)
+    #         lower_index = i
+    #         break
+    #     end
+    # end
+    # if sum(map(i -> length(levels[i]), lower_index:length(levels))) > 1/3
+    #     # lower is separator
+    #     above = lower_index > 1 ? (@pipe map(i -> levels[i], 1:(lower_index - 1)) |> reduce(union, _)) : Set()
+    #     below = lower_index < length(levels) ? (@pipe map(i -> levels[i], (lower_index + 1):length(levels)) |> reduce(union, _)) : Set()
+    #     a = length(above) < length(below) ? above : below;
+    #     b = length(above) < length(below) ? below : above;
+    #     return (levels[lower_index], a, b)
+    # end
 
     # Phase III
-    return find_separator_fcs(lg, root)
+    return find_separator_fcs(g, root)
 
 end
 
 """
-    find_separator_fcs(lg, root)
+    find_separator_fcs(g, root)
 
 Finds a valid separator for a planar graph using finite cycles as separators.
 The search will initiate on a bfs tree rooted at the given vertex.
 """
-function find_separator_fcs(lg::LabeledGraph{T}, root::T)::Tuple{Set{T}, Set{T}, Set{T}} where {T}
-    parents = LightGraphs.bfs_parents(lg.graph, lg.labels[root])
+function find_separator_fcs(g::LightGraphs.AbstractGraph, root::Int)::Tuple{Set{Int}, Set{Int}, Set{Int}}
+    parents = LightGraphs.bfs_parents(g, root)
 
-    tree_edges = map(tup -> LightGraphs.Edge(tup[1] => tup[2]), zip(parents, 1:length(parents)))
-    non_tree_edge = filter(edge -> !(in(edge, tree_edges) || in(reverse(edge), tree_edges)), collect(LightGraphs.edges(lg.graph)))[1]
+    tree_edges = map(zipped -> LightGraphs.Edge(zipped), zip(parents, 1:length(parents)))
+    non_tree_edge = @pipe filter(edge -> !(in(edge, tree_edges) || in(reverse(edge), tree_edges)), collect(LightGraphs.edges(g))) |> first(_)
 
-    fundamental_cycle = @pipe _find_fundamental_cycle(parents, non_tree_edge) |> Set(convert_vertices(lg.labels, collect(_)))
-    return (fundamental_cycle, _find_partitions(lg, fundamental_cycle)...)
+    fundamental_cycle = _find_fundamental_cycle(parents, non_tree_edge)
+    return (fundamental_cycle, _find_partitions(g, fundamental_cycle)...)
 end
 
 """
-    find_separator_fcs_best(lg, root)
+    find_separator_fcs_best(g, root)
 
 Finds a valid separator for a planar graph using finite cycles as separators.
 Repeats the search from every possible BFS root and returns the most balanced
 separator.
 """
-function find_separator_fcs_best(lg::LabeledGraph{T}, root::T)::Tuple{Set{T}, Set{T}, Set{T}} where {T}
+function find_separator_fcs_best(g::LightGraphs.AbstractGraph, root::Int)::Tuple{Set{Int}, Set{Int}, Set{Int}}
     # THIS ALGORITHM IS O(n^2) BECAUSE IT CHOOSES THE MOST BALANCED
-    parents = LightGraphs.bfs_parents(lg.graph, lg.labels[root])
+    parents = LightGraphs.bfs_parents(g, root)
 
-    tree_edges = map(tup -> LightGraphs.Edge(tup[1] => tup[2]), zip(parents, 1:length(parents)))
-    non_tree_edges = filter(edge -> !(in(edge, tree_edges) || in(reverse(edge), tree_edges)), collect(LightGraphs.edges(lg.graph)))
+    tree_edges = map(zipped -> LightGraphs.Edge(zipped), zip(parents, 1:length(parents)))
+    non_tree_edges = filter(edge -> !(in(edge, tree_edges) || in(reverse(edge), tree_edges)), collect(LightGraphs.edges(g)))
 
-    fundamental_cycles = @pipe map(non_tree_edge -> _find_fundamental_cycle(parents, non_tree_edge), non_tree_edges) |> map(cycle -> Set(convert_vertices(lg.labels, collect(cycle))), _)
-    partitions = map(cycle -> (cycle, _find_partitions(lg, cycle)...), fundamental_cycles)
+    fundamental_cycles = map(non_tree_edge -> _find_fundamental_cycle(parents, non_tree_edge), non_tree_edges)
+    partitions = map(cycle -> (cycle, _find_partitions(g, cycle)...), fundamental_cycles)
     balances = map(partition -> min(length(partition[2]) / length(partition[3]), length(partition[3]) / length(partition[2])), partitions)
 
     max_balance = max(balances...)
@@ -172,22 +171,21 @@ function find_separator_fcs_best(lg::LabeledGraph{T}, root::T)::Tuple{Set{T}, Se
 end
 
 """
-    _find_partitions(lg, separator)
+    _find_partitions(g, separator)
 
-Given a graph and separator find the sets of vertices separated.
+Given a graph and separator find the most balanced sets of vertices separated.
 """
-function _find_partitions(lg::LabeledGraph{T}, separator::Set{T})::Tuple{Set{T}, Set{T}} where {T}
-    lg_without_separator = copy(lg)
+function _find_partitions(g::VertexSafeGraphs.VSafeGraph, separator::Set{Int})::Tuple{Set{Int}, Set{Int}}
+    g_without_separator = copy(g)
 
     for vertex in separator
-        lg_rem_vertex!(lg_without_separator, vertex)
+        LightGraphs.rem_vertex!(g_without_separator, vertex)
     end
 
-    components = @pipe LightGraphs.connected_components(lg_without_separator.graph) |>
-        map(component -> convert_vertices(lg_without_separator.labels, component), _) |>
-        sort(_, by=length, rev=true)
-    a = Array{T, 1}()
-    b = Array{T, 1}()
+    components = @pipe LightGraphs.connected_components(g_without_separator) |> sort(_, by=length, rev=true)
+
+    a = Array{Int, 1}()
+    b = Array{Int, 1}()
     for component in components
         append!(sum(map(length, a)) < sum(map(length, b)) ? a : b, component)
     end
@@ -231,7 +229,7 @@ end
 Run breadth first search on a graph and return its BFS tree as an array of sets
 representing levels of the tree.
 """
-function _find_bfs_levels(tree::LightGraphs.AbstractGraph, root::Int)::Array{Set{Int}, 1}
+function _find_bfs_levels(tree::LightGraphs.DiGraph, root::Int)::Array{Set{Int}, 1}
     levels = Dict{Int, Set{Int}}()
 
     levels[1] = Set([root])
@@ -253,34 +251,38 @@ function _find_bfs_levels(tree::LightGraphs.AbstractGraph, root::Int)::Array{Set
 end
 
 """
-    _is_valid_separator(lg, separator, a, b)
+    _is_valid_separator(g, separator, a, b)
 
-Checks if a separator is valid on graph lg and separates A and B
+Checks if a separator is valid on graph g and separates A and B
 """
-function _is_valid_separator(lg::LabeledGraph{T}, separator::Set{T}, a::Set{T}, b::Set{T})::Bool where T
-    is_separating = true
+function _is_valid_separator(g::LightGraphs.AbstractGraph, separator::Set{Int}, a::Set{Int}, b::Set{Int})::Bool
+    # check if the separator is separating
     for source in a
-        break_early = false
         for destination in b
-            is_path = ClutteredEnvPathOpt.LightGraphs.has_path(lg.graph, source, destination, exclude_vertices=collect(separator))
-            is_valid = is_separating && !is_path
-            if !is_valid
-                break_early = true
-                break
+            is_path = LightGraphs.has_path(g, source, destination, exclude_vertices=collect(separator))
+            if is_path
+                return false
             end
         end
 
-        if break_early break end
     end
 
-   is_covering =  all(map(vertex -> in(vertex, union(separator, a, b)), collect(keys(lg.labels))))
+    # check if separator, a, b is a cover
+    is_covering =  all(map(vertex -> in(vertex, union(separator, a, b)), LightGraphs.vertices(g)))
+    if (!is_covering) 
+        return false
+    end
 
-   is_disjoint =
-    all(map(vertex -> !in(vertex, union(a, b)), collect(separator))) &&
-    all(map(vertex -> !in(vertex, union(b, separator)), collect(a))) &&
-    all(map(vertex -> !in(vertex, union(a, separator)), collect(b)))
+    # check if separator, a, b are disjoint
+    is_disjoint =
+        all(map(vertex -> !in(vertex, union(a, b)), collect(separator))) &&
+        all(map(vertex -> !in(vertex, union(b, separator)), collect(a))) &&
+        all(map(vertex -> !in(vertex, union(a, separator)), collect(b)))
+    if (!is_disjoint) 
+        return false
+    end
 
-    return is_separating && is_covering && is_disjoint
+    return true
 end
 
 """
@@ -289,15 +291,15 @@ end
 Creates a finite element graph from a skeleton and set of sets of edges
 representing faces.
 """
-function _find_finite_element_graph(skeleton::LabeledGraph{T}, faces::Set{Set{Pair{T, T}}})::LabeledGraph{T} where {T}
+function _find_finite_element_graph(skeleton::LightGraphs.AbstractGraph, faces::Set{Set{LightGraphs.Edge}})::LightGraphs.AbstractGraph
     g = copy(skeleton)
     
     for face in faces
-        face_vertices = reduce((x, y) -> union!(x, Set([y.first, y.second])), face, init=Set{Number}())
+        face_vertices = _face_vertices(face)
         for edge in face
-            for dest in face_vertices
-                if (edge.first != dest)
-                    lg_add_edge!(g, edge.first, dest)
+            for vertex in face_vertices
+                if (LightGraphs.src(edge) != vertex)
+                    LightGraphs.add_edge!(g, LightGraphs.src(edge), vertex)
                 end
             end
         end
@@ -306,31 +308,33 @@ function _find_finite_element_graph(skeleton::LabeledGraph{T}, faces::Set{Set{Pa
     return g
 end
 
+function _face_vertices(face::Set{LightGraphs.Edge})::Set{Int}
+    return reduce((accumulator, edge) -> union!(accumulator, Set([LightGraphs.src(edge), LightGraphs.dst(edge)])), face, init=Set{Int}())
+end
+
 """
-    pp_expell(lg, separator, a, b)
+    pp_expell(g, separator, a, b)
 
 A prostprocessing algorithm to shrink the size of a separator by expelling
 vertices in the separator not connected to both A and B.
 """
-function pp_expell(lg::LabeledGraph{T}, separator::Set{T}, a::Set{T}, b::Set{T})::Tuple{Set{T}, Set{T}, Set{T}} where {T}
+function pp_expell(g::LightGraphs.AbstractGraph, separator::Set{Int}, a::Set{Int}, b::Set{Int})::Tuple{Set{Int}, Set{Int}, Set{Int}}
     pp_separator = copy(separator)
     pp_a = copy(a)
     pp_b = copy(b)
     
     for separator_vertex in separator
-        source = lg.labels[separator_vertex]
-
         is_connected_a = any(
             map(
-                destination -> LightGraphs.has_path(lg.graph, source, destination, exclude_vertices=collect(convert_vertices_rev(lg.labels, setdiff(pp_separator, Set([separator_vertex]))))),
-                collect(convert_vertices_rev(lg.labels, pp_a))
+                destination -> LightGraphs.has_path(g, separator_vertex, destination, exclude_vertices=collect(setdiff(pp_separator, Set([separator_vertex])))),
+                collect(pp_a)
             )
         )
 
         is_connected_b = any(
             map(
-                destination -> LightGraphs.has_path(lg.graph, source, destination, exclude_vertices=collect(convert_vertices_rev(lg.labels, setdiff(pp_separator, Set([separator_vertex]))))),
-                collect(convert_vertices_rev(lg.labels, pp_b))
+                destination -> LightGraphs.has_path(g, separator_vertex, destination, exclude_vertices=collect(setdiff(pp_separator, Set([separator_vertex])))),
+                collect(pp_b)
             )
         )
 
