@@ -180,12 +180,31 @@ function construct_graph(obs)
     for i in 1:length(points)
         for j in 1:length(points)
             angles[i, j] = atan(points[j].second - points[i].second, points[j].first - points[i].first)
-            if angles[i, j] <= 0
+            if angles[i, j] < 0
                 angles[i, j] += 2 * pi                
             end
         end
     end
+
     @show angles
+
+    function greatest_angle_neighbor(source, last_angle, visited)
+        unvisited = filter(vertex -> !(vertex in visited), neighbors[source])
+        neighbor_angles = map(neighbor -> angles[source, neighbor], unvisited)
+        zipped = @pipe zip(unvisited, neighbor_angles) |> collect(_)
+        @show zipped
+
+        greater = filter(tup -> ((tup[2] > last_angle) && !(isapprox(tup[2], last_angle))), zipped)
+
+        if isempty(greater)
+            return (-1, -1) # bad state
+        else
+            sort!(greater, by=(tup -> tup[2]))
+            destination = greater[1][1]
+        end
+
+        return (destination, angles[source, destination])
+    end
 
     faces = []
 
@@ -193,62 +212,47 @@ function construct_graph(obs)
         @show start = i
 
         for j in 1:length(neighbors[start])
-            @show current = neighbors[start][j]
-            @show last_angle = angles[start, current]
+            current = neighbors[start][j]
+            last_angle = angles[start, current]
 
-            bad = false
             face = [start, current]
 
             while start != current
                 @show current
-                if (length(face) > 2 && start in neighbors[current])
-                    @show "POOP"
+                if (length(face) > 2 && (start in neighbors[current]))
+                    push!(faces, copy(face))
                     break;
                 end
 
-                @show viable = filter(neighbor -> !(neighbor in face) && angles[current, neighbor] > last_angle && !isapprox(angles[current, neighbor], last_angle), neighbors[current])
-                # if (length(unvisited) == 1)
-                #     @show last_angle = angles[current, unvisited[1]]
-                #     @show current = unvisited[1]
-                # else
-                #     @show last_angle = @pipe map(vertex -> angles[current, vertex] > last_angle && !isapprox(angles[current, vertex], last_angle) ? angles[current, vertex] : Inf, unvisited) |>
-                #                              min(_...)
-                #     @show current = filter(vertex -> angles[current, vertex] == last_angle, unvisited)[1]
+                @show current, last_angle = greatest_angle_neighbor(current, last_angle, face)
 
-                # end
-
-                temp = sort(viable, by=(vertex -> angles[current, vertex]))
-                if isempty(temp)
-                    bad = true
+                if current == -1
                     break
                 end
-                next = temp[end]
-                last_angle = angles[current, next]
-                current = next
-                # neighbor_angles = map(neighbor -> angles[current, neighbor], unvisited)
-                # viable_angles = filter(angle -> angle >= last_angle, neighbor_angles)
-                # last_angle = min(viable_angles...)[1]
-                # current = @pipe findall(angle -> angle == last_angle, angles) |> filter(vertex -> vertex in unvisited, _)[1]
 
                 push!(face, current)
             end
 
-            if !bad
-                push!(faces, copy(face))
-            end
             @show faces
         end
     end
 
-    @show faces
+    # Cleaning
+    # face_sets = @pipe map(face -> Set(face), faces) |> unique(_)
+    face_sets = []
 
-    # Pick arbitrary node A
-    # Pop its largest angle neighbor off mapped stack and go to it
-    # Repeat until returned to A
-    # Save face data
-    # continue until A's stack is empty
-    # Pick new arbitrary point A
-    # Continue until no points remain
+    unique_faces = filter(face -> begin
+        face_set = Set(face)
+        included = face_set in face_sets
+
+        if !included
+            push!(face_sets, face_set)
+        end
+
+        return included
+    end, faces)
+
+    return unique_faces
 end
 
 function find_neighbors(points, mapped)
