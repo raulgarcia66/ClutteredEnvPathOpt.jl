@@ -238,7 +238,6 @@ function construct_graph(obs)
     end
 
     # Cleaning
-    # face_sets = @pipe map(face -> Set(face), faces) |> unique(_)
     face_sets = []
 
     unique_faces = filter(face -> begin
