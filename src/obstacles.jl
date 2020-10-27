@@ -71,14 +71,14 @@ function find_intersections(obstacles)
 
     halfspaces = @pipe map(obstacle -> Polyhedra.hrep(obstacle).halfspaces, obstacles) |> Iterators.flatten(_) |> collect(_)
 
-    boundries = [
+    boundaries = [
         Polyhedra.HalfSpace([1, 0], 0),
         Polyhedra.HalfSpace([1, 0], 1),
         Polyhedra.HalfSpace([0, 1], 0),
         Polyhedra.HalfSpace([0, 1], 1)
     ]
 
-    lines = [halfspaces; boundries]
+    lines = [halfspaces; boundaries]
 
     points = fill([], length(lines))    # Association from lines to points
     for i = 1:length(lines)
@@ -152,7 +152,6 @@ function plot_intersections(field)
     x = map(point -> point[1], intersections)
     y = map(point -> point[2], intersections)
 
-    # Plots.scatter!(x, y)
     Plots.scatter!(x,y, series_annotations=([Plots.text(string(x), :right, 6, "courier") for x in 1:length(x)]))
 end
 
@@ -165,15 +164,15 @@ function plot_new(n)
     plot_lines(obs)
     plot_intersections(obs)
 
-    construct_graph(obs)
+    @show construct_graph(obs)
 end
 
 function construct_graph(obs)
-    @show points, mapped = find_intersections(obs)
+    points, mapped = find_intersections(obs)
     
     # Create map from point to neighbors (counter clockwise ordered by angle against horizontal)
-    @show neighbors = find_neighbors(points, mapped)
-    @show graph = gen_graph(neighbors)
+    neighbors = find_neighbors(points, mapped)
+    graph = gen_graph(neighbors)
 
     # angles = map(point -> atan(point.first, point.second), points)
     angles = fill(Inf, length(points), length(points))
@@ -186,13 +185,11 @@ function construct_graph(obs)
         end
     end
 
-    @show angles
-
     function greatest_angle_neighbor(source, last_angle, visited)
         unvisited = filter(vertex -> !(vertex in visited), neighbors[source])
         neighbor_angles = map(neighbor -> angles[source, neighbor], unvisited)
         zipped = @pipe zip(unvisited, neighbor_angles) |> collect(_)
-        @show zipped
+        zipped
 
         greater = filter(tup -> ((tup[2] > last_angle) && !(isapprox(tup[2], last_angle))), zipped)
 
@@ -209,7 +206,7 @@ function construct_graph(obs)
     faces = []
 
     for i in 1:length(points)
-        @show start = i
+        start = i
 
         for j in 1:length(neighbors[start])
             current = neighbors[start][j]
@@ -218,13 +215,13 @@ function construct_graph(obs)
             face = [start, current]
 
             while start != current
-                @show current
+                current
                 if (length(face) > 2 && (start in neighbors[current]))
                     push!(faces, copy(face))
                     break;
                 end
 
-                @show current, last_angle = greatest_angle_neighbor(current, last_angle, face)
+                current, last_angle = greatest_angle_neighbor(current, last_angle, face)
 
                 if current == -1
                     break
@@ -232,8 +229,6 @@ function construct_graph(obs)
 
                 push!(face, current)
             end
-
-            @show faces
         end
     end
 
@@ -251,7 +246,7 @@ function construct_graph(obs)
         return included
     end, faces)
 
-    return unique_faces
+    return (graph, @pipe map(face -> reverse(face), unique_faces) |> Set(_))
 end
 
 function find_neighbors(points, mapped)
