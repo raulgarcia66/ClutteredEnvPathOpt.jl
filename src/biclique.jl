@@ -21,11 +21,77 @@ function find_biclique_cover(skeleton::LabeledGraph{T}, faces::Set{Vector{T}})::
     skeleton_ac, faces_ac = _find_skeleton_faces(union(A, C), skeleton, faces)
     skeleton_bc, faces_bc = _find_skeleton_faces(union(B, C), skeleton, faces)
 
-    return union(
-        Set([A => B]),
-        find_biclique_cover(skeleton_ac, faces_ac),
-        find_biclique_cover(skeleton_bc, faces_bc)
-    )
+    node = Set([A => B])
+    left = find_biclique_cover(skeleton_ac, faces_ac)
+    right = find_biclique_cover(skeleton_bc, faces_bc)
+
+    @show node, left, right
+
+    return union(node, left, right)
+end
+
+struct BicliqueCoverTree
+    biclique
+    left
+    right
+end
+
+function find_biclique_cover_as_tree(skeleton::LabeledGraph{T}, faces::Set{Vector{T}}) where {T}
+    face_pairs = ClutteredEnvPathOpt._find_face_pairs(faces)
+    feg = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, face_pairs)
+
+    if ClutteredEnvPathOpt.lg_is_complete(feg)
+        return nothing
+    end
+
+    (C, A, B) = ClutteredEnvPathOpt._find_feg_separator_lt_no_empty(skeleton, face_pairs)
+
+    skeleton_ac, faces_ac = ClutteredEnvPathOpt._find_skeleton_faces(union(A, C), skeleton, faces)
+    skeleton_bc, faces_bc = ClutteredEnvPathOpt._find_skeleton_faces(union(B, C), skeleton, faces)
+
+    node = A => B
+    left = ClutteredEnvPathOpt.find_biclique_cover_as_tree(skeleton_ac, faces_ac)
+    right = ClutteredEnvPathOpt.find_biclique_cover_as_tree(skeleton_bc, faces_bc)
+
+    return BicliqueCoverTree(node, left, right)
+end
+
+function flatten(tree)
+    if (tree === nothing)
+        return []
+    end
+
+    return union([tree.biclique], flatten(tree.left), flatten(tree.right))
+end
+
+function getEdges(tree, cover)
+    res = ""
+
+    if (tree === nothing)
+        return res
+    end
+
+    node_num = findfirst(x -> x === tree.biclique, cover)
+
+    if (tree.left !== nothing) 
+        left_num = findfirst(x -> x === tree.left.biclique, cover)
+        res = string(res, node_num, " -> ", left_num, " ", getEdges(tree.left, cover))
+    end
+
+    if (tree.right !== nothing) 
+        right_num = findfirst(x -> x === tree.right.biclique, cover)
+        res = string(res, node_num, " -> ", right_num, " ", getEdges(tree.right, cover))
+    end
+
+    return res
+end
+
+function tree2digraph(tree)
+    cover = collect(flatten(tree))
+
+    edges = getEdges(tree, cover)
+
+    return (cover, string("Digraph G { ", edges, " }"))
 end
 
 """
@@ -104,7 +170,7 @@ function _find_feg_separator_lt_no_empty(skeleton::LabeledGraph{T}, face_pairs::
         end
     end
     
-    return ([], [], [])
+    return (Set([]), Set([]), Set([]))
 end
 
 """
