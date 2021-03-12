@@ -1,56 +1,73 @@
 ENV["GUROBI_HOME"] = "/Library/gurobi910/mac64"
 
 using ClutteredEnvPathOpt
+using LinearAlgebra
 using Test
 using Pipe
 using JuMP, Gurobi
 
 
 @testset "ClutteredEnvPathOpt.jl" begin
-    # Write your own tests here.
-    obstacles, points, g, faces = ClutteredEnvPathOpt.plot_new(2)
-    skeleton = LabeledGraph(g)
+    obstacles = ClutteredEnvPathOpt.gen_field(2)
 
-    tree = ClutteredEnvPathOpt.find_biclique_cover_as_tree(skeleton, faces)
-    (cover_vec, graphviz) = ClutteredEnvPathOpt.tree2digraph(tree)
-    io = open("graphviz.txt", "a")
-    println(io, graphviz)
-    close(io)
-    # cover = ClutteredEnvPathOpt.find_biclique_cover(skeleton, faces)
-    # cover_vec = collect(cover)
-
-    for i in 1:length(cover_vec)
-        a, b = cover_vec[i]
-        a_vec = collect(a);
-        b_vec = collect(b);
-
-        x_a = map(n -> points[n].first, a_vec)
-        y_a = map(n -> points[n].second, a_vec)
-
-        x_b = map(n -> points[n].first, b_vec)
-        y_b = map(n -> points[n].second, b_vec)
-
-        Plots.scatter(x_a, y_a, color="red", lims=(-0.1, 1.1), series_annotations=(map(n -> Plots.text(string(n), :right, 6, "courier"), a_vec)))
-        Plots.scatter!(x_b, y_b, color="blue", lims=(-0.1, 1.1), series_annotations=(map(n -> Plots.text(string(n), :right, 6, "courier"), b_vec)))
-        
-        # for j in 1:length(obstacles)
-        #     Plots.plot!(obstacles[j], ylim = (0, 1))
-        # end
-        ClutteredEnvPathOpt.plot_field(obstacles)
-        ClutteredEnvPathOpt.plot_lines(obstacles)
-
-        Plots.savefig(string(i))
-    end
-
-    feg = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(faces))
-    E = @pipe LightGraphs.complement(feg.graph) |> LightGraphs.incidence_matrix(_)
-    lower = Int(ceil(log2(length(faces))))
-    upper = length(cover_vec)
-
-    plot_optimal(E, obstacles, points, lower, upper)
-
-    ClutteredEnvPathOpt._is_valid_biclique_cover(ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(faces)), cover)
+    ClutteredEnvPathOpt.solve_deits(
+        obstacles,
+        100,
+        [0, 0, 0],
+        [0.1, 0.1, 0],
+        [1, 1, 0],
+        Matrix(I, 3, 3),
+        Matrix(I, 3, 3),
+        1,
+        100,
+        0.1
+    )
 end
+
+# @testset "Optimal biclique comparison" begin
+#     obstacles, points, g, faces = ClutteredEnvPathOpt.plot_new(2)
+#     skeleton = LabeledGraph(g)
+
+#     tree = ClutteredEnvPathOpt.find_biclique_cover_as_tree(skeleton, faces)
+#     (cover_vec, graphviz) = ClutteredEnvPathOpt.tree2digraph(tree)
+#     io = open("graphviz.txt", "a")
+#     println(io, graphviz)
+#     close(io)
+#     # cover = ClutteredEnvPathOpt.find_biclique_cover(skeleton, faces)
+#     # cover_vec = collect(cover)
+
+#     for i in 1:length(cover_vec)
+#         a, b = cover_vec[i]
+#         a_vec = collect(a);
+#         b_vec = collect(b);
+
+#         x_a = map(n -> points[n].first, a_vec)
+#         y_a = map(n -> points[n].second, a_vec)
+
+#         x_b = map(n -> points[n].first, b_vec)
+#         y_b = map(n -> points[n].second, b_vec)
+
+#         Plots.scatter(x_a, y_a, color="red", lims=(-0.1, 1.1), series_annotations=(map(n -> Plots.text(string(n), :right, 6, "courier"), a_vec)))
+#         Plots.scatter!(x_b, y_b, color="blue", lims=(-0.1, 1.1), series_annotations=(map(n -> Plots.text(string(n), :right, 6, "courier"), b_vec)))
+        
+#         # for j in 1:length(obstacles)
+#         #     Plots.plot!(obstacles[j], ylim = (0, 1))
+#         # end
+#         ClutteredEnvPathOpt.plot_field(obstacles)
+#         ClutteredEnvPathOpt.plot_lines(obstacles)
+
+#         Plots.savefig(string(i))
+#     end
+
+#     feg = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(faces))
+#     E = @pipe LightGraphs.complement(feg.graph) |> LightGraphs.incidence_matrix(_)
+#     lower = Int(ceil(log2(length(faces))))
+#     upper = length(cover_vec)
+
+    # plot_optimal(E, obstacles, points, lower, upper)
+
+#     ClutteredEnvPathOpt._is_valid_biclique_cover(ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(faces)), cover)
+# end
 
 # @testset "Lipton-Tarjan separator on Finite Element Graph test" begin
 #     # Grid skeleton
