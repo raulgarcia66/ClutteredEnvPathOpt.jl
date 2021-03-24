@@ -29,18 +29,17 @@ function get_M_A_b(obstacles)
                 A = hs.a
                 b = hs.β
 
-                model = JuMP.Model(Gurobi.Optimizer)
-                JuMP.@variable(model, x[1:2])
-                JuMP.@constraint(model, x in polygon)   # TODO "no method matching copy" error
-                JuMP.@objective(model, Max, A*x)
+                sub_model = JuMP.Model(Gurobi.Optimizer)
+                JuMP.@variable(sub_model, sub_x[1:2])
+                JuMP.@constraint(sub_model, sub_x in polygon)   # TODO "no method matching copy" error WHY DOES THIS ONLY WORK THE FIRST TIME
+                JuMP.@objective(sub_model, Max, A' * sub_x)
 
-                stat = JuMP.optimize!(model)
+                stat = JuMP.optimize!(sub_model)
 
-                return value.(x)
+                return value.(sub_x)
             end,
             halfspaces
         )
-        
 
         push!(Ms, M)
         push!(As, A)
@@ -60,7 +59,7 @@ end
 # q_t <- weight on unused steps (scalar)
 # L <- number of pieces of pwl sin/cos (scalar)
 function solve_deits(obstacles, N, f1, f2, g, Q_g, Q_r, q_t, L, delta_f_max)
-    model = JuMP.Model(JuMP.optimizer_with_attributes(Gurobi.Optimizer, "NonConvex" => 2))
+    model = JuMP.Model(JuMP.optimizer_with_attributes(Gurobi.Optimizer))
     
     # model has scalar variables x, y, theta, bin var t and d (2x1 decision), p (2x1 decision)
     JuMP.@variable(model, x[1:N])
@@ -69,11 +68,11 @@ function solve_deits(obstacles, N, f1, f2, g, Q_g, Q_r, q_t, L, delta_f_max)
 
     JuMP.@variable(model, t[1:N], Bin)
 
-    JuMP.@variable(model, d1[1:N])
-    JuMP.@variable(model, d2[1:N])
+    # JuMP.@variable(model, d1[1:N])
+    # JuMP.@variable(model, d2[1:N])
 
-    JuMP.@variable(model, p1[1:N, 1:2])
-    JuMP.@variable(model, p2[1:N, 1:2])
+    # JuMP.@variable(model, p1[1:N, 1:2])
+    # JuMP.@variable(model, p2[1:N, 1:2])
 
     # Objective
     f = vec([[x[j], y[j], theta[j]] for j in 1:N])
@@ -99,35 +98,41 @@ function solve_deits(obstacles, N, f1, f2, g, Q_g, Q_r, q_t, L, delta_f_max)
     s = [piecewiselinear(model, theta[j], range(0, stop=(2 * pi), length=L), sin) for j in 1:N]
     c = [piecewiselinear(model, theta[j], range(0, stop=(2 * pi), length=L), cos) for j in 1:N]
 
-    # QUESTION: Is it correct to start on second step here?
+    d1 = 1
+    d2 = 1
+    p1 = 0
+    p2 = 0
     for j in 2:N
         JuMP.@constraint(
             model,
             [
-                d1[j],
-                x[j] - x[j - 1] - c[j] * p1[j, 1] + s[j] * p1[j, 2],
-                y[j] - y[j - 1] - s[j] * p1[j, 1] - c[j] * p1[j, 2]
+                1,
+                x[j] - x[j - 1] - c[j] * p1 + s[j] * p1,
+                y[j] - y[j - 1] - s[j] * p1 - c[j] * p1
             ] in SecondOrderCone()
         )
 
         JuMP.@constraint(
             model,
             [
-                d2[j],
-                x[j] - x[j - 1] - c[j] * p2[j, 1] + s[j] * p2[j, 2],
-                y[j] - y[j - 1] - s[j] * p2[j, 1] - c[j] * p2[j, 2]
+                1,
+                x[j] - x[j - 1] - c[j] * p2 + s[j] * p2,
+                y[j] - y[j - 1] - s[j] * p2 - c[j] * p2
             ] in SecondOrderCone()
         )
     end
 
-    # Fix initial pose TODO: is this the right way of doing equality testing?
-    # for j in 1:N
-    #     if j % 2 == 1
-    #         JuMP.@constraint(model, t[j] >= (f[j] = f1))
-    #     else
-    #         JuMP.@constraint(model, t[j] >= (f[j] = f2))
-    #     end
-    # end
+    for j in 1:N
+        if j % 2 == 1
+            JuMP.@constraint(model, t[j] => {x[j] == f1[1]})
+            JuMP.@constraint(model, t[j] => {y[j] == f1[2]})
+            JuMP.@constraint(model, t[j] => {theta[j] == f1[3]})
+        else
+            JuMP.@constraint(model, t[j] => {x[j] == f2[1]})
+            JuMP.@constraint(model, t[j] => {y[j] == f2[2]})
+            JuMP.@constraint(model, t[j] => {theta[j] == f2[3]})
+        end
+    end
 
     # Max step distance TODO: did I do second order cones correct here?
     for j in 2:N
@@ -140,9 +145,11 @@ function solve_deits(obstacles, N, f1, f2, g, Q_g, Q_r, q_t, L, delta_f_max)
     # Solve
     stat = JuMP.optimize!(model)
 
-    @show value.(x)
-    @show value.(y)
-    @show value.(theta)
+    return value.(x), value.(y), value.(theta)
+end
 
-    return stat
+function plot_steps(obstacles, x, y, theta)
+    ClutteredEnvPathOpt.plot_field(obstacles)
+    ClutteredEnvPathOpt.plot_lines(obstacles)
+    ClutteredEnvPathOpt.plot_intersections(obstacles)
 end
