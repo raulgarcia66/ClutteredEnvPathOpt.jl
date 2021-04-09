@@ -6,6 +6,39 @@ using Pipe
 using Plots
 using JuMP, Gurobi, PiecewiseLinearOpt
 
+function get_M_A_b_easy(obstacles)
+    # For ever face of free space compute max(x), max(y) to get bounding box
+    ## For every A in face maximize Ax over the bounding box by looking at both extreme points
+    
+    Ms = []
+    As = []
+    bs = []
+
+    _o, points, _g, faces = ClutteredEnvPathOpt.construct_graph(obstacles)
+
+    for face in faces
+        v = Polyhedra.convexhull(map(i -> collect(points[i]), face)...)
+        polygon = Polyhedra.polyhedron(
+            v,
+            Polyhedra.DefaultLibrary{Float64}(Gurobi.Optimizer)
+        )
+        halfspaces = Polyhedra.hrep(polygon).halfspaces
+
+        for hs in halfspaces
+            A = hs.a'
+            b = hs.β
+
+            M = maximum(map(x -> A * x, v.points))
+
+            push!(Ms, M)
+            push!(As, A)
+            push!(bs, b)
+        end
+    end
+    
+    return Ms, As, bs
+end
+
 function get_M_A_b(obstacles)
     Ms = []
     As = []
@@ -30,7 +63,7 @@ function get_M_A_b(obstacles)
                 b = hs.β
 
                 sub_model = JuMP.Model(Gurobi.Optimizer)
-                JuMP.@variable(sub_model, sub_x[1:2])
+                sub_x = JuMP.@variable(sub_model, [1:2])
                 JuMP.@constraint(sub_model, sub_x in polygon)   # TODO "no method matching copy" error WHY DOES THIS ONLY WORK THE FIRST TIME
                 JuMP.@objective(sub_model, Max, A' * sub_x)
 
@@ -68,25 +101,20 @@ function solve_deits(obstacles, N, f1, f2, g, Q_g, Q_r, q_t, L, delta_f_max)
 
     JuMP.@variable(model, t[1:N], Bin)
 
-    # JuMP.@variable(model, d1[1:N])
-    # JuMP.@variable(model, d2[1:N])
-
-    # JuMP.@variable(model, p1[1:N, 1:2])
-    # JuMP.@variable(model, p2[1:N, 1:2])
-
     # Objective
     f = vec([[x[j], y[j], theta[j]] for j in 1:N])
+    f_no_theta = vec([[x[j], y[j]] for j in 1:N])
     JuMP.@objective(
         model,
         Min,
         ((f[N] - g)' * Q_g * (f[N] - g)) + sum(q_t * t) + sum([(f[j + 1] - f[j])' * Q_r * (f[j + 1] - f[j]) for j in 1:(N-1)])
     )
 
-    # Big M constraints
-    # M, A, b = get_M_A_b(obstacles)
+    # Big M constraints TODO BROKEN
+    # M, A, b = get_M_A_b_easy(obstacles)
     # JuMP.@variable(model, z[1:N, 1:length(obstacles)], Bin)
 
-    # for j in 1:N
+    # for j in 1:length(A)
     #     for r in 1:length(obstacles)
     #         JuMP.@constraint(model, A[r] * [x[j], y[j]] <= b[r] * z[j, r] + M[r] * (1 - z[j, r]))
     #     end
@@ -98,17 +126,17 @@ function solve_deits(obstacles, N, f1, f2, g, Q_g, Q_r, q_t, L, delta_f_max)
     s = [piecewiselinear(model, theta[j], range(0, stop=(2 * pi), length=L), sin) for j in 1:N]
     c = [piecewiselinear(model, theta[j], range(0, stop=(2 * pi), length=L), cos) for j in 1:N]
 
-    d1 = 1
-    d2 = 1
-    p1 = 0
-    p2 = 0
+    d1 = 0.5
+    d2 = 0.5
+    p1 = [0, 0.1]   
+    p2 = [0, -0.1]
     for j in 2:N
         JuMP.@constraint(
             model,
             [
                 1,
-                x[j] - x[j - 1] - c[j] * p1 + s[j] * p1,
-                y[j] - y[j - 1] - s[j] * p1 - c[j] * p1
+                x[j] - x[j - 1] - c[j] * p1[1] + s[j] * p1[2],
+                y[j] - y[j - 1] - s[j] * p1[1] - c[j] * p1[2]
             ] in SecondOrderCone()
         )
 
@@ -116,12 +144,13 @@ function solve_deits(obstacles, N, f1, f2, g, Q_g, Q_r, q_t, L, delta_f_max)
             model,
             [
                 1,
-                x[j] - x[j - 1] - c[j] * p2 + s[j] * p2,
-                y[j] - y[j - 1] - s[j] * p2 - c[j] * p2
+                x[j] - x[j - 1] - c[j] * p2[1] + s[j] * p2[2],
+                y[j] - y[j - 1] - s[j] * p2[1] - c[j] * p2[2]
             ] in SecondOrderCone()
         )
     end
 
+    # Set T to punish extra steps
     for j in 1:N
         if j % 2 == 1
             JuMP.@constraint(model, t[j] => {x[j] == f1[1]})
@@ -134,13 +163,14 @@ function solve_deits(obstacles, N, f1, f2, g, Q_g, Q_r, q_t, L, delta_f_max)
         end
     end
 
-    # Max step distance TODO: did I do second order cones correct here?
+    # Max step distance
     for j in 2:N
-        # JuMP.@constraint(model, norm(f[j] - f[j - 1]) <= delta_f_max)
-        # @constraint(model, norm(x) <= t)` should now be written as `@constraint(model, [t; x] in SecondOrderCone())
-        JuMP.@constraint(model, [delta_f_max; f[j] - f[j - 1]] in SecondOrderCone())
-
+        JuMP.@constraint(model, [delta_f_max; f_no_theta[j] - f_no_theta[j - 1]] in SecondOrderCone())
+        # JuMP.@constraint(model, norm(f_no_theta[j] - f_no_theta[j - 1]) <= delta_f_max)
     end
+
+    JuMP.@constraint(model, f[1] .== f1)
+    JuMP.@constraint(model, f[2] .== f2)
 
     # Solve
     stat = JuMP.optimize!(model)

@@ -11,7 +11,7 @@ using JuMP, Gurobi
 @testset "ClutteredEnvPathOpt.jl" begin
     obstacles = ClutteredEnvPathOpt.gen_field(2)
 
-    x, y, theta = ClutteredEnvPathOpt.solve_deits(
+    x, y, theta = solve_deits(
         obstacles,
         100,
         [0, 0, 0],
@@ -19,16 +19,17 @@ using JuMP, Gurobi
         [1, 1, 0],
         Matrix(I, 3, 3),
         Matrix(I, 3, 3),
-        1,
+        10,
         100,
-        0.1
+        1
     )
 
     ClutteredEnvPathOpt.plot_field(obstacles)
     ClutteredEnvPathOpt.plot_lines(obstacles)
     ClutteredEnvPathOpt.plot_intersections(obstacles)
 
-    scatter!(x, y, color="red")
+    scatter!(x[1:2:end], y[1:2:end], color="red")
+    scatter!(x[2:2:end], y[2:2:end], color="blue")
     quiver!(x, y, quiver=(0.1 * cos.(theta), 0.1 * sin.(theta)))
 
     @test 1 == 1
@@ -268,34 +269,34 @@ end
 #     end
 # end
 
-# @testset "biclique cover tests" begin
-#     for i in 2:24
-#         skeleton = LabeledGraph(ClutteredEnvPathOpt.LightGraphs.grid([i, i]))
+@testset "biclique cover tests" begin
+    for i in 2:24
+        skeleton = LabeledGraph(ClutteredEnvPathOpt.LightGraphs.grid([i, i]))
 
-#         faces = Set{Vector{Int}}()
-#         for j in 1:((i ^ 2) - i)
-#             if j % i != 0
-#                 face = [
-#                     j,
-#                     j + 1,      # right
-#                     j + i + 1,  # down
-#                     j + i,      # left
-#                 ]
+        faces = Set{Vector{Int}}()
+        for j in 1:((i ^ 2) - i)
+            if j % i != 0
+                face = [
+                    j,
+                    j + 1,      # right
+                    j + i + 1,  # down
+                    j + i,      # left
+                ]
 
-#                 push!(faces, face)
-#             end
-#         end
+                push!(faces, face)
+            end
+        end
 
-#         cover = ClutteredEnvPathOpt.find_biclique_cover_as_tree(skeleton, faces)
+        cover = ClutteredEnvPathOpt.find_biclique_cover_as_tree(skeleton, faces)
 
-#         @test ClutteredEnvPathOpt._is_valid_biclique_cover(ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(faces)), cover)
-#     end
+        @test ClutteredEnvPathOpt._is_valid_biclique_cover(ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(faces)), cover)
+    end
 
-#     for i in 3:24
-#         skeleton = LabeledGraph(ClutteredEnvPathOpt.LightGraphs.cycle_graph(i))
-#         faces = Set([collect(1:i)])
-#         cover = find_biclique_cover(skeleton, faces)
+    for i in 3:24
+        skeleton = LabeledGraph(ClutteredEnvPathOpt.LightGraphs.cycle_graph(i))
+        faces = Set([collect(1:i)])
+        cover = find_biclique_cover(skeleton, faces)
 
-#         @test ClutteredEnvPathOpt._is_valid_biclique_cover(ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(faces)), cover)
-#     end
-# end
+        @test ClutteredEnvPathOpt._is_valid_biclique_cover(ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(faces)), cover)
+    end
+end
