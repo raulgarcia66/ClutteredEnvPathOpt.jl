@@ -13,23 +13,23 @@ using JuMP, Gurobi
 
     x, y, theta = solve_deits(
         obstacles,
-        100,
+        20,
         [0, 0, 0],
         [0.1, 0.1, 0],
         [1, 1, 0],
         Matrix(I, 3, 3),
         Matrix(I, 3, 3),
-        10,
-        100,
+        -0.1,
+        5,
         1
     )
 
     ClutteredEnvPathOpt.plot_field(obstacles)
-    ClutteredEnvPathOpt.plot_lines(obstacles)
-    ClutteredEnvPathOpt.plot_intersections(obstacles)
+    # ClutteredEnvPathOpt.plot_lines(obstacles)
+    # ClutteredEnvPathOpt.plot_intersections(obstacles)
 
-    scatter!(x[1:2:end], y[1:2:end], color="red")
-    scatter!(x[2:2:end], y[2:2:end], color="blue")
+    scatter!(x[1:2:end], y[1:2:end], color="red", series_annotations=([Plots.text(string(x), :right, 6, "courier") for x in 1:length(x)]))
+    scatter!(x[2:2:end], y[2:2:end], color="blue", series_annotations=([Plots.text(string(x), :right, 6, "courier") for x in 1:length(x)]))
     quiver!(x, y, quiver=(0.1 * cos.(theta), 0.1 * sin.(theta)))
 
     @test 1 == 1

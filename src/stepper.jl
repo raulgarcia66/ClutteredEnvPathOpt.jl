@@ -7,9 +7,6 @@ using Plots
 using JuMP, Gurobi, PiecewiseLinearOpt
 
 function get_M_A_b_easy(obstacles)
-    # For ever face of free space compute max(x), max(y) to get bounding box
-    ## For every A in face maximize Ax over the bounding box by looking at both extreme points
-    
     Ms = []
     As = []
     bs = []
@@ -36,7 +33,7 @@ function get_M_A_b_easy(obstacles)
         end
     end
     
-    return Ms, As, bs
+    return vcat(Ms...), vcat(As...), vcat(bs...)
 end
 
 function get_M_A_b(obstacles)
@@ -92,7 +89,9 @@ end
 # q_t <- weight on unused steps (scalar)
 # L <- number of pieces of pwl sin/cos (scalar)
 function solve_deits(obstacles, N, f1, f2, g, Q_g, Q_r, q_t, L, delta_f_max)
+    # model = JuMP.Model(JuMP.optimizer_with_attributes(Gurobi.Optimizer, "MIPGap" => 0.20))
     model = JuMP.Model(JuMP.optimizer_with_attributes(Gurobi.Optimizer))
+
     
     # model has scalar variables x, y, theta, bin var t and d (2x1 decision), p (2x1 decision)
     JuMP.@variable(model, x[1:N])
@@ -109,18 +108,24 @@ function solve_deits(obstacles, N, f1, f2, g, Q_g, Q_r, q_t, L, delta_f_max)
         Min,
         ((f[N] - g)' * Q_g * (f[N] - g)) + sum(q_t * t) + sum([(f[j + 1] - f[j])' * Q_r * (f[j + 1] - f[j]) for j in 1:(N-1)])
     )
+    # JuMP.@objective(
+    #     model,
+    #     Min,
+    #     ((f[N] - g)' * Q_g * (f[N] - g)) + sum(q_t * t)
+    # )
 
-    # Big M constraints TODO BROKEN
-    # M, A, b = get_M_A_b_easy(obstacles)
-    # JuMP.@variable(model, z[1:N, 1:length(obstacles)], Bin)
+    # Big M constraints TODO: No feasible sol 1/10
+    M, A, b = get_M_A_b_easy(obstacles)
+    JuMP.@variable(model, z[1:N, 1:length(M)], Bin)
 
-    # for j in 1:length(A)
-    #     for r in 1:length(obstacles)
-    #         JuMP.@constraint(model, A[r] * [x[j], y[j]] <= b[r] * z[j, r] + M[r] * (1 - z[j, r]))
-    #     end
+    for j in 1:N
+        for r in 1:length(M)
+            # JuMP.@constraint(model, A[r, :]' * [x[j], y[j]] <= b[r] * z[j, r] + M[r] * (1 - z[j, r]))
+            JuMP.@constraint(model, A[r, :]' * [x[j], y[j]] <= b[r] * z[j, r] + 1 * (1 - z[j, r]))
+        end
 
-    #     JuMP.@constraint(model, sum(z[j, :]) == 1)
-    # end
+        JuMP.@constraint(model, sum(z[j, :]) == 1)
+    end
 
     # Reachability
     s = [piecewiselinear(model, theta[j], range(0, stop=(2 * pi), length=L), sin) for j in 1:N]
@@ -134,7 +139,7 @@ function solve_deits(obstacles, N, f1, f2, g, Q_g, Q_r, q_t, L, delta_f_max)
         JuMP.@constraint(
             model,
             [
-                1,
+                d1,
                 x[j] - x[j - 1] - c[j] * p1[1] + s[j] * p1[2],
                 y[j] - y[j - 1] - s[j] * p1[1] - c[j] * p1[2]
             ] in SecondOrderCone()
@@ -143,7 +148,7 @@ function solve_deits(obstacles, N, f1, f2, g, Q_g, Q_r, q_t, L, delta_f_max)
         JuMP.@constraint(
             model,
             [
-                1,
+                d2,
                 x[j] - x[j - 1] - c[j] * p2[1] + s[j] * p2[2],
                 y[j] - y[j - 1] - s[j] * p2[1] - c[j] * p2[2]
             ] in SecondOrderCone()
