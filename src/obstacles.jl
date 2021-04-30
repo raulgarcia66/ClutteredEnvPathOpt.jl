@@ -5,8 +5,13 @@ import Plots
 
 using Pipe
 
-function gen_obstacle()
-    max_side_len = 0.25
+"""
+    gen_obstacle(max_side_len)
+
+Creates a triangle at a random location in the unit square with given max side
+length.
+"""
+function gen_obstacle(max_side_len::Real)
     point = rand(2)
 
     v = Polyhedra.convexhull(point, map(x -> x > 1 ? 1 : x, point + max_side_len * rand(2)), map(x -> x > 1 ? 1 : x, point + max_side_len * rand(2)))
@@ -14,12 +19,26 @@ function gen_obstacle()
     return Polyhedra.polyhedron(v, Polyhedra.DefaultLibrary{Float64}(GLPK.Optimizer))
 end
 
+"""
+    gen_field(num_obstacles)
+
+Creates an obstacle course, an array of obstacles in the unit square. If
+obstacles overlap the convex hull of their combined vertices will be taken
+instead.
+"""
 function gen_field(num_obstacles::Int)
-    obstacles = map(_n -> gen_obstacle(), 1:num_obstacles)
+    obstacles = map(_n -> gen_obstacle(0.25), 1:num_obstacles)
 
     return remove_overlaps(obstacles)
 end
 
+"""
+    remove_overlaps(obstacles)
+
+Given an obstacle course that may contain overlapping obstacles, check for
+overlaps and replace offending obstacles with the convex hull of their combined
+vertices.
+"""
 function remove_overlaps(obstacles)
     if !has_overlaps(obstacles)
         return obstacles
@@ -52,7 +71,12 @@ function remove_overlaps(obstacles)
     return remove_overlaps(res)
 end
 
-function has_overlaps(obstacles)
+"""
+    has_overlaps(obstacles)
+
+Returns true if any obstacles in the set are overlapping.
+"""
+function has_overlaps(obstacles)::Bool
     for i = 1:length(obstacles)
         for j = 1:length(obstacles)
             if i != j
@@ -66,6 +90,14 @@ function has_overlaps(obstacles)
     return false
 end
 
+"""
+    find_intersections(obstacles)
+
+Analyzes the halfspaces that make up each obstacle and find where the
+halfspaces interest. Returns an array of all intersections as well as an
+array mapping each halfspace to the points of intersection that lie on it in
+order. Will also consider the lines the make up the boarder of the unit suqare.
+"""
 function find_intersections(obstacles)
     res = Set([])
 
@@ -109,72 +141,22 @@ function find_intersections(obstacles)
     return (collect(res), sorted_points)
 end
 
-function plot_field(field)
-    for i = 1:length(field)
-        Plots.plot!(field[i], ylim = (0, 1))
-    end
-end
+"""
+    construct_graph(obs)
 
-function plot_lines(field)
-    halfspaces = @pipe map(obstacle -> Polyhedra.hrep(obstacle).halfspaces, field) |> Iterators.flatten(_) |> collect(_)
-
-    for h in halfspaces
-        f = x -> (h.β - h.a[1] * x) / h.a[2]
-
-        x = 0:0.01:1
-        y = map(f, x)
-
-        Plots.plot!(x, y)
-    end
-end
-
-function plot_borders()
-    halfspaces = [
-        Polyhedra.HalfSpace([1, 0], 0),
-        Polyhedra.HalfSpace([1, 0], 1),
-        Polyhedra.HalfSpace([0, 1], 0),
-        Polyhedra.HalfSpace([0, 1], 1)
-    ]
-
-    for h in halfspaces
-        f = x -> (h.β - h.a[1] * x) / h.a[2]
-
-        x = 0:0.01:1
-        y = map(f, x)
-
-        Plots.plot!(x, y)
-    end
-end
-
-function plot_intersections(field)
-    intersections = find_intersections(field)[1]
-
-    x = map(point -> point[1], intersections)
-    y = map(point -> point[2], intersections)
-
-    return Plots.scatter!(x,y, series_annotations=([Plots.text(string(x), :right, 6, "courier") for x in 1:length(x)]))
-end
-
-function plot_new(n)
-    Plots.plot()
-
-    obs = gen_field(n)
-
-    plot_field(obs)
-    plot_lines(obs)
-    a = plot_intersections(obs)
-
-    Plots.savefig(a, "course")
-
-    return construct_graph(obs)
-end
-
+Given a list of obstacles with no overlaps finds the intersections of the lines
+that make up each obstacles halfspace and constructs a graph with the
+intersections as nodes and the halfspaces as edges. Returns a tuple containing
+the obstacles, a list of the location of the nodes' coordinates, the graph, and
+a set of every face of free space (where a face is a clockwise-ordered vector
+of vertices).
+"""
 function construct_graph(obs)
     points, mapped = find_intersections(obs)
     
     # Create map from point to neighbors (counter clockwise ordered by angle against horizontal)
-    neighbors = find_neighbors(points, mapped)
-    graph = gen_graph(neighbors)
+    neighbors = _find_neighbors(points, mapped)
+    graph = _gen_graph(neighbors)
 
     # angles = map(point -> atan(point.first, point.second), points)
     angles = fill(Inf, length(points), length(points))
@@ -262,7 +244,13 @@ function construct_graph(obs)
     return (obs, points, graph, @pipe map(face -> reverse(face), unique_faces) |> Set(_))
 end
 
-function find_neighbors(points, mapped)
+"""
+    _find_neighbors(points, mapped)
+
+Given a list of points and an association of halfspace lines to points that lie
+on the line, return an array where res[i] <- the neighbors of node i
+"""
+function _find_neighbors(points, mapped)
     neighbors = Dict()
 
     for point in points
@@ -291,7 +279,14 @@ function find_neighbors(points, mapped)
     return res
 end
 
-function gen_graph(neighbors)    
+
+"""
+_gen_graph(neighbors)
+
+Given an array where res[i] <- the neighbors of node i, return the
+corresponding lightgraph.
+"""
+function _gen_graph(neighbors)    
     res = LightGraphs.SimpleGraph(length(neighbors))
 
     for i in 1:length(neighbors)
@@ -301,4 +296,93 @@ function gen_graph(neighbors)
     end
 
     return res
+end
+
+"""
+    plot_field(field)
+
+Plots the obstacles to the existing active plot.
+"""
+function plot_field(field)
+    for i = 1:length(field)
+        Plots.plot!(field[i], ylim = (0, 1))
+    end
+end
+
+"""
+    plot_lines(field)
+
+Plots the lines that make up the obstacles' halfspaces to the existing active
+plot.
+"""
+function plot_lines(field)
+    halfspaces = @pipe map(obstacle -> Polyhedra.hrep(obstacle).halfspaces, field) |> Iterators.flatten(_) |> collect(_)
+
+    for h in halfspaces
+        f = x -> (h.β - h.a[1] * x) / h.a[2]
+
+        x = 0:0.01:1
+        y = map(f, x)
+
+        Plots.plot!(x, y)
+    end
+end
+
+"""
+    plot_borders()
+
+Plots the lines that make up the unit square's borders to the existing active
+plot.
+"""
+function plot_borders()
+    halfspaces = [
+        Polyhedra.HalfSpace([1, 0], 0),
+        Polyhedra.HalfSpace([1, 0], 1),
+        Polyhedra.HalfSpace([0, 1], 0),
+        Polyhedra.HalfSpace([0, 1], 1)
+    ]
+
+    for h in halfspaces
+        f = x -> (h.β - h.a[1] * x) / h.a[2]
+
+        x = 0:0.01:1
+        y = map(f, x)
+
+        Plots.plot!(x, y)
+    end
+end
+
+"""
+    plot_intersections(field)
+
+Plots and numbers the points where the lines that make up the obstacles'
+halfspaces to the existing active plot.
+"""
+function plot_intersections(field)
+    intersections = find_intersections(field)[1]
+
+    x = map(point -> point[1], intersections)
+    y = map(point -> point[2], intersections)
+
+    return Plots.scatter!(x,y, series_annotations=([Plots.text(string(x), :right, 6, "courier") for x in 1:length(x)]))
+end
+
+"""
+    plot_new(n, name)
+
+Generates a new obstacle course with n obstacles and plots it, saving it to
+name.png
+"""
+function plot_new(n::Int, name::String)
+    Plots.plot()
+
+    obs = gen_field(n)
+
+    plot_field(obs)
+    plot_lines(obs)
+    a = plot_intersections(obs)
+
+    Plots.savefig(a, name)
+
+    return construct_graph(obs)
 end
