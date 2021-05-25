@@ -10,6 +10,7 @@ function get_M_A_b_easy(obstacles)
     Ms = []
     As = []
     bs = []
+    acc = [0] # accumulator
 
     _o, points, _g, faces = ClutteredEnvPathOpt.construct_graph(obstacles)
 
@@ -20,6 +21,12 @@ function get_M_A_b_easy(obstacles)
             Polyhedra.DefaultLibrary{Float64}(Gurobi.Optimizer)
         )
         halfspaces = Polyhedra.hrep(polygon).halfspaces
+        temp = acc[end]
+        push!(acc, temp + length(halfspaces))
+        
+        # for i in v.points
+        #     println("$i $face")
+        # end
 
         for hs in halfspaces
             A = hs.a'
@@ -32,16 +39,21 @@ function get_M_A_b_easy(obstacles)
             push!(bs, b)
         end
     end
+    # acc = acc[2:end]
     
-    return vcat(Ms...), vcat(As...), vcat(bs...)
+    return vcat(Ms...), vcat(As...), vcat(bs...), acc
 end
 
 function get_M_A_b(obstacles)
     Ms = []
     As = []
     bs = []
+    acc = [0]
 
     _o, points, _g, faces = ClutteredEnvPathOpt.construct_graph(obstacles)
+    # Solver over the unitcell for now
+    u = Polyhedra.convexhull([0,0],[0,1],[1,0],[1,1])
+    unitcell = Polyhedra.polyhedron(u)
 
     for face in faces
         v = Polyhedra.convexhull(map(i -> collect(points[i]), face)...)
@@ -50,33 +62,61 @@ function get_M_A_b(obstacles)
             Polyhedra.DefaultLibrary{Float64}(Gurobi.Optimizer)
         )
         halfspaces = Polyhedra.hrep(polygon).halfspaces
+        temp = acc[end]
+        push!(acc, temp + length(halfspaces))
 
-        A = hcat([hs.a for hs in halfspaces]...)'
-        b = [hs.β for hs in halfspaces]
+        for hs in halfspaces
+            A = hs.a'
+            b = hs.β
 
-        M = map(hs ->
-            begin
-                A = hs.a
-                b = hs.β
+            sub_model = JuMP.Model(Gurobi.Optimizer)
+            #sub_x = JuMP.@variable(sub_model, [1:2])
+            JuMP.@variable(sub_model, sub_x[1:2])
+            JuMP.@constraint(sub_model, sub_x in unitcell)
+            #JuMP.@constraint(sub_model, sub_x in safe_regions)
+            # ?? #JuMP.@constraint(sub_model, sub_x in polygon)  # TODO "no method matching copy" error WHY DOES THIS ONLY WORK THE FIRST TIME
+            JuMP.@objective(sub_model, Max, A * sub_x)
 
-                sub_model = JuMP.Model(Gurobi.Optimizer)
-                sub_x = JuMP.@variable(sub_model, [1:2])
-                JuMP.@constraint(sub_model, sub_x in polygon)   # TODO "no method matching copy" error WHY DOES THIS ONLY WORK THE FIRST TIME
-                JuMP.@objective(sub_model, Max, A' * sub_x)
+            stat = JuMP.optimize!(sub_model)
 
-                stat = JuMP.optimize!(sub_model)
+            #return value.(sub_x)
+            M = JuMP.objective_value(sub_model)
 
-                return value.(sub_x)
-            end,
-            halfspaces
-        )
+            push!(Ms, M)
+            push!(As, A)
+            push!(bs, b)
+        end
 
-        push!(Ms, M)
-        push!(As, A)
-        push!(bs, b)
+        # A = vcat([hs.a for hs in halfspaces]...)
+        # b = vcat([hs.β for hs in halfspaces]...)
+
+        # M = map(hs ->
+        #     begin
+        #         A = hs.a
+        #         b = hs.β
+
+        #         sub_model = JuMP.Model(Gurobi.Optimizer)
+        #         #sub_x = JuMP.@variable(sub_model, [1:2])
+        #         JuMP.@variable(sub_model, sub_x[1:2])
+        #         JuMP.@constraint(sub_model, sub_x in polygon)   # TODO "no method matching copy" error WHY DOES THIS ONLY WORK THE FIRST TIME
+        #         JuMP.@objective(sub_model, Max, A' * sub_x)
+
+        #         stat = JuMP.optimize!(sub_model)
+
+        #         #return value.(sub_x)
+        #         return JuMP.objective_value(sub_model)
+        #     end,
+        #     halfspaces
+        # )
+
+        # push!(Ms, M)
+        # push!(As, A)
+        # push!(bs, b)
     end
+    # acc = acc[2:end]
 
-    return Ms, As, bs
+    return vcat(Ms...), vcat(As...), vcat(bs...), acc
+    #return Ms, As, bs, acc
 end
 
 # obstacles <- obstacles (list of polyhedra, see email)
@@ -114,16 +154,23 @@ function solve_deits(obstacles, N, f1, f2, g, Q_g, Q_r, q_t, L, delta_f_max)
     #     ((f[N] - g)' * Q_g * (f[N] - g)) + sum(q_t * t)
     # )
 
-    # Big M constraints TODO: No feasible sol 1/10
-    M, A, b = get_M_A_b_easy(obstacles)
-    JuMP.@variable(model, z[1:N, 1:length(M)], Bin)
+    # Big M constraints
+    #M, A, b, acc = get_M_A_b_easy(obstacles)
+    M, A, b, acc = get_M_A_b(obstacles)
+
+    num_safe_regions = length(acc)-1
+    JuMP.@variable(model, z[1:N, 1:num_safe_regions], Bin)
 
     for j in 1:N
-        for r in 1:length(M)
-            # JuMP.@constraint(model, A[r, :]' * [x[j], y[j]] <= b[r] * z[j, r] + M[r] * (1 - z[j, r]))
-            JuMP.@constraint(model, A[r, :]' * [x[j], y[j]] <= b[r] * z[j, r] + 1 * (1 - z[j, r]))
+        for r in 1:(num_safe_regions)
+            ids = (acc[r]+1):(acc[r+1])
+            for i in ids
+                # JuMP.@constraint(model, A[r, :]' * [x[j], y[j]] <= b[r] * z[j, r] + M[r] * (1 - z[j, r]))
+                # JuMP.@constraint(model, A[r, :]' * [x[j], y[j]] <= b[r] * z[j, r] + 1 * (1 - z[j, r]))
+                # println("$i")
+                JuMP.@constraint(model, A[i, :]' * [x[j], y[j]] <= b[i] * z[j, r] + M[i] * (1 - z[j, r]))
+            end
         end
-
         JuMP.@constraint(model, sum(z[j, :]) == 1)
     end
 

@@ -2,6 +2,7 @@ import LightGraphs
 import Polyhedra
 import GLPK
 import Plots
+import Random
 
 using Pipe
 
@@ -16,6 +17,9 @@ function gen_obstacle(max_side_len::Real)
 
     v = Polyhedra.convexhull(point, map(x -> x > 1 ? 1 : x, point + max_side_len * rand(2)), map(x -> x > 1 ? 1 : x, point + max_side_len * rand(2)))
     
+    # Non-random; function will create this obstacle every time it's called
+    # v = Polyhedra.convexhull([.25,.25], [.25,.5], [.5,.25])
+    
     return Polyhedra.polyhedron(v, Polyhedra.DefaultLibrary{Float64}(GLPK.Optimizer))
 end
 
@@ -27,6 +31,7 @@ obstacles overlap the convex hull of their combined vertices will be taken
 instead.
 """
 function gen_field(num_obstacles::Int)
+    Random.seed!(11)
     obstacles = map(_n -> gen_obstacle(0.25), 1:num_obstacles)
 
     return remove_overlaps(obstacles)
@@ -117,6 +122,7 @@ function find_intersections(obstacles)
         points[i] = []
     end
     
+    tol = 0.001
     for i = 1:length(lines)        
         for j = (i + 1):length(lines)
             A = vcat(lines[i].a', lines[j].a')
@@ -125,7 +131,9 @@ function find_intersections(obstacles)
                 x = A \ b
                 point = x[1] => x[2]
 
-                if (x[1] >= 0 && x[1] <= 1 && x[2] >= 0 && x[2] <= 1)
+                # Tolerance issue?
+                #if (x[1] >= 0 && x[1] <= 1 && x[2] >= 0 && x[2] <= 1)
+                if (x[1] >= 0 - tol && x[1] <= 1 + tol && x[2] >= 0 - tol && x[2] <= 1 + tol)
                     push!(res, point)
                     push!(points[i], point)
                     push!(points[j], point)
@@ -305,7 +313,7 @@ Plots the obstacles to the existing active plot.
 """
 function plot_field(field)
     for i = 1:length(field)
-        Plots.plot!(field[i], ylim = (0, 1))
+        Plots.plot!(field[i], xlims = (-0.1,1.1), ylim = (-0.1, 1.1))
     end
 end
 
@@ -364,7 +372,7 @@ function plot_intersections(field)
     x = map(point -> point[1], intersections)
     y = map(point -> point[2], intersections)
 
-    return Plots.scatter!(x,y, series_annotations=([Plots.text(string(x), :right, 6, "courier") for x in 1:length(x)]))
+    return Plots.scatter!(x,y, series_annotations=([Plots.text(string(x), :right, 8, "courier") for x in 1:length(x)]))
 end
 
 """

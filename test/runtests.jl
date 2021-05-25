@@ -1,4 +1,4 @@
-ENV["GUROBI_HOME"] = "/Library/gurobi910/mac64"
+#ENV["GUROBI_HOME"] = "/Library/gurobi910/mac64"
 
 using ClutteredEnvPathOpt
 using LinearAlgebra
@@ -8,32 +8,33 @@ using Plots
 using JuMP, Gurobi
 
 
-@testset "ClutteredEnvPathOpt.jl" begin
-    obstacles = ClutteredEnvPathOpt.gen_field(2)
+# @testset "ClutteredEnvPathOpt.jl" begin
+    obstacles = ClutteredEnvPathOpt.gen_field(2) # try until you get the correct number returned
 
     x, y, theta = solve_deits(
         obstacles,
-        20,
-        [0, 0, 0],
-        [0.1, 0.1, 0],
-        [1, 1, 0],
+        10, # number of steps
+        [.70,.75,0],#[0, 0, 0], # initial footstep 1
+        [.75,.75,0],#[0.1, 0.1, 0], # initial footstep 2
+        [1, 1, 0], # goal position to reach for footstep N
         Matrix(I, 3, 3),
         Matrix(I, 3, 3),
-        -0.1,
-        5,
-        1
+        -.001, # q_t, must be negative
+        10, # number of pieces in p.w.l approx. of sine/cosine
+        1 # 
     )
-
+    plot();
     ClutteredEnvPathOpt.plot_field(obstacles)
-    # ClutteredEnvPathOpt.plot_lines(obstacles)
-    # ClutteredEnvPathOpt.plot_intersections(obstacles)
+    #ClutteredEnvPathOpt.plot_lines(obstacles)
+    #ClutteredEnvPathOpt.plot_intersections(obstacles)
+    display(plot!(xlims=(-0.1,1.1), ylims= (-0.1,1.1)));
 
-    scatter!(x[1:2:end], y[1:2:end], color="red", series_annotations=([Plots.text(string(x), :right, 6, "courier") for x in 1:length(x)]))
-    scatter!(x[2:2:end], y[2:2:end], color="blue", series_annotations=([Plots.text(string(x), :right, 6, "courier") for x in 1:length(x)]))
+    scatter!(x[1:2:end], y[1:2:end], color="red", series_annotations=([Plots.text(string(x), :right, 8, "courier") for x in 1:length(x)]))
+    scatter!(x[2:2:end], y[2:2:end], color="blue", series_annotations=([Plots.text(string(x), :right, 8, "courier") for x in 1:length(x)]))
     quiver!(x, y, quiver=(0.1 * cos.(theta), 0.1 * sin.(theta)))
 
-    @test 1 == 1
-end
+#     @test 1 == 1
+# end
 
 # @testset "Optimal biclique comparison" begin
 #     obstacles, points, g, faces = ClutteredEnvPathOpt.plot_new(2)
@@ -269,34 +270,77 @@ end
 #     end
 # end
 
-@testset "biclique cover tests" begin
-    for i in 2:24
-        skeleton = LabeledGraph(ClutteredEnvPathOpt.LightGraphs.grid([i, i]))
+# @testset "biclique cover tests" begin
+#     for i in 2:24
+#         skeleton = LabeledGraph(ClutteredEnvPathOpt.LightGraphs.grid([i, i]))
 
-        faces = Set{Vector{Int}}()
-        for j in 1:((i ^ 2) - i)
-            if j % i != 0
-                face = [
-                    j,
-                    j + 1,      # right
-                    j + i + 1,  # down
-                    j + i,      # left
-                ]
+#         faces = Set{Vector{Int}}()
+#         for j in 1:((i ^ 2) - i)
+#             if j % i != 0
+#                 face = [
+#                     j,
+#                     j + 1,      # right
+#                     j + i + 1,  # down
+#                     j + i,      # left
+#                 ]
 
-                push!(faces, face)
-            end
-        end
+#                 push!(faces, face)
+#             end
+#         end
 
-        cover = ClutteredEnvPathOpt.find_biclique_cover_as_tree(skeleton, faces)
+#         cover = ClutteredEnvPathOpt.find_biclique_cover_as_tree(skeleton, faces)
 
-        @test ClutteredEnvPathOpt._is_valid_biclique_cover(ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(faces)), cover)
-    end
+#         @test ClutteredEnvPathOpt._is_valid_biclique_cover(ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(faces)), cover)
+#     end
 
-    for i in 3:24
-        skeleton = LabeledGraph(ClutteredEnvPathOpt.LightGraphs.cycle_graph(i))
-        faces = Set([collect(1:i)])
-        cover = find_biclique_cover(skeleton, faces)
+#     for i in 3:24
+#         skeleton = LabeledGraph(ClutteredEnvPathOpt.LightGraphs.cycle_graph(i))
+#         faces = Set([collect(1:i)])
+#         cover = find_biclique_cover(skeleton, faces)
 
-        @test ClutteredEnvPathOpt._is_valid_biclique_cover(ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(faces)), cover)
-    end
+#         @test ClutteredEnvPathOpt._is_valid_biclique_cover(ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(faces)), cover)
+#     end
+# end
+
+@testset "Biclique Edge Visualization" begin
+    obstacles, points, g, free_faces = ClutteredEnvPathOpt.plot_new(2,"Biclique Obstacles 2")
+    skeleton = LabeledGraph(g)
+
+    cover = ClutteredEnvPathOpt._wrapper_find_biclique_cover(skeleton, free_faces, points)
+    scatter!(map(point -> point.first, points), map(point -> point.second, points))
+    # cover_vec = collect(cover)
 end
+
+
+# Plot free space obstacles
+using Polyhedra
+import Statistics
+plot();
+obstacles, points, g, free_faces = ClutteredEnvPathOpt.plot_new(2,"Biclique Obstacles 2")
+
+intersections = ClutteredEnvPathOpt.find_intersections(obstacles)[1]
+x = map(point -> point[1], intersections)
+y = map(point -> point[2], intersections)
+scatter!(x,y, series_annotations=([Plots.text(string(x), :right, 8, "courier") for x in 1:length(x)]))
+
+for (j,face) in enumerate(free_faces)
+    #println("$face")
+    v = Polyhedra.convexhull(map(i -> collect(points[i]), face)...)
+    x_locations = map(i -> points[i].first, face)
+    y_locations = map(i -> points[i].second, face)
+    #println("$x_locations")
+    
+    avg_x = Statistics.mean(x_locations)
+    avg_y = Statistics.mean(y_locations)
+    #println("$avg_x , $avg_y")
+    polygon = Polyhedra.polyhedron(
+        v,
+        Polyhedra.DefaultLibrary{Float64}(Gurobi.Optimizer)
+    )
+
+    plot!(polygon)
+    plot!([avg_x], [avg_y], series_annotations=([Plots.text("$j", :center, 8, "courier")]))
+
+    #display(plot(polygon, title="Free Face # $j", xlims=(-0.1,1.1), ylims=(-0.1,1.1)))
+end
+display(plot!(xlims=(-0.1,1.1), ylims=(-0.1,1.1)))

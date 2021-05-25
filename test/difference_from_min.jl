@@ -1,4 +1,4 @@
-ENV["GUROBI_HOME"] = "/Library/gurobi910/mac64"
+#ENV["GUROBI_HOME"] = "/Library/gurobi910/mac64"
 
 using ClutteredEnvPathOpt
 using LightGraphs
