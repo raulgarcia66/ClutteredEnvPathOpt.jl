@@ -264,7 +264,7 @@ function _wrapper_find_feg_separator_lt_no_empty(skeleton::LabeledGraph{T}, face
     # end
 
     # Need to figure how plot existing edges and title the plots
-    display(Plots.plot!(legend=:false,xlims=(-.1,1.1),ylims=(-0.1,1.1)))
+    display(Plots.plot!(legend=:false,xlims=(-.05,1.05),ylims=(-0.05,1.05)))
 
     return (C,A,B)#, new_edges
 end

@@ -13,13 +13,15 @@ using JuMP, Gurobi
 
     x, y, theta = solve_deits(
         obstacles,
-        10, # number of steps
-        [.70,.75,0],#[0, 0, 0], # initial footstep 1
-        [.75,.75,0],#[0.1, 0.1, 0], # initial footstep 2
+        20, # number of steps
+        [.0,.0,0],#[0, 0, 0], # initial footstep 1
+        [.05,.05,0],#[0.1, 0.1, 0], # initial footstep 2
+        # [.375,.525,0],#[0, 0, 0], # initial footstep 1
+        # [.4,.55,0],#[0.1, 0.1, 0], # initial footstep 2
         [1, 1, 0], # goal position to reach for footstep N
         Matrix(I, 3, 3),
         Matrix(I, 3, 3),
-        -.001, # q_t, must be negative
+        -.0001, # q_t, must be negative
         10, # number of pieces in p.w.l approx. of sine/cosine
         1 # 
     )
@@ -27,10 +29,10 @@ using JuMP, Gurobi
     ClutteredEnvPathOpt.plot_field(obstacles)
     #ClutteredEnvPathOpt.plot_lines(obstacles)
     #ClutteredEnvPathOpt.plot_intersections(obstacles)
-    display(plot!(xlims=(-0.1,1.1), ylims= (-0.1,1.1)));
+    display(plot!(xlims=(-0.05,1.05), ylims= (-0.05,1.05)));
 
-    scatter!(x[1:2:end], y[1:2:end], color="red", series_annotations=([Plots.text(string(x), :right, 8, "courier") for x in 1:length(x)]))
-    scatter!(x[2:2:end], y[2:2:end], color="blue", series_annotations=([Plots.text(string(x), :right, 8, "courier") for x in 1:length(x)]))
+    scatter!(x[1:2:end], y[1:2:end], color="red", series_annotations=([Plots.text(string(x), :right, 8, "courier") for x in 1:2:length(x)]))
+    scatter!(x[2:2:end], y[2:2:end], color="blue", series_annotations=([Plots.text(string(x), :right, 8, "courier") for x in 2:2:length(x)]))
     quiver!(x, y, quiver=(0.1 * cos.(theta), 0.1 * sin.(theta)))
 
 #     @test 1 == 1
@@ -302,6 +304,10 @@ using JuMP, Gurobi
 #     end
 # end
 
+
+# Unofficial Tests ---------------------------------------------------------------------------
+
+# There is a paradigm for constructing proper tests
 @testset "Biclique Edge Visualization" begin
     obstacles, points, g, free_faces = ClutteredEnvPathOpt.plot_new(2,"Biclique Obstacles 2")
     skeleton = LabeledGraph(g)
@@ -312,16 +318,28 @@ using JuMP, Gurobi
 end
 
 
-# Plot free space obstacles
-using Polyhedra
+# Plot free spaces and obstacles -----------------------------------------------
+import Polyhedra
 import Statistics
-plot();
-obstacles, points, g, free_faces = ClutteredEnvPathOpt.plot_new(2,"Biclique Obstacles 2")
 
+obstacles, points, g, free_faces = ClutteredEnvPathOpt.plot_new(2,"Biclique Obstacles #")
+
+plot()
 intersections = ClutteredEnvPathOpt.find_intersections(obstacles)[1]
 x = map(point -> point[1], intersections)
 y = map(point -> point[2], intersections)
 scatter!(x,y, series_annotations=([Plots.text(string(x), :right, 8, "courier") for x in 1:length(x)]))
+
+# Remove known bad faces
+col_faces = collect(free_faces)
+iters = (1:3, 5:8, 10:11, 13:16, 18:19, 22)
+free_faces = []
+for iter in iters
+    for i in iter
+        push!(free_faces, col_faces[i])
+    end
+end
+
 
 for (j,face) in enumerate(free_faces)
     #println("$face")
@@ -340,7 +358,82 @@ for (j,face) in enumerate(free_faces)
 
     plot!(polygon)
     plot!([avg_x], [avg_y], series_annotations=([Plots.text("$j", :center, 8, "courier")]))
+    #display(plot!(xlims=(-0.05,1.05), ylims=(-0.05,1.05)))
 
-    #display(plot(polygon, title="Free Face # $j", xlims=(-0.1,1.1), ylims=(-0.1,1.1)))
+    #display(plot(polygon, title="Free Face # $j", xlims=(-0.05,1.05), ylims=(-0.05,1.05)))
 end
-display(plot!(xlims=(-0.1,1.1), ylims=(-0.1,1.1)))
+display(plot!(xlims=(-0.05,1.05), ylims=(-0.05,1.05)))
+
+# Check if free_faces has any duplicates
+dup = 0
+dup_ind = (-1,-1)
+col_free_faces = collect(free_faces)
+for i in 1:length(col_free_faces)
+    for j = (i+1):length(col_free_faces)
+        sort_i = sort(col_free_faces[i])
+        sort_j = sort(col_free_faces[j])
+        if sort_i == sort_j
+            dup += 1
+            dup_ind = (i,j)
+        end
+    end
+end
+dup
+dup_ind
+
+
+# Create obstacles and related data ------------------------------------------------------
+obstacles = ClutteredEnvPathOpt.gen_field(2)
+points, mapped = ClutteredEnvPathOpt.find_intersections(obstacles)
+plot();
+ClutteredEnvPathOpt.plot_field(obstacles)
+#ClutteredEnvPathOpt.plot_lines(obstacles)
+# To plot intersecions
+# intersections = ClutteredEnvPathOpt.find_intersections(obstacles)[1]
+# x = map(point -> point[1], intersections)
+# y = map(point -> point[2], intersections)
+# scatter!(x,y, series_annotations=([Plots.text(string(x), :right, 8, "courier") for x in 1:length(x)]))
+display(plot!())
+
+# Check if points has any duplicates
+duplicates = 0
+for i in 1:(length(points)-1)
+    if points[i].first == points[i+1].first
+        if points[i].second == points[i+1].second 
+            duplicates += 1
+        end
+    elseif points[i].first == points[i+1].second 
+        if points[i].second == points[i+1].first
+            duplicates += 1
+        end
+    end
+end
+duplicates
+
+# Check to see if the points are in order
+for hs in mapped
+    for point in hs
+        display(scatter!([point.first], [point.second]))
+    end
+end
+
+# Check if neighbors are correct
+neighbors = ClutteredEnvPathOpt._find_neighbors(points, mapped)
+plot()
+ClutteredEnvPathOpt.plot_field(obs)
+display(plot!())
+for (i,point) in enumerate(points)
+    display(scatter!([point.first],[point.second],title="Point $i"))
+    x_i_neighbors = map(node -> points[node].first, neighbors[i])
+    y_i_neighbors = map(node -> points[node].second, neighbors[i])
+    display(scatter!(x_i_neighbors,y_i_neighbors))
+end
+suspect = []
+for n in 1:length(neighbors)
+    if length(neighbors[n]) < 4
+        push!(suspect, n)
+    end
+end
+for point in suspect
+    println("Point $point has neighbors $(neighbors[point])")
+end

@@ -98,10 +98,10 @@ end
 """
     find_intersections(obstacles)
 
-Analyzes the halfspaces that make up each obstacle and find where the
-halfspaces interest. Returns an array of all intersections as well as an
+Analyzes the halfspaces that make up each obstacle and finds where the
+halfspaces intersect. Returns an array of all intersections as well as an
 array mapping each halfspace to the points of intersection that lie on it in
-order. Will also consider the lines the make up the boarder of the unit suqare.
+order. Will also consider the lines the make up the border of the unit square.
 """
 function find_intersections(obstacles)
     res = Set([])
@@ -118,21 +118,35 @@ function find_intersections(obstacles)
     lines = [halfspaces; boundaries]
 
     points = fill([], length(lines))    # Association from lines to points
-    for i = 1:length(lines)
+    for i = 1:length(lines)   # Does same as line above?
         points[i] = []
     end
     
-    tol = 0.001
+    tol = 1.e-6
     for i = 1:length(lines)        
         for j = (i + 1):length(lines)
             A = vcat(lines[i].a', lines[j].a')
             b = [lines[i].β; lines[j].β]
             try
                 x = A \ b
+                # point = x[1] => x[2]
+
+                if abs(x[1] - 0.0) < tol
+                    x[1] = 0.0
+                elseif abs(x[1] - 1.0) < tol
+                    x[1] = 1.0
+                end
+
+                if abs(x[2] - 0.0) < tol
+                    x[2] = 0.0
+                elseif abs(x[2] - 1.0) < tol
+                    x[2] = 1.0
+                end
+
                 point = x[1] => x[2]
 
-                # Tolerance issue?
                 #if (x[1] >= 0 && x[1] <= 1 && x[2] >= 0 && x[2] <= 1)
+                # Use isapprox(), the above line, or keep as is with tol?
                 if (x[1] >= 0 - tol && x[1] <= 1 + tol && x[2] >= 0 - tol && x[2] <= 1 + tol)
                     push!(res, point)
                     push!(points[i], point)
@@ -181,7 +195,7 @@ function construct_graph(obs)
         unvisited = filter(vertex -> !(vertex in visited), neighbors[source])
         neighbor_angles = map(neighbor -> angles[source, neighbor], unvisited)
         zipped = @pipe zip(unvisited, neighbor_angles) |> collect(_)
-        zipped
+        zipped # ?
 
         greater = filter(tup -> ((tup[2] > last_angle) && !(isapprox(tup[2], last_angle))), zipped)
 
@@ -207,7 +221,7 @@ function construct_graph(obs)
             face = [start, current]
 
             while start != current
-                current
+                current # ?
                 if (length(face) > 2 && (start in neighbors[current]))
                     push!(faces, copy(face))
                     break;
@@ -227,23 +241,65 @@ function construct_graph(obs)
     # Cleaning
     face_sets = []
 
-    obstacle_faces = map(
-        obstacle -> Set(
-            map(
-                point -> findfirst(p -> (isapprox(p.first, point[1]) && isapprox(p.second, point[2])), points),
-                obstacle.vrep.points.points
-            )
-        ),
-        obs
-    )
+    # Get the nodes of the extreme points of the obstacles
+    # obstacle_faces = map(
+    #     obstacle -> Set(
+    #         map(
+    #             point -> findfirst(p -> (isapprox(p.first, point[1]) && isapprox(p.second, point[2])), points),
+    #             obstacle.vrep.points.points
+    #         )
+    #     ),
+    #     obs
+    # )
 
     unique_faces = filter(face -> begin
         face_set = Set(face)
-        included = face_set in face_sets
-        
+        #included = face_set in face_sets
 
-        if !(face_set in face_sets) && !(face_set in obstacle_faces)
+        face_set_v = Polyhedra.convexhull(map(i -> collect(points[i]), face)...)
+        face_set_poly = Polyhedra.polyhedron(face_set_v, Polyhedra.DefaultLibrary{Float64}(GLPK.Optimizer))
+        face_set_overlaps_obs_faces = false
+        included = false
+        
+        #= 
+        # Not needed because we have the obstacles already stored in obs
+        obs_face_poly = map(obs_face -> begin
+            obs_face_col = collect(obs_face)
+
+            face_set_v = Polyhedra.convexhull(map(i -> collect(points[i]), obs_face_col)...)
+            polygon = Polyhedra.polyhedron(face_set_v, Polyhedra.DefaultLibrary{Float64}(GLPK.Optimizer))
+            display(plot!(polygon))
+            return polygon
+            #return Polyhedra.polyhedron(face_set_v, Polyhedra.DefaultLibrary{Float64}(GLPK.Optimizer))
+        end, obstacle_faces)
+
+        for obs_face in obs_face_poly
+            if !isempty(Polyhedra.intersect(face_set_poly, obs_face))
+                face_set_overlaps_obs_faces = true
+                break
+            end
+        end
+        =#
+
+        # free spaces adjacent to an obstacle appear to have overlap
+        for (i,obs_face) in enumerate(obs)
+            if !isempty(Polyhedra.intersect(face_set_poly, obs_face))
+                face_set_overlaps_obs_faces = true
+                # println("Overlap with obstacle $i")
+                break
+            end
+        end
+
+        # if !(face_set in face_sets) && !(face_set in obstacle_faces)
+        if !(face_set in face_sets) && !(face_set_overlaps_obs_faces)
             push!(face_sets, face_set)
+            included = true
+        end
+        
+        # Add all faces (with no repeats)
+        if !(face_set in face_sets)
+            push!(face_sets, face_set)
+            included = true
         end
 
         return included
@@ -266,7 +322,7 @@ function _find_neighbors(points, mapped)
 
         for colinear in mapped
             if in(point, colinear)
-                index = findfirst(p -> p == point, colinear)
+                index = findfirst(p -> p == point, colinear) # adjust for potential tol issue? Probably won't arise
 
                 if index - 1 > 0
                     push!(neighbors[point], colinear[index - 1])
@@ -313,7 +369,7 @@ Plots the obstacles to the existing active plot.
 """
 function plot_field(field)
     for i = 1:length(field)
-        Plots.plot!(field[i], xlims = (-0.1,1.1), ylim = (-0.1, 1.1))
+        Plots.plot!(field[i], xlims = (-0.05,1.05), ylim = (-0.05, 1.05))
     end
 end
 
