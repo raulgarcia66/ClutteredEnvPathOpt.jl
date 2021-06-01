@@ -213,60 +213,34 @@ end
     _wrapper_find_feg_separator_lt_no_empty(skeleton, face_pairs, locations)
 Wrapper function that finds (C, A, B) and plots the edges found between A and B.
 """
-function _wrapper_find_feg_separator_lt_no_empty(skeleton::LabeledGraph{T}, face_pairs::Set{Set{Pair{T, T}}}, locations::Vector{Any})::Tuple{Set{T}, Set{T}, Set{T}} where {T}
-    (C, A, B) = _find_feg_separator_lt_no_empty(skeleton, face_pairs)
+function _wrapper_find_feg_separator_lt_no_empty(skeleton::LabeledGraph{T}, face_pairs::Set{Set{Pair{T, T}}}, points::Vector{Any})::Tuple{Set{T}, Set{T}, Set{T}} where {T}
+    # (C, A, B) = _find_feg_separator_lt_no_empty(skeleton, face_pairs)
+    (C,A,B) = find_feg_separator_lt_best(skeleton, face_pairs)
 
-    # Add edges between A and B
+    # Create edges between A and B
     if !isempty(A) && !isempty(B)
-        # May not need to collect if only iterating through them in a for loop
         new_edges = ClutteredEnvPathOpt._cartesian_product(A, B)
     end
 
-    Plots.plot();
-    # Assuming locations[i] corresponds to points[i] (the ith-point):
-    for edge in new_edges
-        (x1,y1) = locations[edge.first]
-        (x2,y2) = locations[edge.second]
-        # Create red line segment between these two points
-        Plots.plot!([x1, x2], [y1, y2], color=:red)
+    Plots.plot()
+    Plots.scatter!(map(point -> point.first, points), map(point -> point.second, points))
+
+    for a in A
+        Plots.scatter!([points[a].first], [points[a].second], color=:red)
+    end
+    for b in B
+        Plots.scatter!([points[b].first], [points[b].second], color=:yellow)
     end
 
-    # Need to pass the current edges to create the below
+    for edge_set in new_edges
+        (x1,y1) = points[edge_set.first]
+        (x2,y2) = points[edge_set.second]
+        Plots.plot!([x1, x2], [y1, y2], color=:green, linestyle=:dash,title="Biclique # ")
+    end
 
-    # Create existing edges between A and C, and C and B
-    # Assuming locations[i] corresponds to points[i] (the ith-point):
-    # if !isempty(C)
-    #     if !isempty(A)
-    #         for a in A
-    #             for c in C
-    #                 if Pair(a, c) in current_edges || Pair(c, a) in current_edges
-    #                     (x1,y1) = locations[a]
-    #                     (x2,y2) = locations[c]
-    #                     # Create blue line segment between these two points
-    #                     plot!([x1, x2], [y1, y2], color=:blue)
-    #                 end
-    #             end
-    #         end
-    #     end
-
-    #     if !isempty(B)
-    #         for b in B
-    #             for c in C
-    #                 if Pair(b, c) in current_edges || Pair(c, b) in current_edges
-    #                     (x1,y1) = locations[c]
-    #                     (x2,y2) = locations[b]
-    #                     # Create green line segment between these two points
-    #                     plot!([x1, x2], [y1, y2], color=:green)
-    #                 end
-    #             end
-    #         end
-    #     end
-    # end
-
-    # Need to figure how plot existing edges and title the plots
     display(Plots.plot!(legend=:false,xlims=(-.05,1.05),ylims=(-0.05,1.05)))
 
-    return (C,A,B)#, new_edges
+    return (C,A,B)
 end
 
 """
@@ -292,7 +266,6 @@ function _wrapper_find_biclique_cover(skeleton::LabeledGraph{T}, faces::Set{Vect
     node = Set([A => B])
     # left = find_biclique_cover(skeleton_ac, faces_ac)
     # right = find_biclique_cover(skeleton_bc, faces_bc)
-
     # This doesn't work because the new nodes don't correspond to the correct locations anymore
     left = _wrapper_find_biclique_cover(skeleton_ac, faces_ac, locations)
     right = _wrapper_find_biclique_cover(skeleton_bc, faces_bc, locations)

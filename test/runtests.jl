@@ -16,8 +16,6 @@ using JuMP, Gurobi
         20, # number of steps
         [.0,.0,0],#[0, 0, 0], # initial footstep 1
         [.05,.05,0],#[0.1, 0.1, 0], # initial footstep 2
-        # [.375,.525,0],#[0, 0, 0], # initial footstep 1
-        # [.4,.55,0],#[0.1, 0.1, 0], # initial footstep 2
         [1, 1, 0], # goal position to reach for footstep N
         Matrix(I, 3, 3),
         Matrix(I, 3, 3),
@@ -309,12 +307,25 @@ using JuMP, Gurobi
 
 # There is a paradigm for constructing proper tests
 @testset "Biclique Edge Visualization" begin
-    obstacles, points, g, free_faces = ClutteredEnvPathOpt.plot_new(2,"Biclique Obstacles 2")
+    obstacles, points, g, free_faces = ClutteredEnvPathOpt.plot_new(2,"Biclique Obstacles #")
     skeleton = LabeledGraph(g)
+    
+    # plot();
+    # obstacles = ClutteredEnvPathOpt.gen_field(2)
+    # points, mapped = ClutteredEnvPathOpt.find_intersections(obstacles)
+    # ClutteredEnvPathOpt.plot_field(obstacles)
+    # #ClutteredEnvPathOpt.plot_lines(obstacles)
+    # # Plot intersections
+    # intersections = ClutteredEnvPathOpt.find_intersections(obstacles)[1]
+    # x = map(point -> point[1], intersections)
+    # y = map(point -> point[2], intersections)
+    # scatter!(x,y, series_annotations=([Plots.text(string(x), :right, 8, "courier") for x in 1:length(x)]))
+    # #display(plot!())
 
+    #scatter!(map(point -> point.first, points), map(point -> point.second, points))
     cover = ClutteredEnvPathOpt._wrapper_find_biclique_cover(skeleton, free_faces, points)
-    scatter!(map(point -> point.first, points), map(point -> point.second, points))
     # cover_vec = collect(cover)
+    ClutteredEnvPathOpt._is_valid_biclique_cover(ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(free_faces)), cover)
 end
 
 
@@ -330,18 +341,17 @@ x = map(point -> point[1], intersections)
 y = map(point -> point[2], intersections)
 scatter!(x,y, series_annotations=([Plots.text(string(x), :right, 8, "courier") for x in 1:length(x)]))
 
-# Remove known bad faces
+# Cheating: Remove faces 4, 9, 12, 17, 20, 21
 col_faces = collect(free_faces)
 iters = (1:3, 5:8, 10:11, 13:16, 18:19, 22)
-free_faces = []
+faces = []
 for iter in iters
     for i in iter
-        push!(free_faces, col_faces[i])
+        push!(faces, col_faces[i])
     end
 end
 
-
-for (j,face) in enumerate(free_faces)
+for (j,face) in enumerate(faces) # not free_faces
     #println("$face")
     v = Polyhedra.convexhull(map(i -> collect(points[i]), face)...)
     x_locations = map(i -> points[i].first, face)
@@ -364,7 +374,7 @@ for (j,face) in enumerate(free_faces)
 end
 display(plot!(xlims=(-0.05,1.05), ylims=(-0.05,1.05)))
 
-# Check if free_faces has any duplicates
+# Check if free_faces has any duplicates---------------------------------------------
 dup = 0
 dup_ind = (-1,-1)
 col_free_faces = collect(free_faces)
@@ -382,10 +392,10 @@ dup
 dup_ind
 
 
-# Create obstacles and related data ------------------------------------------------------
+# Create obstacles and related data ---------------------------------------------------
+plot();
 obstacles = ClutteredEnvPathOpt.gen_field(2)
 points, mapped = ClutteredEnvPathOpt.find_intersections(obstacles)
-plot();
 ClutteredEnvPathOpt.plot_field(obstacles)
 #ClutteredEnvPathOpt.plot_lines(obstacles)
 # To plot intersecions
@@ -395,8 +405,8 @@ ClutteredEnvPathOpt.plot_field(obstacles)
 # scatter!(x,y, series_annotations=([Plots.text(string(x), :right, 8, "courier") for x in 1:length(x)]))
 display(plot!())
 
-# Check if points has any duplicates
-duplicates = 0
+# Check if points has any duplicates---------------------------------------------
+dup = 0
 for i in 1:(length(points)-1)
     if points[i].first == points[i+1].first
         if points[i].second == points[i+1].second 
@@ -408,16 +418,16 @@ for i in 1:(length(points)-1)
         end
     end
 end
-duplicates
+dup
 
-# Check to see if the points are in order
+# Check to see if the points are in order-------------------------------------------
 for hs in mapped
     for point in hs
         display(scatter!([point.first], [point.second]))
     end
 end
 
-# Check if neighbors are correct
+# Check if neighbors are correct----------------------------------------------------
 neighbors = ClutteredEnvPathOpt._find_neighbors(points, mapped)
 plot()
 ClutteredEnvPathOpt.plot_field(obs)

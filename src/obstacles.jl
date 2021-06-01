@@ -31,7 +31,7 @@ obstacles overlap the convex hull of their combined vertices will be taken
 instead.
 """
 function gen_field(num_obstacles::Int)
-    Random.seed!(11)
+    Random.seed!(11) # 11 is a nice seed
     obstacles = map(_n -> gen_obstacle(0.25), 1:num_obstacles)
 
     return remove_overlaps(obstacles)
@@ -281,7 +281,7 @@ function construct_graph(obs)
         end
         =#
 
-        # free spaces adjacent to an obstacle appear to have overlap
+        # free spaces adjacent to an obstacle have overlap
         for (i,obs_face) in enumerate(obs)
             if !isempty(Polyhedra.intersect(face_set_poly, obs_face))
                 face_set_overlaps_obs_faces = true
@@ -290,13 +290,14 @@ function construct_graph(obs)
             end
         end
 
+        # Need to fix
         # if !(face_set in face_sets) && !(face_set in obstacle_faces)
         if !(face_set in face_sets) && !(face_set_overlaps_obs_faces)
             push!(face_sets, face_set)
             included = true
         end
         
-        # Add all faces (with no repeats)
+        # Cheat: Add all faces (with no repeats); bad faces are removed in in get_M_A_b function
         if !(face_set in face_sets)
             push!(face_sets, face_set)
             included = true
