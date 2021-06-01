@@ -214,13 +214,16 @@ end
 Wrapper function that finds (C, A, B) and plots the edges found between A and B.
 """
 function _wrapper_find_feg_separator_lt_no_empty(skeleton::LabeledGraph{T}, face_pairs::Set{Set{Pair{T, T}}}, points::Vector{Any})::Tuple{Set{T}, Set{T}, Set{T}} where {T}
-    # (C, A, B) = _find_feg_separator_lt_no_empty(skeleton, face_pairs)
-    (C,A,B) = find_feg_separator_lt_best(skeleton, face_pairs)
+    (C, A, B) = _find_feg_separator_lt_no_empty(skeleton, face_pairs)
+    # (C,A,B) = find_feg_separator_lt_best(skeleton, face_pairs) 
+    # find_feg_separator_lt_best doesn't guarantee sets are nonempty; problem with bicliques if empty
+
+    if isempty(A) || isempty(B)
+        return (C,A,B)
+    end
 
     # Create edges between A and B
-    if !isempty(A) && !isempty(B)
-        new_edges = ClutteredEnvPathOpt._cartesian_product(A, B)
-    end
+    new_edges = ClutteredEnvPathOpt._cartesian_product(A, B)
 
     Plots.plot()
     Plots.scatter!(map(point -> point.first, points), map(point -> point.second, points))
