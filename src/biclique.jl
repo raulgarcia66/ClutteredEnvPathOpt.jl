@@ -217,7 +217,6 @@ function _wrapper_find_feg_separator_lt_no_empty(skeleton::LabeledGraph{T}, face
     (C,A,B) = _find_feg_separator_lt_no_empty(skeleton, face_pairs)
     #(C,A,B) = find_feg_separator_lt_best(skeleton, face_pairs)
     # find_feg_separator_lt_best doesn't guarantee sets are nonempty; problem with bicliques if empty
-    # Edited find_feg_separator_lt_best to use _find_feg_separator_lt_no_empty instead and bicliques were the same
 
     if isempty(A) || isempty(B)
         return (C,A,B)
