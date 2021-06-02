@@ -14,8 +14,8 @@ using JuMP, Gurobi
     x, y, theta = solve_deits(
         obstacles,
         20, # number of steps
-        [.0,.0,0],#[0, 0, 0], # initial footstep 1
-        [.05,.05,0],#[0.1, 0.1, 0], # initial footstep 2
+        [.375,.525,0],#[0, 0, 0], # initial footstep 1
+        [.4,.55,0],#[0.05, 0.05, 0], # initial footstep 2
         [1, 1, 0], # goal position to reach for footstep N
         Matrix(I, 3, 3),
         Matrix(I, 3, 3),
@@ -341,17 +341,7 @@ x = map(point -> point[1], intersections)
 y = map(point -> point[2], intersections)
 scatter!(x,y, series_annotations=([Plots.text(string(x), :right, 8, "courier") for x in 1:length(x)]))
 
-# Cheating: Remove faces 4, 9, 12, 17, 20, 21
-col_faces = collect(free_faces)
-iters = (1:3, 5:8, 10:11, 13:16, 18:19, 22)
-faces = []
-for iter in iters
-    for i in iter
-        push!(faces, col_faces[i])
-    end
-end
-
-for (j,face) in enumerate(faces) # not free_faces
+for (j,face) in enumerate(free_faces)
     #println("$face")
     v = Polyhedra.convexhull(map(i -> collect(points[i]), face)...)
     x_locations = map(i -> points[i].first, face)

@@ -4,6 +4,9 @@ import GLPK
 import Plots
 import Random
 
+import Statistics
+import Gurobi
+
 using Pipe
 
 """
@@ -281,7 +284,9 @@ function construct_graph(obs)
         end
         =#
 
-        # free spaces adjacent to an obstacle have overlap
+        # NEED TO FIX: Free spaces adjacent to an obstacle have overlap
+        # Sol 1: Check if ext_points of face_set_poly are a subset of all points on the obstacle face
+        # Sol 2: Check if face_set_poly is a subset of the obstacle face
         for (i,obs_face) in enumerate(obs)
             if !isempty(Polyhedra.intersect(face_set_poly, obs_face))
                 face_set_overlaps_obs_faces = true
@@ -290,14 +295,13 @@ function construct_graph(obs)
             end
         end
 
-        # Need to fix
         # if !(face_set in face_sets) && !(face_set in obstacle_faces)
         if !(face_set in face_sets) && !(face_set_overlaps_obs_faces)
             push!(face_sets, face_set)
             included = true
         end
         
-        # Cheat: Add all faces (with no repeats); bad faces are removed in in get_M_A_b function
+        # Cheat: Add all faces (with no repeats)
         if !(face_set in face_sets)
             push!(face_sets, face_set)
             included = true
@@ -306,7 +310,42 @@ function construct_graph(obs)
         return included
     end, faces)
 
-    return (obs, points, graph, @pipe map(face -> reverse(face), unique_faces) |> Set(_))
+    # See which are the bad faces
+    # Plots.plot()
+    # for (j,face) in enumerate(unique_faces)
+    #     #println("$face")
+    #     v = Polyhedra.convexhull(map(i -> collect(points[i]), face)...)
+    #     x_locations = map(i -> points[i].first, face)
+    #     y_locations = map(i -> points[i].second, face)
+    #     #println("$x_locations")
+        
+    #     avg_x = Statistics.mean(x_locations)
+    #     avg_y = Statistics.mean(y_locations)
+    #     #println("$avg_x , $avg_y")
+    #     polygon = Polyhedra.polyhedron(
+    #         v,
+    #         Polyhedra.DefaultLibrary{Float64}(Gurobi.Optimizer)
+    #     )
+    
+    #     Plots.plot!(polygon)
+    #     Plots.plot!([avg_x], [avg_y], series_annotations=([Plots.text("$j", :center, 8, "courier")]))
+    #     #display(Plots.plot!(xlims=(-0.05,1.05), ylims=(-0.05,1.05)))
+    
+    #     #display(plot(polygon, title="Free Face # $j", xlims=(-0.05,1.05), ylims=(-0.05,1.05)))
+    # end
+    # display(Plots.plot!(xlims=(-0.05,1.05), ylims=(-0.05,1.05)))
+
+    # Cheat: Remove bad faces 3, 5, 6, 8, 15, 18
+    iters = (1:2, 4, 7, 9:14, 16:17, 19:22)
+    u_faces = []
+    for iter in iters
+        for i in iter
+            push!(u_faces, unique_faces[i])
+        end
+    end
+
+    #return (obs, points, graph, @pipe map(face -> reverse(face), unique_faces) |> Set(_))
+    return (obs, points, graph, @pipe map(face -> reverse(face), u_faces) |> Set(_))
 end
 
 """

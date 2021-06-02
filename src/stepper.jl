@@ -51,16 +51,6 @@ function get_M_A_b(obstacles)
     acc = [0]
 
     _o, points, _g, faces = ClutteredEnvPathOpt.construct_graph(obstacles)
-    
-    # Cheating: Remove faces 4, 9, 12, 17, 20, 21
-    col_faces = collect(faces)
-    iters = (1:3, 5:8, 10:11, 13:16, 18:19, 22)
-    faces = []
-    for iter in iters
-        for i in iter
-            push!(faces, col_faces[i])
-        end
-    end
 
     # Solver over the unitcell for now
     u = Polyhedra.convexhull([0,0],[0,1],[1,0],[1,1])

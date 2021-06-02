@@ -53,6 +53,8 @@ separator.
 """
 function find_feg_separator_lt_best(skeleton::LabeledGraph{T}, faces::Set{Set{Pair{T, T}}})::Tuple{Set{T}, Set{T}, Set{T}} where {T}
     separators = map(root -> find_feg_separator_lt(skeleton, faces, root), collect(keys(skeleton.labels)))
+    #separators = map(root -> ClutteredEnvPathOpt._find_feg_separator_lt_no_empty(skeleton, faces), collect(keys(skeleton.labels)))
+    # Whati if A, B, or C is empty?
     balances = map(separator -> min(length(separator[2]) / length(separator[3]), length(separator[3]) / length(separator[2])), separators)
 
     max_balance = max(balances...)
