@@ -176,7 +176,7 @@ end
 """
     _is_valid_biclique_cover(lg, cover)
 
-Tests whether or not a cover is a valid biclique cover of a griven graph.
+Tests whether or not a cover is a valid biclique cover of a given graph.
 """
 function _is_valid_biclique_cover(lg::LabeledGraph{T}, cover::Set{Pair{Set{T}, Set{T}}})::Bool where {T}
     e_bar = LightGraphs.edges(LightGraphs.complement(lg.graph))

@@ -33,8 +33,8 @@ Creates an obstacle course, an array of obstacles in the unit square. If
 obstacles overlap the convex hull of their combined vertices will be taken
 instead.
 """
-function gen_field(num_obstacles::Int)
-    Random.seed!(11) # 11 is a nice seed
+function gen_field(num_obstacles::Int, seed::Int64=11)
+    Random.seed!(seed)
     obstacles = map(_n -> gen_obstacle(0.25), 1:num_obstacles)
 
     return remove_overlaps(obstacles)
@@ -257,40 +257,40 @@ function construct_graph(obs)
 
     unique_faces = filter(face -> begin
         face_set = Set(face)
-        #included = face_set in face_sets
 
         face_set_v = Polyhedra.convexhull(map(i -> collect(points[i]), face)...)
         face_set_poly = Polyhedra.polyhedron(face_set_v, Polyhedra.DefaultLibrary{Float64}(GLPK.Optimizer))
         face_set_overlaps_obs_faces = false
         included = false
-        
-        #= 
-        # Not needed because we have the obstacles already stored in obs
-        obs_face_poly = map(obs_face -> begin
-            obs_face_col = collect(obs_face)
 
-            face_set_v = Polyhedra.convexhull(map(i -> collect(points[i]), obs_face_col)...)
-            polygon = Polyhedra.polyhedron(face_set_v, Polyhedra.DefaultLibrary{Float64}(GLPK.Optimizer))
-            display(plot!(polygon))
-            return polygon
-            #return Polyhedra.polyhedron(face_set_v, Polyhedra.DefaultLibrary{Float64}(GLPK.Optimizer))
-        end, obstacle_faces)
+        tol =  1.e-6
+        for n in 1:length(obs)
+            indicator = 0
+            intersect_poly = Polyhedra.intersect(face_set_poly, obs[n])
+            Polyhedra.npoints(intersect_poly) # computes the extreme points so that vrep can be used
 
-        for obs_face in obs_face_poly
-            if !isempty(Polyhedra.intersect(face_set_poly, obs_face))
-                face_set_overlaps_obs_faces = true
-                break
+            if typeof(intersect_poly.vrep) == Nothing
+                continue
             end
-        end
-        =#
-
-        # NEED TO FIX: Free spaces adjacent to an obstacle have overlap
-        # Sol 1: Check if ext_points of face_set_poly are a subset of all points on the obstacle face
-        # Sol 2: Check if face_set_poly is a subset of the obstacle face
-        for (i,obs_face) in enumerate(obs)
-            if !isempty(Polyhedra.intersect(face_set_poly, obs_face))
+            ext_p_intersect_poly = sort(collect(intersect_poly.vrep.points.points))
+            ext_p_face_set_poly = sort(collect(face_set_poly.vrep.points.points))
+            if length(ext_p_intersect_poly) != length(ext_p_face_set_poly)
+                continue
+            end
+            for i in 1:length(ext_p_face_set_poly)
+                for j in 1:length(ext_p_face_set_poly[i])
+                    if abs(ext_p_intersect_poly[i][j] - ext_p_face_set_poly[i][j]) > tol
+                        indicator += 1
+                        break
+                    end
+                end
+                if indicator != 0
+                    break
+                end
+            end
+            if indicator == 0
                 face_set_overlaps_obs_faces = true
-                # println("Overlap with obstacle $i")
+                println("$face_set_overlaps_obs_faces")
                 break
             end
         end
@@ -300,17 +300,11 @@ function construct_graph(obs)
             push!(face_sets, face_set)
             included = true
         end
-        
-        # Cheat: Add all faces (with no repeats)
-        if !(face_set in face_sets)
-            push!(face_sets, face_set)
-            included = true
-        end
 
         return included
     end, faces)
 
-    # See which are the bad faces
+    # # See which are the bad faces
     # Plots.plot()
     # for (j,face) in enumerate(unique_faces)
     #     #println("$face")
@@ -335,17 +329,7 @@ function construct_graph(obs)
     # end
     # display(Plots.plot!(xlims=(-0.05,1.05), ylims=(-0.05,1.05)))
 
-    # Cheat: Remove bad faces 3, 5, 6, 8, 15, 18
-    iters = (1:2, 4, 7, 9:14, 16:17, 19:22)
-    u_faces = []
-    for iter in iters
-        for i in iter
-            push!(u_faces, unique_faces[i])
-        end
-    end
-
-    #return (obs, points, graph, @pipe map(face -> reverse(face), unique_faces) |> Set(_))
-    return (obs, points, graph, @pipe map(face -> reverse(face), u_faces) |> Set(_))
+    return (obs, points, graph, @pipe map(face -> reverse(face), unique_faces) |> Set(_))
 end
 
 """
@@ -477,10 +461,10 @@ end
 Generates a new obstacle course with n obstacles and plots it, saving it to
 name.png
 """
-function plot_new(n::Int, name::String)
+function plot_new(n::Int, name::String, seed::Int64=11)
     Plots.plot()
 
-    obs = gen_field(n)
+    obs = gen_field(n,seed)
 
     plot_field(obs)
     plot_lines(obs)
