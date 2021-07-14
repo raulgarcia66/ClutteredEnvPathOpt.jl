@@ -10,7 +10,7 @@ function get_M_A_b_easy(obstacles)
     Ms = []
     As = []
     bs = []
-    acc = [0] # accumulator
+    acc = [0] # accumulator # try using reduce() instead
 
     _o, points, _g, faces = ClutteredEnvPathOpt.construct_graph(obstacles)
 
@@ -48,7 +48,7 @@ function get_M_A_b(obstacles)
     Ms = []
     As = []
     bs = []
-    acc = [0]
+    acc = [0] # try using reduce() instead
 
     _o, points, _g, faces = ClutteredEnvPathOpt.construct_graph(obstacles)
 
