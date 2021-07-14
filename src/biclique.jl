@@ -193,6 +193,27 @@ function _is_valid_biclique_cover(lg::LabeledGraph{T}, cover::Set{Pair{Set{T}, S
 end
 
 """
+    _is_valid_biclique_cover_diff(lg, cover)
+
+Tests whether or not a cover is a valid biclique cover of a given graph and additionally returns 
+their difference in cardinality. Positive => missing edges, Negative => surplus of edges.
+"""
+function _is_valid_biclique_cover_diff(lg::LabeledGraph{T}, cover::Set{Pair{Set{T}, Set{T}}})::Tuple{Bool,T,Set{LightGraphs.SimpleGraphs.SimpleEdge{Int64}}} where {T}
+    e_bar = LightGraphs.edges(LightGraphs.complement(lg.graph))
+
+    edges = @pipe map(pair -> _cartesian_product(pair.first, pair.second), collect(cover)) |> reduce(union!, _, init=Set{Pair{T, T}}())
+    test = LightGraphs.SimpleGraph(LightGraphs.nv(lg.graph))
+    println("$(typeof(test))")
+    rev = _reverse_labels(lg.labels)
+
+    for edge in edges
+        LightGraphs.add_edge!(test, rev[edge.first], rev[edge.second])
+    end
+    # Find A - B set difference
+    return LightGraphs.edges(test) == e_bar, length(e_bar) - LightGraphs.ne(test), setdiff(Set(e_bar), Set(LightGraphs.edges(test)))
+end
+
+"""
     _cartesian_product(A, B)
 
 Returns the cartesian product of two sets
@@ -210,10 +231,10 @@ function _cartesian_product(A::Set{V}, B::Set{W})::Set{Pair{V, W}} where {V, W}
 end
 
 """
-    _wrapper_find_feg_separator_lt_no_empty(skeleton, face_pairs, locations)
-Wrapper function that finds (C, A, B) and plots the edges found between A and B.
+    _find_feg_separator_lt_no_empty_visual(skeleton, face_pairs, locations)
+Finds (C, A, B) and plots the edges found between A and B.
 """
-function _wrapper_find_feg_separator_lt_no_empty(skeleton::LabeledGraph{T}, face_pairs::Set{Set{Pair{T, T}}}, points::Vector{Any})::Tuple{Set{T}, Set{T}, Set{T}} where {T}
+function _find_feg_separator_lt_no_empty_visual(skeleton::LabeledGraph{T}, face_pairs::Set{Set{Pair{T, T}}}, points::Vector{Any})::Tuple{Set{T}, Set{T}, Set{T}} where {T}
     (C,A,B) = _find_feg_separator_lt_no_empty(skeleton, face_pairs)
     #(C,A,B) = find_feg_separator_lt_best(skeleton, face_pairs)
     # find_feg_separator_lt_best doesn't guarantee sets are nonempty; problem with bicliques if empty
@@ -250,7 +271,7 @@ end
     _wrapper_find_biclique_cover(skeleton, faces, locations)
 Wrapper function that finds a biclique cover and plots the edges of each biclique.
 """
-function _wrapper_find_biclique_cover(skeleton::LabeledGraph{T}, faces::Set{Vector{T}}, points::Vector{Any})::Set{Pair{Set{T}, Set{T}}} where {T}
+function _find_biclique_cover_visual(skeleton::LabeledGraph{T}, faces::Set{Vector{T}}, points::Vector{Any})::Set{Pair{Set{T}, Set{T}}} where {T}
     face_pairs = _find_face_pairs(faces)
     feg = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, face_pairs)
 
@@ -259,17 +280,15 @@ function _wrapper_find_biclique_cover(skeleton::LabeledGraph{T}, faces::Set{Vect
     end
 
     #(C, A, B) = _find_feg_separator_lt_no_empty(skeleton, face_pairs)
-    (C, A, B) = _wrapper_find_feg_separator_lt_no_empty(skeleton, face_pairs, points)
-    # (C, A, B), new_edges = _wrapper_find_feg_separator_lt_no_empty(skeleton, face_pairs, points, current_edges)
-    # push!(edges, new_edges)
+    (C, A, B) = _find_feg_separator_lt_no_empty_visual(skeleton, face_pairs, points)
     skeleton_ac, faces_ac = _find_skeleton_faces(union(A, C), skeleton, faces)
     skeleton_bc, faces_bc = _find_skeleton_faces(union(B, C), skeleton, faces)
 
     node = Set([A => B])
     # left = find_biclique_cover(skeleton_ac, faces_ac)
     # right = find_biclique_cover(skeleton_bc, faces_bc)
-    left = _wrapper_find_biclique_cover(skeleton_ac, faces_ac, points)
-    right = _wrapper_find_biclique_cover(skeleton_bc, faces_bc, points)
+    left = _find_biclique_cover_visual(skeleton_ac, faces_ac, points)
+    right = _find_biclique_cover_visual(skeleton_bc, faces_bc, points)
 
     @show node, left, right
 
