@@ -1,6 +1,6 @@
 name = "ClutteredEnvPathOpt"
 uuid = "805b7be2-45fb-426f-8717-542e7158a29d"
-authors = ["Miles Olson <mpolson64@gmail.com>"]
+authors = ["Miles Olson <mpolson64@gmail.com>", "Raul Garcia <rauljgarcia66@gmail.com>"]
 version = "0.1.0"
 
 [deps]

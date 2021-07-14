@@ -9,3 +9,5 @@
 *.fdb_latexmk
 *.fls
 *.synctex(busy)
+/Images Float Error
+Code Summary.txt
