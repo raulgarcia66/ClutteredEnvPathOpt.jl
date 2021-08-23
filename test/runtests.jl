@@ -322,7 +322,7 @@ using JuMP, Gurobi
 # Unofficial Tests ---------------------------------------------------------------------------
 
 # There is a paradigm for constructing proper tests
-@testset "Biclique Edge Visualization" begin
+@testset "Biclique Validity" begin
     num_obs = 4;
     seed = 100;
     obstacles, points, g, obstacle_faces, free_faces = ClutteredEnvPathOpt.plot_new(num_obs, "Obstacles Seed $seed Num Obs $num_obs", seed = seed)
@@ -337,16 +337,13 @@ using JuMP, Gurobi
     png("Obstacles Seed $seed Num Obs $num_obs")
     display(plot!())
 
-    ClutteredEnvPathOpt.plot_faces(obstacle_faces, points, plot_name = "Obstacle Faces", col = "red")
+    ClutteredEnvPathOpt.plot_faces(obstacle_faces, points, plot_name = "Obstacle Faces", col = "dodgerblue")
     png("Obstacle Faces Seed $seed Num Obs $num_obs")
     ClutteredEnvPathOpt.plot_faces(free_faces, points, plot_name = "Free Faces")
     png("Free Faces Seed $seed Num Obs $num_obs")
     ClutteredEnvPathOpt.plot_faces(obstacle_faces, points, plot_name = "All Faces", col = "red")
     ClutteredEnvPathOpt.plot_faces(free_faces, points, plot_name = "All Faces", col = "green", new_plot = false)
     png("All Faces Seed $seed Num Obs $num_obs")
-    dup, dup_ind = face_duplicates(obstacle_faces)
-    dup, dup_ind = face_duplicates(free_faces)
-    dup, dup_ind = face_duplicates(all_faces)
 
     ClutteredEnvPathOpt.plot_faces(obstacle_faces, points, col = "dodgerblue", individually = true)
     ClutteredEnvPathOpt.plot_faces(free_faces, points, individually = true)
@@ -360,10 +357,13 @@ using JuMP, Gurobi
     feg_temp = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(obstacle_faces))
     ClutteredEnvPathOpt.plot_edges(feg_temp, points, obstacles, plot_name = "Finite Element Graph Obstacle Faces")
 
-    # obstacles = ClutteredEnvPathOpt.gen_field(num_obs, seed)
-    # points, mapped, inside_quant = ClutteredEnvPathOpt.find_intersections(obstacles)
-    # neighbors = ClutteredEnvPathOpt._find_neighbors(points, mapped)
+    obstacles = ClutteredEnvPathOpt.gen_field(num_obs, seed = seed)
+    points, mapped, inside_quant = ClutteredEnvPathOpt.find_intersections(obstacles)
+    neighbors = ClutteredEnvPathOpt._find_neighbors(points, mapped)
 
+    # dup, dup_ind = face_duplicates(obstacle_faces)
+    # dup, dup_ind = face_duplicates(free_faces)
+    # dup, dup_ind = face_duplicates(all_faces)
     # plot_intersections_indiv(points)
     # dup, dup_ind = point_duplicates(points)
     # dup, dup_ind = points_in_hs_duplicates(mapped)
