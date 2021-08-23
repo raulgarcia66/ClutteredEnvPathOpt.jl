@@ -53,9 +53,17 @@ separator.
 """
 function find_feg_separator_lt_best(skeleton::LabeledGraph{T}, faces::Set{Set{Pair{T, T}}})::Tuple{Set{T}, Set{T}, Set{T}} where {T}
     separators = map(root -> find_feg_separator_lt(skeleton, faces, root), collect(keys(skeleton.labels)))
-    #separators = map(root -> ClutteredEnvPathOpt._find_feg_separator_lt_no_empty(skeleton, faces), collect(keys(skeleton.labels)))
-    # Whati if A, B, or C is empty?
+
     balances = map(separator -> min(length(separator[2]) / length(separator[3]), length(separator[3]) / length(separator[2])), separators)
+    # See _find_feg_separator_lt_no_empty in biclique.jl
+    # balances = map(separator -> begin
+    #     if !isempty(separator[2]) && !isempty(separator[3])
+    #         return min(length(separator[2]) / length(separator[3]), length(separator[3]) / length(separator[2]))
+    #     else
+    #         return -1.0
+    #     end
+    # end, separators)
+
 
     max_balance = max(balances...)
     for i in 1:length(balances)
@@ -164,6 +172,8 @@ function find_separator_fcs_best(lg::LabeledGraph{T}, root::T)::Tuple{Set{T}, Se
 
     fundamental_cycles = @pipe map(non_tree_edge -> _find_fundamental_cycle(parents, non_tree_edge), non_tree_edges) |> map(cycle -> Set(convert_vertices(lg.labels, collect(cycle))), _)
     partitions = map(cycle -> (cycle, _find_partitions(lg, cycle)...), fundamental_cycles)
+    # TODO: What happens when sets are empty? Can get Inf
+    # See _find_feg_separator_lt_no_empty in biclique.jl
     balances = map(partition -> min(length(partition[2]) / length(partition[3]), length(partition[3]) / length(partition[2])), partitions)
 
     max_balance = max(balances...)
@@ -311,7 +321,7 @@ end
 """
     pp_expell(lg, separator, a, b)
 
-A prostprocessing algorithm to shrink the size of a separator by expelling
+A postprocessing algorithm to shrink the size of a separator by expelling
 vertices in the separator not connected to both A and B.
 """
 function pp_expell(lg::LabeledGraph{T}, separator::Set{T}, a::Set{T}, b::Set{T})::Tuple{Set{T}, Set{T}, Set{T}} where {T}
