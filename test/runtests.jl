@@ -9,42 +9,58 @@ using JuMP, Gurobi
 
 
 # @testset "ClutteredEnvPathOpt.jl" begin
-    obstacles = ClutteredEnvPathOpt.gen_field(2) # optional seed argument, default is 11
-
-    x, y, theta = solve_deits(
-        obstacles,
-        20, # number of steps
-        [0, 0, 0], # initial footstep 1
-        [0.05, 0.05, 0], # initial footstep 2
-        [1, 1, 0], # goal position to reach for footstep N
-        Matrix(I, 3, 3),
-        Matrix(I, 3, 3),
-        -.0001, # q_t, must be negative
-        10, # number of pieces in p.w.l approx. of sine/cosine
-        1 #
-    )
+    # Create obstacles
+    obstacles = ClutteredEnvPathOpt.gen_field(4, seed = 71)
     plot();
     ClutteredEnvPathOpt.plot_field(obstacles)
-    #ClutteredEnvPathOpt.plot_lines(obstacles)
-    #ClutteredEnvPathOpt.plot_intersections(obstacles)
-    display(plot!(xlims=(-0.05,1.05), ylims= (-0.05,1.05)));
+    display(plot!())
+    
+    # Set parameters
+    N = 40 # number of steps
+    f1 = [0, 0.05, 0] # initial footstep pose 1
+    f2 = [0.0, 0, 0] # initial footstep pose 2
+    goal = [1, 1, 0] # goal pose
+    Q_g = 10*Matrix(I, 3, 3) # weight between final footstep and goal pose
+    Q_r = Matrix(I, 3, 3) # weight between footsteps
+    q_t = -.05 # weight for trimming unused steps
+    L = 7 # number of pieces in p.w.l approx. of sine/cosine 
+    delta_f_max = 1 # max stride norm
+    # TODO: Assure second footstep is within reachability given first
+    
+    # Optional named arguments
+    d1 = 0.22
+    d2 = 0.22
+    p1 = [0. 0.05]
+    p2 = [0, -0.25]
 
-    scatter!(x[1:2:end], y[1:2:end], color="red", series_annotations=([Plots.text(string(x), :right, 8, "courier") for x in 1:2:length(x)]))
-    scatter!(x[2:2:end], y[2:2:end], color="blue", series_annotations=([Plots.text(string(x), :right, 8, "courier") for x in 2:2:length(x)]))
-    quiver!(x, y, quiver=(0.1 * cos.(theta), 0.1 * sin.(theta)))
+    # Compute optimal path
+    x, y, θ, t = solve_deits(obstacles, N, f1, f2, goal, Q_g, Q_r, q_t, L, delta_f_max)
+    # x, y, θ, t = solve_deits(obstacles, N, f1, f2, goal, Q_g, Q_r, q_t, L, delta_f_max, d1=d1, d2=d2, p1=p1, p2=p2)
+
+    # Trim excess steps
+    num_to_trim = length(filter(tj -> tj > 0.5, t[3:end]))
+    x = vcat(x[1:2], x[num_to_trim + 3 : end]);
+    y = vcat(y[1:2], y[num_to_trim + 3 : end]);
+    θ = vcat(θ[1:2], θ[num_to_trim + 3 : end]);
+
+    # Plot footstep plan
+    plot_steps(obstacles, x, y, θ)
+
+    # Plot intersections of circles
+    plot_circles(d1, d2, p1, p2, x, y, θ)
 
 #     @test 1 == 1
 # end
 
 # @testset "Optimal biclique comparison" begin
-    obstacles, points, g, faces = ClutteredEnvPathOpt.plot_new(2,"Biclique Comparison Test") # optional seed argument, default is 11
-    skeleton = LabeledGraph(g)
+    # obstacles, points, g, faces = ClutteredEnvPathOpt.plot_new(2,"Biclique Comparison Test") # optional seed argument needs to be named
+    # skeleton = LabeledGraph(g)
 
-    tree = ClutteredEnvPathOpt.find_biclique_cover_as_tree(skeleton, faces)
-    (cover_vec, graphviz) = ClutteredEnvPathOpt.tree2digraph(tree)
-    io = open("graphviz.txt", "a")
-    println(io, graphviz)
-    close(io)
+    # tree = ClutteredEnvPathOpt.find_biclique_cover_as_tree(skeleton, faces)
+    # (cover_vec, graphviz) = ClutteredEnvPathOpt.tree2digraph(tree)
+    # io = open("graphviz.txt", "a")
+    # println(io, graphviz)
+    # close(io)
     # cover = ClutteredEnvPathOpt.find_biclique_cover(skeleton, faces)
     # cover_vec = collect(cover)
 
@@ -308,82 +324,139 @@ using JuMP, Gurobi
 # There is a paradigm for constructing proper tests
 @testset "Biclique Edge Visualization" begin
     num_obs = 4;
-    seed = 9;
-    obstacles, points, g, free_faces = ClutteredEnvPathOpt.plot_new(num_obs,"Obstacles Seed $seed Num Obs $num_obs",seed) # optional seed argument, default is 11
-    png("All Faces Seed $seed Num Obs $num_obs")
+    seed = 100;
+    obstacles, points, g, obstacle_faces, free_faces = ClutteredEnvPathOpt.plot_new(num_obs, "Obstacles Seed $seed Num Obs $num_obs", seed = seed)
     skeleton = LabeledGraph(g)
+    all_faces = union(obstacle_faces, free_faces)
 
-    plot();
+    plot(title="Obstacles");
     ClutteredEnvPathOpt.plot_field(obstacles)
     ClutteredEnvPathOpt.plot_lines(obstacles)
+    ClutteredEnvPathOpt.plot_borders()
     ClutteredEnvPathOpt.plot_intersections(obstacles)
-    display(plot!(legend=false))
+    png("Obstacles Seed $seed Num Obs $num_obs")
+    display(plot!())
 
-    plot();
-    plot_free_faces(free_faces)
+    ClutteredEnvPathOpt.plot_faces(obstacle_faces, points, plot_name = "Obstacle Faces", col = "red")
+    png("Obstacle Faces Seed $seed Num Obs $num_obs")
+    ClutteredEnvPathOpt.plot_faces(free_faces, points, plot_name = "Free Faces")
     png("Free Faces Seed $seed Num Obs $num_obs")
+    ClutteredEnvPathOpt.plot_faces(obstacle_faces, points, plot_name = "All Faces", col = "red")
+    ClutteredEnvPathOpt.plot_faces(free_faces, points, plot_name = "All Faces", col = "green", new_plot = false)
+    png("All Faces Seed $seed Num Obs $num_obs")
+    dup, dup_ind = face_duplicates(obstacle_faces)
     dup, dup_ind = face_duplicates(free_faces)
+    dup, dup_ind = face_duplicates(all_faces)
 
-    plot_faces_indiv_with_points(free_faces, points)
+    ClutteredEnvPathOpt.plot_faces(obstacle_faces, points, col = "dodgerblue", individually = true)
+    ClutteredEnvPathOpt.plot_faces(free_faces, points, individually = true)
 
-    plot_edges(skeleton, points, obstacles)
+    ClutteredEnvPathOpt.plot_edges(skeleton, points, obstacles, plot_name = "Skeleton")
     png("Skeleton Seed $seed Num Obs $num_obs")
-    feg = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(free_faces))
-    plot_edges(feg, points, obstacles)
+    feg = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(all_faces))
+    ClutteredEnvPathOpt.plot_edges(feg, points, obstacles, plot_name = "Finite Element Graph")
+    feg_S = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(free_faces))
+    ClutteredEnvPathOpt.plot_edges(feg_S, points, obstacles, plot_name = "Finite Element Graph of S")
+    feg_temp = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(obstacle_faces))
+    ClutteredEnvPathOpt.plot_edges(feg_temp, points, obstacles, plot_name = "Finite Element Graph Obstacle Faces")
 
-    obstacles = ClutteredEnvPathOpt.gen_field(num_obs,seed) # optional seed
-    points, mapped = ClutteredEnvPathOpt.find_intersections(obstacles)
-    neighbors = ClutteredEnvPathOpt._find_neighbors(points, mapped)
+    # obstacles = ClutteredEnvPathOpt.gen_field(num_obs, seed)
+    # points, mapped, inside_quant = ClutteredEnvPathOpt.find_intersections(obstacles)
+    # neighbors = ClutteredEnvPathOpt._find_neighbors(points, mapped)
 
-    plot_intersections_indiv(points)
-    dup, dup_ind = point_duplicates(points)
-    dup, dup_ind = points_in_hs_duplicates(mapped)
-    dup, dup_ind = hs_duplicates(mapped)
-    points_in_mapped_ordered(obstacles, mapped)
-    plot_neighbors(obstacles, neighbors, points)
-    list_neighbors(neighbors, points)
-    suspect = suspect_neighbors(neighbors)
+    # plot_intersections_indiv(points)
+    # dup, dup_ind = point_duplicates(points)
+    # dup, dup_ind = points_in_hs_duplicates(mapped)
+    # dup, dup_ind = hs_duplicates(mapped)
+    # points_in_mapped_ordered(obstacles, mapped)
+    # plot_neighbors(obstacles, neighbors, points)
+    # list_neighbors(neighbors, points)
+    # suspect = suspect_neighbors(neighbors)
 
-    # construct_graph_debug(obstacles)
-
-    #cover = ClutteredEnvPathOpt._find_biclique_cover_visual(skeleton, free_faces, points)
-    cover = ClutteredEnvPathOpt.find_biclique_cover(skeleton, free_faces)
+    # cover = ClutteredEnvPathOpt._find_biclique_cover_visual(skeleton, free_faces, points)
     # cover_vec = collect(cover)
-    ClutteredEnvPathOpt._is_valid_biclique_cover_diff(ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(free_faces)), cover)
+
+    # tree = ClutteredEnvPathOpt.find_biclique_cover_as_tree(skeleton, free_faces)
+    # (cover_vec, _) = ClutteredEnvPathOpt.tree2digraph(tree)
+
+    cover = ClutteredEnvPathOpt.find_biclique_cover(skeleton, free_faces)
+    (valid_cover, size_diff, missing_edges, missing_edges_lg) = ClutteredEnvPathOpt._is_valid_biclique_cover_diff(ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(free_faces)), cover)
+    ClutteredEnvPathOpt.plot_edges(missing_edges_lg, points, obstacles, plot_name = "Missing Edges")
+    png("Missing Edges Seed $seed Num Obs $num_obs")
+
+    cover = ClutteredEnvPathOpt.find_biclique_cover_debug(skeleton, free_faces, points, obstacles)
+
+    cover = ClutteredEnvPathOpt.find_biclique_cover(skeleton, all_faces)
+    (valid_cover, size_diff, missing_edges, missing_edges_lg) = ClutteredEnvPathOpt._is_valid_biclique_cover_diff(ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(all_faces)), cover)
+    ClutteredEnvPathOpt.plot_edges(missing_edges_lg, points, obstacles, plot_name = "Missing Edges")
+    png("Missing Edges Seed $seed Num Obs $num_obs")
+
+    cover = ClutteredEnvPathOpt.find_biclique_cover_debug(skeleton, all_faces, points, obstacles)
+    
+    seed_range = 1:100
+    num_obs_range = 1:4
+    fails, tuples = biclique_cover_validity_tests(seed_range, num_obs_range, faces = "all")
+    # tuples = [(26,4), (100,4)] for seed_range = 1:100 and num_obs_range = 1:4
+    fails, tuples = biclique_cover_validity_tests(seed_range, num_obs_range, faces = "free")
+    # tuples = [(71,4)] for seed_range = 1:100 and num_obs_range = 1:4
 end
 
 
-# Debugging Functions ------------------------------------------------------------
-import Polyhedra
-import Statistics
-import LightGraphs
-import GLPK
+# Biclique validity tester function
+function biclique_cover_validity_tests(seed_range, num_obs_range; faces::String, with_plots=false)
+    fails = 0
+    tuples = []
+    for seed = seed_range
+        for num_obs = num_obs_range
+            println("On test Seed = $seed, Num_Obs = $num_obs")
+            obstacles, points, g, obstacle_faces, free_faces = ClutteredEnvPathOpt.plot_new(num_obs,"Obstacles Seed $seed Num Obs $num_obs",seed=seed); # optional seed argument, default is 11
+            skeleton = LabeledGraph(g)
+            all_faces = union(obstacle_faces, free_faces)
+            if faces == "all"
+                cover = ClutteredEnvPathOpt.find_biclique_cover(skeleton, all_faces);
+                feg = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(all_faces));
+                (valid_cov, size_diff, miss_edges, miss_edges_lg) = ClutteredEnvPathOpt._is_valid_biclique_cover_diff(feg, cover);
+            else
+                cover = ClutteredEnvPathOpt.find_biclique_cover(skeleton, free_faces);
+                feg = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(free_faces));
+                (valid_cov, size_diff, miss_edges, miss_edges_lg) = ClutteredEnvPathOpt._is_valid_biclique_cover_diff(feg, cover);
+            end
+            if size_diff != 0
+                fails += 1
+                push!(tuples, (seed, num_obs))
+                println("Test Failed")
 
-# Plot free faces ----------------------------------------------------------------
-function plot_free_faces(free_faces)
-    for (j,face) in enumerate(free_faces)
-        #println("$face")
-        v = Polyhedra.convexhull(map(i -> collect(points[i]), face)...)
-        x_locations = map(i -> points[i].first, face)
-        y_locations = map(i -> points[i].second, face)
-        #println("$x_locations")
+                if with_plots
+                    plot(title="Obstacles");
+                    ClutteredEnvPathOpt.plot_field(obstacles)
+                    ClutteredEnvPathOpt.plot_lines(obstacles)
+                    ClutteredEnvPathOpt.plot_borders()
+                    ClutteredEnvPathOpt.plot_intersections(obstacles);
+                    display(plot!())
+                    png("Obstacles Seed $seed Num Obs $num_obs")
 
-        avg_x = Statistics.mean(x_locations)
-        avg_y = Statistics.mean(y_locations)
-        #println("$avg_x , $avg_y")
-        polygon = Polyhedra.polyhedron(
-            v,
-            Polyhedra.DefaultLibrary{Float64}(Gurobi.Optimizer)
-        )
+                    ClutteredEnvPathOpt.plot_faces(free_faces, points, plot_name = "Free Faces")
+                    png("Free Faces Seed $seed Num Obs $num_obs")
 
-        plot!(polygon)
-        plot!([avg_x], [avg_y], series_annotations=([Plots.text("$j", :center, 8, "courier")]))
-        display(plot!(xlims=(-0.05,1.05), ylims=(-0.05,1.05)))
+                    ClutteredEnvPathOpt.plot_edges(skeleton, points, obstacles, plot_name = "Skeleton")
+                    png("Skeleton Seed $seed Num Obs $num_obs")
 
-        # display(plot!(polygon, title="Free Face # $j", xlims=(-0.05,1.05), ylims=(-0.05,1.05)))
+                    if size_diff > 0
+                        ClutteredEnvPathOpt.plot_edges(miss_edges_lg, points, obstacles, plot_name = "Missing Edges")
+                        if faces == "all"
+                            png("Missing Edges All Faces Used Seed $seed Num Obs $num_obs")
+                        else
+                            png("Missing Edges Free Faces Used Seed $seed Num Obs $num_obs")
+                        end
+                    end
+                end
+            end
+        end
     end
-    # display(plot!(xlims=(-0.05,1.05), ylims=(-0.05,1.05)))
+    return (fails, tuples)
 end
+
+# Debugging Functions ---------------------------------------------------------------
 
 # Check if free_faces has any duplicates---------------------------------------------
 function face_duplicates(faces)
@@ -403,35 +476,11 @@ function face_duplicates(faces)
     return dup, dup_ind
 end
 
-# Plot faces indiviually with their points to check if clockwise-ordered
-function plot_faces_indiv_with_points(faces, points)
-    for (j,face) in enumerate(faces)
-        plot()
-        v = Polyhedra.convexhull(map(i -> collect(points[i]), face)...)
-        x_locations = map(i -> points[i].first, face)
-        y_locations = map(i -> points[i].second, face)
-
-        # avg_x = Statistics.mean(x_locations)
-        # avg_y = Statistics.mean(y_locations)
-        # println("$avg_x , $avg_y")
-        polygon = Polyhedra.polyhedron(
-            v,
-            Polyhedra.DefaultLibrary{Float64}(Gurobi.Optimizer)
-        )
-
-        plot!(polygon)
-        plot!(x_locations, y_locations, series_annotations=([Plots.text(string(x), :center, 8, "courier") for x in face]))
-        display(plot!(xlims=(-0.05,1.05), ylims=(-0.05,1.05),title="Face $j: $face"))
-        # display(plot!(title="Face $j: $face"))
-
-    end
-end
-
 # Check if points has any duplicates---------------------------------------------
 function point_duplicates(points)
     dup = 0
     dup_ind = []
-    tol = 1.e-13
+    tol = Rational(1.e-13)
     for i in 1:(length(points))
         for j in (i+1):(length(points))
             #if (points[i].first == points[j].first) && (points[i].second == points[j].second)
@@ -447,7 +496,7 @@ function point_duplicates(points)
     return dup, dup_ind
 end
 
-# Check if halfspaces in mapped have any duplicated points within the halfspace---
+# Check if halfspaces in mapped have any duplicated points within them ---------
 function points_in_hs_duplicates(mapped)
     dup = 0
     dup_ind = []
@@ -491,7 +540,7 @@ function points_in_mapped_ordered(obstacles, mapped)
     end
 end
 
-# Plot points individually
+# Plot points individually----------------------------------------------------------
 function plot_intersections_indiv(intersections)
     x = map(point -> point[1], intersections)
     y = map(point -> point[2], intersections)
@@ -548,201 +597,8 @@ function suspect_neighbors(neighbors)
     return suspect
 end
 
-# Plot edges of a lightgraph
-function plot_edges(lg, points, obstacles)
-    Plots.plot(xlims=(-0.05,1.05),ylims=(-0.05,1.05),legend=false)
-    ClutteredEnvPathOpt.plot_intersections(obstacles)
-    for edge in LightGraphs.edges(lg.graph)
-        Plots.plot!([points[edge.src].first, points[edge.dst].first], [points[edge.src].second, points[edge.dst].second])
-        display(Plots.plot!(title="Edge ($(edge.src), $(edge.dst))"))
-    end
-    #display(Plots.plot!(title="Edges"))
-end
-
-# Face finder
-t_seed = 7
-t_num_obs = 4
-obstacles = ClutteredEnvPathOpt.gen_field(t_num_obs,t_seed) # optional seed
-construct_graph_debug(obstacles)
-
-function construct_graph_debug(obs)
-    points, mapped = ClutteredEnvPathOpt.find_intersections(obs)
-
-    # Create map from point to neighbors (counter clockwise ordered by angle against horizontal)
-    neighbors = ClutteredEnvPathOpt._find_neighbors(points, mapped)
-    graph = ClutteredEnvPathOpt._gen_graph(neighbors)
-
-    angles = fill(Rational(Inf), length(points), length(points))
-    for i in 1:length(points)
-        for j in 1:length(points)
-            angles[i, j] = Rational(atan(points[j].second - points[i].second, points[j].first - points[i].first))
-            if angles[i, j] < 0//1
-                angles[i, j] += 2//1 * Rational(3.141592653589793) # * pi
-            end
-        end
-    end
-
-    function greatest_angle_neighbor(source, last_angle, visited)
-        #tol = Rational(1.e-15)
-        unvisited = filter(vertex -> !(vertex in visited), neighbors[source])
-        display(println("Unvisisted nodes are $unvisited"))
-        neighbor_angles = map(neighbor -> angles[source, neighbor], unvisited)
-        for i in 1:length(neighbor_angles)
-            if neighbor_angles[i] >= Rational(3.141592653589793)
-                neighbor_angles[i] -= Rational(2*3.141592653589793)
-            end
-        end
-        zipped = @pipe zip(unvisited, neighbor_angles) |> collect(_)
-        display(map(zip -> println("Unvisited nodes and angles are ($(zip[1]),($(Float64(zip[2])))"), zipped))
-        # zipped # zipped is an array of tuples of the form (unvisited node, angle it makes with source)
-
-        # first condition is to assure our face is the most compact one
-        # second condition prevents selecting a node on the same halfspace as source
-        #greater = filter(tup -> ((tup[2] > last_angle) && !(abs(tup[2] - last_angle) < tol)), zipped)
-        # greater = filter(tup -> (tup[2] > last_angle), zipped)
-
-        if last_angle >= 0 && last_angle < Rational(3.141592653589793)
-            greater = filter(tup -> (tup[2] > last_angle) && (tup[2] < last_angle + Rational(3.141592653589793)), zipped)
-        else
-            greater = filter(tup -> (tup[2] > last_angle - Rational(2*3.141592653589793)) && (tup[2] < last_angle - Rational(3.141592653589793)), zipped)
-        end
-
-        if isempty(greater)
-            return (-1, -1) # bad state
-        else
-            sort!(greater, by=(tup -> tup[2]))
-            display(map(zip -> println("greater: nodes and angles are ($(zip[1]),($(Float64(zip[2])))"), greater))
-            destination = greater[end][1] # greater[1][1]
-        end
-
-        return (destination, angles[source, destination])
-    end
-
-    faces = []
-
-    for i in 1:length(points)
-    # for i in 7:10
-        start = i
-        println("\nStart is $start -----------------------------------------------------------")
-
-        for j in 1:length(neighbors[start])
-            current = neighbors[start][j]
-            last_angle = angles[start, current]
-            println("\nCurrent is $current. last_angle is $(Float64(last_angle))")
-
-            face = [start, current]
-
-            while start != current
-                # current # ?
-                println("Face length: $(length(face)). Start in neighbors[current] $(start in neighbors[current])")
-                if (length(face) > 2 && (start in neighbors[current]))
-                    push!(faces, copy(face))
-                    println("$start is in the neighbors of $current")
-                    println("Face pushed is $face\n########")
-                    break
-                end
-
-                current, last_angle = greatest_angle_neighbor(current, last_angle, face)
-                println("Update: Current is now $current. last_angle is now $(Float64(last_angle))")
-
-                if current == -1
-                    break
-                end
-
-                push!(face, current)
-                println("Update: Face is now $face")
-            end
-        end
-    end
-
-    # Cleaning
-    face_sets = []
-
-    # Get the nodes of the extreme points of the obstacles
-    # obstacle_faces = map(
-    #     obstacle -> Set(
-    #         map(
-    #             point -> findfirst(p -> (isapprox(p.first, point[1]) && isapprox(p.second, point[2])), points),
-    #             obstacle.vrep.points.points
-    #         )
-    #     ),
-    #     obs
-    # )
-
-    # Removes redundant faces and faces that comprise an obstacle
-    unique_faces = filter(face -> begin
-        face_set = Set(face)
-
-        face_set_v = Polyhedra.convexhull(map(i -> collect(points[i]), face)...)
-        # face_set_poly = Polyhedra.polyhedron(face_set_v, Polyhedra.DefaultLibrary{Float64}(GLPK.Optimizer))
-        face_set_poly = Polyhedra.polyhedron(face_set_v, Polyhedra.DefaultLibrary{Rational{Int64}}(GLPK.Optimizer))
-        face_set_overlaps_obs_faces = false
-        included = false
-
-        tol =  Rational(1.e-10)
-        for n in 1:length(obs) # need to loop in this manner for 'continue' to work properly
-            indicator = 0
-            intersect_poly = Polyhedra.intersect(face_set_poly, obs[n])
-            Polyhedra.npoints(intersect_poly) # computes the extreme points so that vrep can be used
-
-            if typeof(intersect_poly.vrep) === nothing
-                continue
-            end
-            ext_p_intersect_poly = sort(collect(intersect_poly.vrep.points.points))
-            ext_p_face_set_poly = sort(collect(face_set_poly.vrep.points.points))
-            if length(ext_p_intersect_poly) != length(ext_p_face_set_poly)
-                continue
-            end
-            for i in 1:length(ext_p_face_set_poly)
-                for j in 1:length(ext_p_face_set_poly[i])
-                    if abs(ext_p_intersect_poly[i][j] - ext_p_face_set_poly[i][j]) > tol
-                        indicator += 1
-                        break
-                    end
-                end
-                if indicator != 0
-                    break
-                end
-            end
-            if indicator == 0
-                face_set_overlaps_obs_faces = true
-                break
-            end
-        end
-
-        if !(face_set in face_sets) && !(face_set_overlaps_obs_faces)
-            push!(face_sets, face_set)
-            included = true
-        end
-
-        return included
-    end, faces)
-
-    # Plot all faces to see if all are found
-    Plots.plot()
-    for (j,face) in enumerate(faces)
-        #Plots.plot()
-        v = Polyhedra.convexhull(map(i -> collect(points[i]), face)...)
-        x_locations = map(i -> points[i].first, face)
-        y_locations = map(i -> points[i].second, face)
-        #println("$x_locations")
-
-        avg_x = Statistics.mean(x_locations)
-        avg_y = Statistics.mean(y_locations)
-        #println("$avg_x , $avg_y")
-        polygon = Polyhedra.polyhedron(
-            v,
-            # Polyhedra.DefaultLibrary{Float64}(Gurobi.Optimizer)
-            Polyhedra.DefaultLibrary{Rational{Int64}}(Gurobi.Optimizer)
-        )
-
-        Plots.plot!(polygon, title="$j-th Face: $face")
-        Plots.plot!([avg_x], [avg_y], series_annotations=([Plots.text("$j", :center, 8, "courier")]))
-        display(Plots.plot!(xlims=(-0.05,1.05), ylims=(-0.05,1.05)))
-
-    end
-    # display(Plots.plot!(xlims=(-0.05,1.05), ylims=(-0.05,1.05)))
-
-    return (obs, points, graph, @pipe map(face -> reverse(face), unique_faces) |> Set(_))
-    # return (obs, points, graph, @pipe map(face -> reverse(face), faces) |> Set(_))
-end
+# # Face finder ----------------------------------------------------------------------------
+# t_seed = 7
+# t_num_obs = 4
+# obstacles = ClutteredEnvPathOpt.gen_field(t_num_obs, seed = t_seed) # optional seed
+# construct_graph_debug(obstacles)
