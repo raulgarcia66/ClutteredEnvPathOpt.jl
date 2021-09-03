@@ -10,21 +10,21 @@ using JuMP, Gurobi
 
 # @testset "ClutteredEnvPathOpt.jl" begin
     # Create obstacles
-    obstacles = ClutteredEnvPathOpt.gen_field(4, seed = 71)
+    obstacles = ClutteredEnvPathOpt.gen_field(3, seed = 5)
     plot();
     ClutteredEnvPathOpt.plot_field(obstacles)
     display(plot!())
     
     # Set parameters
-    N = 40 # number of steps
-    f1 = [0, 0.05, 0] # initial footstep pose 1
-    f2 = [0.0, 0, 0] # initial footstep pose 2
-    goal = [1, 1, 0] # goal pose
-    Q_g = 10*Matrix(I, 3, 3) # weight between final footstep and goal pose
-    Q_r = Matrix(I, 3, 3) # weight between footsteps
-    q_t = -.05 # weight for trimming unused steps
-    L = 7 # number of pieces in p.w.l approx. of sine/cosine 
-    delta_f_max = 1 # max stride norm
+    N = 30  # number of steps
+    f1 = [0, 0.05, 0]  # initial footstep pose 1
+    f2 = [0.0, 0, 0]  # initial footstep pose 2
+    goal = [1, 1, 0]  # goal pose
+    Q_g = 10*Matrix(I, 3, 3)  # weight between final footstep and goal pose
+    Q_r = Matrix(I, 3, 3)  # weight between footsteps
+    q_t = -.05  # weight for trimming unused steps
+    L = 7  # number of pieces in p.w.l approx. of sine/cosine 
+    delta_f_max = 1  # max stride norm
     # TODO: Assure second footstep is within reachability given first
     
     # Optional named arguments
@@ -34,7 +34,8 @@ using JuMP, Gurobi
     p2 = [0, -0.25]
 
     # Compute optimal path
-    x, y, θ, t = solve_deits(obstacles, N, f1, f2, goal, Q_g, Q_r, q_t, L, delta_f_max)
+    x, y, θ, t, z = solve_deits(obstacles, N, f1, f2, goal, Q_g, Q_r, q_t, L, delta_f_max)
+    x2, y2, θ2, t2, z2 = solve_deits(obstacles, N, f1, f2, goal, Q_g, Q_r, q_t, L, delta_f_max)
     # x, y, θ, t = solve_deits(obstacles, N, f1, f2, goal, Q_g, Q_r, q_t, L, delta_f_max, d1=d1, d2=d2, p1=p1, p2=p2)
 
     # Trim excess steps
@@ -42,9 +43,15 @@ using JuMP, Gurobi
     x = vcat(x[1:2], x[num_to_trim + 3 : end]);
     y = vcat(y[1:2], y[num_to_trim + 3 : end]);
     θ = vcat(θ[1:2], θ[num_to_trim + 3 : end]);
+    num_to_trim2 = length(filter(tj -> tj > 0.5, t2[3:end]))
+    x2 = vcat(x2[1:2], x2[num_to_trim + 3 : end]);
+    y2 = vcat(y2[1:2], y2[num_to_trim + 3 : end]);
+    θ2 = vcat(θ2[1:2], θ2[num_to_trim + 3 : end]);
 
     # Plot footstep plan
     plot_steps(obstacles, x, y, θ)
+    plot_steps(obstacles, x2, y2, θ2)
+
 
     # Plot intersections of circles
     plot_circles(d1, d2, p1, p2, x, y, θ)
@@ -89,7 +96,7 @@ using JuMP, Gurobi
 
 #     feg = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(faces))
 #     E = @pipe LightGraphs.complement(feg.graph) |> LightGraphs.incidence_matrix(_)
-#     lower = Int(ceil(log2(length(faces))))
+#     lower = ceil(Int, log2(length(faces)))
 #     upper = length(cover_vec)
 
     # plot_optimal(E, obstacles, points, lower, upper)
@@ -319,87 +326,118 @@ using JuMP, Gurobi
 # end
 
 
-# Unofficial Tests ---------------------------------------------------------------------------
+####################################### Unofficial Tests ########################################
 
-# There is a paradigm for constructing proper tests
-@testset "Biclique Validity" begin
-    num_obs = 4;
-    seed = 100;
-    obstacles, points, g, obstacle_faces, free_faces = ClutteredEnvPathOpt.plot_new(num_obs, "Obstacles Seed $seed Num Obs $num_obs", seed = seed)
-    skeleton = LabeledGraph(g)
-    all_faces = union(obstacle_faces, free_faces)
+# Problem Data
+num_obs = 4;
+seed = 71;
+obstacles, points, g, obstacle_faces, free_faces = ClutteredEnvPathOpt.plot_new(num_obs, "Obstacles Seed $seed Num Obs $num_obs", seed = seed)
+skeleton = LabeledGraph(g)
+all_faces = union(obstacle_faces, free_faces)
 
-    plot(title="Obstacles");
-    ClutteredEnvPathOpt.plot_field(obstacles)
-    ClutteredEnvPathOpt.plot_lines(obstacles)
-    ClutteredEnvPathOpt.plot_borders()
-    ClutteredEnvPathOpt.plot_intersections(obstacles)
-    png("Obstacles Seed $seed Num Obs $num_obs")
-    display(plot!())
+# Plot obstacles
+plot(title="Obstacles");
+ClutteredEnvPathOpt.plot_field(obstacles)
+ClutteredEnvPathOpt.plot_lines(obstacles)
+ClutteredEnvPathOpt.plot_borders()
+ClutteredEnvPathOpt.plot_intersections(obstacles)
+png("Obstacles Seed $seed Num Obs $num_obs")
+display(plot!())
 
-    ClutteredEnvPathOpt.plot_faces(obstacle_faces, points, plot_name = "Obstacle Faces", col = "dodgerblue")
-    png("Obstacle Faces Seed $seed Num Obs $num_obs")
-    ClutteredEnvPathOpt.plot_faces(free_faces, points, plot_name = "Free Faces")
-    png("Free Faces Seed $seed Num Obs $num_obs")
-    ClutteredEnvPathOpt.plot_faces(obstacle_faces, points, plot_name = "All Faces", col = "red")
-    ClutteredEnvPathOpt.plot_faces(free_faces, points, plot_name = "All Faces", col = "green", new_plot = false)
-    png("All Faces Seed $seed Num Obs $num_obs")
+# Plot faces
+ClutteredEnvPathOpt.plot_faces(obstacle_faces, points, plot_name = "Obstacle Faces", col = "dodgerblue")
+png("Obstacle Faces Seed $seed Num Obs $num_obs")
 
-    ClutteredEnvPathOpt.plot_faces(obstacle_faces, points, col = "dodgerblue", individually = true)
-    ClutteredEnvPathOpt.plot_faces(free_faces, points, individually = true)
+ClutteredEnvPathOpt.plot_faces(free_faces, points, plot_name = "Free Faces")
+png("Free Faces Seed $seed Num Obs $num_obs")
 
-    ClutteredEnvPathOpt.plot_edges(skeleton, points, obstacles, plot_name = "Skeleton")
-    png("Skeleton Seed $seed Num Obs $num_obs")
-    feg = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(all_faces))
-    ClutteredEnvPathOpt.plot_edges(feg, points, obstacles, plot_name = "Finite Element Graph")
-    feg_S = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(free_faces))
-    ClutteredEnvPathOpt.plot_edges(feg_S, points, obstacles, plot_name = "Finite Element Graph of S")
-    feg_temp = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(obstacle_faces))
-    ClutteredEnvPathOpt.plot_edges(feg_temp, points, obstacles, plot_name = "Finite Element Graph Obstacle Faces")
+ClutteredEnvPathOpt.plot_faces(obstacle_faces, points, plot_name = "All Faces", col = "red")
+ClutteredEnvPathOpt.plot_faces(free_faces, points, plot_name = "All Faces", col = "green", new_plot = false)
+png("All Faces Seed $seed Num Obs $num_obs")
 
-    obstacles = ClutteredEnvPathOpt.gen_field(num_obs, seed = seed)
-    points, mapped, inside_quant = ClutteredEnvPathOpt.find_intersections(obstacles)
-    neighbors = ClutteredEnvPathOpt._find_neighbors(points, mapped)
+# Plot faces individually
+ClutteredEnvPathOpt.plot_faces(obstacle_faces, points, col = "dodgerblue", individually = true)
+ClutteredEnvPathOpt.plot_faces(free_faces, points, individually = true)
 
-    # dup, dup_ind = face_duplicates(obstacle_faces)
-    # dup, dup_ind = face_duplicates(free_faces)
-    # dup, dup_ind = face_duplicates(all_faces)
-    # plot_intersections_indiv(points)
-    # dup, dup_ind = point_duplicates(points)
-    # dup, dup_ind = points_in_hs_duplicates(mapped)
-    # dup, dup_ind = hs_duplicates(mapped)
-    # points_in_mapped_ordered(obstacles, mapped)
-    # plot_neighbors(obstacles, neighbors, points)
-    # list_neighbors(neighbors, points)
-    # suspect = suspect_neighbors(neighbors)
+# Plot edges
+ClutteredEnvPathOpt.plot_edges(skeleton, points, obstacles, plot_name = "Skeleton")
+png("Skeleton Seed $seed Num Obs $num_obs")
 
-    # cover = ClutteredEnvPathOpt._find_biclique_cover_visual(skeleton, free_faces, points)
-    # cover_vec = collect(cover)
+feg = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(all_faces))
+ClutteredEnvPathOpt.plot_edges(feg, points, obstacles, plot_name = "Finite Element Graph")
+png("FEG Seed $seed Num Obs $num_obs")
 
-    # tree = ClutteredEnvPathOpt.find_biclique_cover_as_tree(skeleton, free_faces)
-    # (cover_vec, _) = ClutteredEnvPathOpt.tree2digraph(tree)
+feg_S = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(free_faces))
+ClutteredEnvPathOpt.plot_edges(feg_S, points, obstacles, plot_name = "Finite Element Graph of S")
+png("FEG of S Seed $seed Num Obs $num_obs")
 
-    cover = ClutteredEnvPathOpt.find_biclique_cover(skeleton, free_faces)
-    (valid_cover, size_diff, missing_edges, missing_edges_lg) = ClutteredEnvPathOpt._is_valid_biclique_cover_diff(ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(free_faces)), cover)
-    ClutteredEnvPathOpt.plot_edges(missing_edges_lg, points, obstacles, plot_name = "Missing Edges")
-    png("Missing Edges Seed $seed Num Obs $num_obs")
+feg_obs = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(obstacle_faces))
+ClutteredEnvPathOpt.plot_edges(feg_obs, points, obstacles, plot_name = "Finite Element Graph Obstacle Faces")
+png("FEG Obstacles Seed $seed Num Obs $num_obs")
 
-    cover = ClutteredEnvPathOpt.find_biclique_cover_debug(skeleton, free_faces, points, obstacles)
+# obstacles = ClutteredEnvPathOpt.gen_field(num_obs, seed = seed)
+# points, mapped, inside_quant = ClutteredEnvPathOpt.find_intersections(obstacles)
+# neighbors = ClutteredEnvPathOpt._find_neighbors(points, mapped)
 
-    cover = ClutteredEnvPathOpt.find_biclique_cover(skeleton, all_faces)
-    (valid_cover, size_diff, missing_edges, missing_edges_lg) = ClutteredEnvPathOpt._is_valid_biclique_cover_diff(ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(all_faces)), cover)
-    ClutteredEnvPathOpt.plot_edges(missing_edges_lg, points, obstacles, plot_name = "Missing Edges")
-    png("Missing Edges Seed $seed Num Obs $num_obs")
+# dup, dup_ind = face_duplicates(obstacle_faces)
+# dup, dup_ind = face_duplicates(free_faces)
+# dup, dup_ind = face_duplicates(all_faces)
+# plot_intersections_indiv(points)
+# dup, dup_ind = point_duplicates(points)
+# dup, dup_ind = points_in_hs_duplicates(mapped)
+# dup, dup_ind = hs_duplicates(mapped)
+# points_in_mapped_ordered(obstacles, mapped)
+# plot_neighbors(obstacles, neighbors, points)
+# list_neighbors(neighbors, points)
+# suspect = suspect_neighbors(neighbors)
 
-    cover = ClutteredEnvPathOpt.find_biclique_cover_debug(skeleton, all_faces, points, obstacles)
-    
-    seed_range = 1:100
-    num_obs_range = 1:4
-    fails, tuples = biclique_cover_validity_tests(seed_range, num_obs_range, faces = "all")
-    # tuples = [(26,4), (100,4)] for seed_range = 1:100 and num_obs_range = 1:4
-    fails, tuples = biclique_cover_validity_tests(seed_range, num_obs_range, faces = "free")
-    # tuples = [(71,4)] for seed_range = 1:100 and num_obs_range = 1:4
-end
+# cover3 = ClutteredEnvPathOpt._find_biclique_cover_visual(skeleton, free_faces, points)
+
+# tree = ClutteredEnvPathOpt.find_biclique_cover_as_tree(skeleton, free_faces)
+
+# Free Faces Cover
+cover = ClutteredEnvPathOpt.find_biclique_cover(skeleton, free_faces)
+(valid_cover, size_diff, missing_edges, missing_edges_lg) = ClutteredEnvPathOpt._is_valid_biclique_cover_diff(ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(free_faces)), cover)
+ClutteredEnvPathOpt.plot_edges(missing_edges_lg, points, obstacles, plot_name = "Missing Edges")
+png("Missing Edges Seed $seed Num Obs $num_obs Free")
+
+file_name = "Biclique Cover Debug Output Seed $seed Num Obs $num_obs Free Unedited.txt"
+f = open(file_name, "w")
+write(f, "Plot 1\n")
+flush(f)
+close(f)
+cover4 = ClutteredEnvPathOpt.find_biclique_cover_debug(skeleton, free_faces, points, obstacles, file_name)
+# f = open("Biclique Cover Debug Output.txt","w")
+# write(f, "Plot 1\n")
+# flush(f)
+# close(f)
+# cover2 = ClutteredEnvPathOpt.find_biclique_cover_debug(skeleton, free_faces, points, obstacles)
+
+# All Faces Cover
+cover = ClutteredEnvPathOpt.find_biclique_cover(skeleton, all_faces)
+(valid_cover, size_diff, missing_edges, missing_edges_lg) = ClutteredEnvPathOpt._is_valid_biclique_cover_diff(ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(all_faces)), cover)
+ClutteredEnvPathOpt.plot_edges(missing_edges_lg, points, obstacles, plot_name = "Missing Edges")
+png("Missing Edges Seed $seed Num Obs $num_obs All")
+
+file_name = "Biclique Cover Debug Output Seed $seed Num Obs $num_obs All Unedited.txt"
+f = open(file_name, "w")
+write(f, "Plot 1\n")
+flush(f)
+close(f)
+cover4 = ClutteredEnvPathOpt.find_biclique_cover_debug(skeleton, all_faces, points, obstacles, file_name)
+# f = open("Biclique Cover Debug Output.txt","w")
+# write(f, "Plot 1\n")
+# flush(f)
+# close(f)
+# cover2 = ClutteredEnvPathOpt.find_biclique_cover_debug(skeleton, all_faces, points, obstacles)
+
+# Biclique Cover Validity Tests
+seed_range = 1:100
+num_obs_range = 1:4
+fails, tuples = biclique_cover_validity_tests(seed_range, num_obs_range, faces = "all")
+# tuples = [(26,4), (100,4)] for seed_range = 1:100 and num_obs_range = 1:4
+fails, tuples = biclique_cover_validity_tests(seed_range, num_obs_range, faces = "free")
+# tuples = [(71,4)] for seed_range = 1:100 and num_obs_range = 1:4
 
 
 # Biclique validity tester function

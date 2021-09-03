@@ -135,8 +135,9 @@ function solve_deits(obstacles, N, f1, f2, g, Q_g, Q_r, q_t, L, delta_f_max; d1=
     skeleton = LabeledGraph(graph)
     # all_faces = union(obstacle_faces, free_faces)
 
-    model = JuMP.Model(JuMP.optimizer_with_attributes(Gurobi.Optimizer, "MIPGap" => .01))
-    # "TimeLimit" => 150, "MIPGap" => 0.20
+    model = JuMP.Model(JuMP.optimizer_with_attributes(Gurobi.Optimizer))
+    # model = JuMP.Model(JuMP.optimizer_with_attributes(Gurobi.Optimizer, "MIPGap" => .01))
+    # "TimeLimit" => 150, "MIPGap" => 0.10
     
     # model has scalar variables x, y, theta, bin var t and d (2x1 decision), p (2x1 decision)
     JuMP.@variable(model, x[1:N])
@@ -214,7 +215,7 @@ function solve_deits(obstacles, N, f1, f2, g, Q_g, Q_r, q_t, L, delta_f_max; d1=
     #     J = LightGraphs.nv(skeleton.graph)
     #     for i = 1:N
     #         λ = JuMP.@variable(model, [1:J], lower_bound = 0)
-    #         z = JuMP.@variable(model, [1:length(cover)], Bin)
+    #         # z = JuMP.@variable(model, [1:length(cover)], Bin)
     #         for (j,(A,B)) in enumerate(cover)
     #             JuMP.@constraint(model, sum(λ[v] for v in A) <= z[j])
     #             JuMP.@constraint(model, sum(λ[v] for v in B) <= 1 - z[j])
@@ -317,7 +318,7 @@ function solve_deits(obstacles, N, f1, f2, g, Q_g, Q_r, q_t, L, delta_f_max; d1=
     # Solve
     JuMP.optimize!(model)
 
-    return value.(x), value.(y), value.(θ), value.(t)
+    return value.(x), value.(y), value.(θ), value.(t), value.(z) # objective_value(model)
 end
 
 function plot_steps(obstacles, x, y, theta)
