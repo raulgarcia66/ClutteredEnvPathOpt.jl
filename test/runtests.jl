@@ -10,26 +10,28 @@ using JuMP, Gurobi
 
 # @testset "ClutteredEnvPathOpt.jl" begin
     # Create obstacles
-    obstacles = ClutteredEnvPathOpt.gen_field(3, seed = 5)
+    num_obs = 1;
+    seed = 5;
+    obstacles = ClutteredEnvPathOpt.gen_field(num_obs, seed = seed)
     plot();
     ClutteredEnvPathOpt.plot_field(obstacles)
     display(plot!())
     
     # Set parameters
     N = 30  # number of steps
-    f1 = [0, 0.05, 0]  # initial footstep pose 1
+    f1 = [0, 0.07, 0]  # initial footstep pose 1
     f2 = [0.0, 0, 0]  # initial footstep pose 2
     goal = [1, 1, 0]  # goal pose
     Q_g = 10*Matrix(I, 3, 3)  # weight between final footstep and goal pose
     Q_r = Matrix(I, 3, 3)  # weight between footsteps
     q_t = -.05  # weight for trimming unused steps
-    L = 7  # number of pieces in p.w.l approx. of sine/cosine 
+    L = 10  # number of pieces in p.w.l approx. of sine/cosine 
     delta_f_max = 1  # max stride norm
     # TODO: Assure second footstep is within reachability given first
     
     # Optional named arguments
-    d1 = 0.22
-    d2 = 0.22
+    d1 = 0.20
+    d2 = 0.20
     p1 = [0. 0.05]
     p2 = [0, -0.25]
 
@@ -51,10 +53,11 @@ using JuMP, Gurobi
     # Plot footstep plan
     plot_steps(obstacles, x, y, θ)
     plot_steps(obstacles, x2, y2, θ2)
+    png("Path Seed $seed Num Obs $num_obs")
 
 
     # Plot intersections of circles
-    plot_circles(d1, d2, p1, p2, x, y, θ)
+    plot_circles(d1, d2, p1, p2, x2, y2, θ2)
 
 #     @test 1 == 1
 # end
@@ -329,19 +332,19 @@ using JuMP, Gurobi
 ####################################### Unofficial Tests ########################################
 
 # Problem Data
-num_obs = 4;
-seed = 71;
+num_obs = 3;
+seed = 5;
 obstacles, points, g, obstacle_faces, free_faces = ClutteredEnvPathOpt.plot_new(num_obs, "Obstacles Seed $seed Num Obs $num_obs", seed = seed)
 skeleton = LabeledGraph(g)
 all_faces = union(obstacle_faces, free_faces)
 
 # Plot obstacles
-plot(title="Obstacles");
+plot();
 ClutteredEnvPathOpt.plot_field(obstacles)
 ClutteredEnvPathOpt.plot_lines(obstacles)
 ClutteredEnvPathOpt.plot_borders()
 ClutteredEnvPathOpt.plot_intersections(obstacles)
-png("Obstacles Seed $seed Num Obs $num_obs")
+png("Obstacles with Lines Seed $seed Num Obs $num_obs")
 display(plot!())
 
 # Plot faces
@@ -413,18 +416,19 @@ cover4 = ClutteredEnvPathOpt.find_biclique_cover_debug(skeleton, free_faces, poi
 # close(f)
 # cover2 = ClutteredEnvPathOpt.find_biclique_cover_debug(skeleton, free_faces, points, obstacles)
 
+# DON'T NEED TO ALL FACES COVER; JUST GIVING THE FREE FACES IS VALID
 # All Faces Cover
-cover = ClutteredEnvPathOpt.find_biclique_cover(skeleton, all_faces)
-(valid_cover, size_diff, missing_edges, missing_edges_lg) = ClutteredEnvPathOpt._is_valid_biclique_cover_diff(ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(all_faces)), cover)
-ClutteredEnvPathOpt.plot_edges(missing_edges_lg, points, obstacles, plot_name = "Missing Edges")
-png("Missing Edges Seed $seed Num Obs $num_obs All")
+# cover = ClutteredEnvPathOpt.find_biclique_cover(skeleton, all_faces)
+# (valid_cover, size_diff, missing_edges, missing_edges_lg) = ClutteredEnvPathOpt._is_valid_biclique_cover_diff(ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(all_faces)), cover)
+# ClutteredEnvPathOpt.plot_edges(missing_edges_lg, points, obstacles, plot_name = "Missing Edges")
+# png("Missing Edges Seed $seed Num Obs $num_obs All")
 
-file_name = "Biclique Cover Debug Output Seed $seed Num Obs $num_obs All Unedited.txt"
-f = open(file_name, "w")
-write(f, "Plot 1\n")
-flush(f)
-close(f)
-cover4 = ClutteredEnvPathOpt.find_biclique_cover_debug(skeleton, all_faces, points, obstacles, file_name)
+# file_name = "Biclique Cover Debug Output Seed $seed Num Obs $num_obs All Unedited.txt"
+# f = open(file_name, "w")
+# write(f, "Plot 1\n")
+# flush(f)
+# close(f)
+# cover4 = ClutteredEnvPathOpt.find_biclique_cover_debug(skeleton, all_faces, points, obstacles, file_name)
 # f = open("Biclique Cover Debug Output.txt","w")
 # write(f, "Plot 1\n")
 # flush(f)
