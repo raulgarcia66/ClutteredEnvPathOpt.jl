@@ -10,6 +10,8 @@ function find_feg_separator_lt(skeleton::LabeledGraph{T}, faces::Set{Set{Pair{T,
 
     g_star_star = copy(skeleton)
     new_vertices = Dict{Number, Set{Pair{T, T}}}()
+    # Only need to add vertex to faces with more than 3 vertices   
+    faces = filter(f -> length(f) > 3, faces)
     for face in faces
         new_vertex = rand(T)
         push!(new_vertices, new_vertex => face)
@@ -34,8 +36,10 @@ function find_feg_separator_lt(skeleton::LabeledGraph{T}, faces::Set{Set{Pair{T,
             
             if length(a_star_star_boundry) < length(b_star_star_boundry)
                 setdiff!(a, a_star_star_boundry)
+                setdiff!(a_star_star, a_star_star_boundry)
             else
                 setdiff!(b, b_star_star_boundry)
+                setdiff!(b_star_star, b_star_star_boundry)
             end
         end
     end
@@ -55,7 +59,7 @@ function find_feg_separator_lt_best(skeleton::LabeledGraph{T}, faces::Set{Set{Pa
     separators = map(root -> find_feg_separator_lt(skeleton, faces, root), collect(keys(skeleton.labels)))
 
     balances = map(separator -> min(length(separator[2]) / length(separator[3]), length(separator[3]) / length(separator[2])), separators)
-    # See _find_feg_separator_lt_no_empty in biclique.jl
+    ######## See _find_feg_separator_lt_no_empty in biclique.jl
     # balances = map(separator -> begin
     #     if !isempty(separator[2]) && !isempty(separator[3])
     #         return min(length(separator[2]) / length(separator[3]), length(separator[3]) / length(separator[2]))
@@ -173,7 +177,7 @@ function find_separator_fcs_best(lg::LabeledGraph{T}, root::T)::Tuple{Set{T}, Se
     fundamental_cycles = @pipe map(non_tree_edge -> _find_fundamental_cycle(parents, non_tree_edge), non_tree_edges) |> map(cycle -> Set(convert_vertices(lg.labels, collect(cycle))), _)
     partitions = map(cycle -> (cycle, _find_partitions(lg, cycle)...), fundamental_cycles)
     # TODO: What happens when sets are empty? Can get Inf
-    # See _find_feg_separator_lt_no_empty in biclique.jl
+    ######## See _find_feg_separator_lt_no_empty in biclique.jl
     balances = map(partition -> min(length(partition[2]) / length(partition[3]), length(partition[3]) / length(partition[2])), partitions)
 
     max_balance = max(balances...)
@@ -357,6 +361,199 @@ function pp_expell(lg::LabeledGraph{T}, separator::Set{T}, a::Set{T}, b::Set{T})
             delete!(pp_separator, separator_vertex)
         end
     end
+
+    # Assure A and B are nonempty
+    
+    # triggered = false
+    # if isempty(pp_a) || isempty(pp_b)
+    #     println("\n#########\nA: $pp_a\nB:$pp_b\nC:$pp_separator")
+    #     triggered = true
+    # end
+
+    if isempty(pp_a)
+        # Move vertices from B into A
+        # First, need to move vertices in B connected to every other vertex in B into C
+        for b in pp_b
+            if length(pp_b) <= 1
+                #println("Don't want an empty B")
+                break
+            end
+            source = lg.labels[b]
+            num_edges_with_pp_b = sum(
+                map(destination -> begin
+                    if LightGraphs.has_edge(lg.graph, source, destination)
+                        return 1
+                    else
+                        return 0
+                    end
+                end,
+                    collect(convert_vertices_rev(lg.labels, setdiff(pp_b, Set(b))))
+                )
+            )
+            if num_edges_with_pp_b == length(setdiff(pp_b, b))
+                #println("Moving $b from B into C")
+                push!(pp_separator, b)
+                delete!(pp_b, b)
+            end
+        end
+
+        # Next we move into A either
+        # 1) vertices in B that aren't adjacent to any of the other vertices in B, or
+        # 2) a vertex in B that is adjacent to the least amount of other vertices in B, also moving
+        # those vertices it is adjacent to into C
+        size_pp_b = length(pp_b)
+        added = 0
+        nv = length(pp_separator) + length(pp_b) + length(pp_a)
+        min = nv * (nv - 1) / 2
+        min_vertex = -1
+
+        # Case 1
+        for b in pp_b
+            if added <= floor(size_pp_b/2) && length(pp_b) > 1 # don't want to add more than half into A and don't want B to be empty
+                source = lg.labels[b]
+                num_edges_with_pp_b = sum(
+                    map(destination -> begin
+                        if LightGraphs.has_edge(lg.graph, source, destination)
+                            return 1
+                        else
+                            return 0
+                        end
+                    end,
+                        collect(convert_vertices_rev(lg.labels, setdiff(pp_b, Set(b))))
+                    )
+                )
+                if num_edges_with_pp_b == 0
+                    #println("Moving $b from B into A")
+                    push!(pp_a, b)
+                    delete!(pp_b, b)
+                    added += 1
+                elseif num_edges_with_pp_b < min
+                    min = num_edges_with_pp_b
+                    min_vertex = b
+                end
+            end
+        end
+
+        # Case 2
+        if added == 0
+            source = lg.labels[min_vertex]
+            rev = _reverse_labels(lg.labels)
+            connections = map(destination -> begin
+                if LightGraphs.has_edge(lg.graph, source, destination)
+                    return rev[destination]
+                else
+                    return 0
+                end
+            end,
+                collect(convert_vertices_rev(lg.labels, setdiff(pp_b, Set(min_vertex))))
+            )
+
+            connections = filter(c -> c != 0, connections)
+
+            for v in connections
+                push!(pp_separator, v)
+                delete!(pp_b, v)
+            end
+
+            push!(pp_a, min_vertex)
+            delete!(pp_b, min_vertex)
+        end
+
+
+    elseif isempty(pp_b)
+        # Move vertices from A into B
+        # First, need to move vertices in A connected to every other vertex in A into C
+        for a in pp_a
+            if length(pp_a) <= 1
+                #println("Don't want an empty A")
+                break
+            end
+            source = lg.labels[a]
+            num_edges_with_pp_a = sum(
+                map(destination -> begin
+                    if LightGraphs.has_edge(lg.graph, source, destination)
+                        return 1
+                    else
+                        return 0
+                    end
+                end,
+                    collect(convert_vertices_rev(lg.labels, setdiff(pp_a, Set(a))))
+                )
+            )
+            if num_edges_with_pp_a == length(setdiff(pp_a, a))
+                #println("Moving $a from A into C")
+                push!(pp_separator, a)
+                delete!(pp_a, a)
+            end
+        end
+        
+        # Next we move into B either
+        # 1) vertices in A that aren't adjacent to any of the other vertices in A, or
+        # 2) a vertex in A that is adjacent to the least amount of other vertices in A, also moving
+        # those vertices it is adjacent to into C
+        size_pp_a = length(pp_a)
+        added = 0
+        nv = length(pp_separator) + length(pp_b) + length(pp_a)
+        min = nv * (nv - 1) / 2
+        min_vertex = -1
+        
+        # Case 1
+        for a in pp_a
+            if added <= floor(size_pp_a/2) && length(pp_a) > 1 # don't want to add more than half into B and don't want A to be empty
+                source = lg.labels[a]
+                num_edges_with_pp_a = sum(
+                    map(destination -> begin
+                        if LightGraphs.has_edge(lg.graph, source, destination)
+                            return 1
+                        else
+                            return 0
+                        end
+                    end,
+                        collect(convert_vertices_rev(lg.labels, setdiff(pp_a, Set(a))))
+                    )
+                )
+                if num_edges_with_pp_a == 0
+                    #println("Moving $a from A into B")
+                    push!(pp_b, a)
+                    delete!(pp_a, a)
+                    added += 1
+                elseif num_edges_with_pp_a < min
+                    min = num_edges_with_pp_a
+                    min_vertex = a
+                end
+            end
+        end
+
+        # Case 2
+        if added == 0
+            source = lg.labels[min_vertex]
+            rev = _reverse_labels(lg.labels)
+            connections = map(destination -> begin
+                if LightGraphs.has_edge(lg.graph, source, destination)
+                    return rev[destination]
+                else
+                    return 0
+                end
+            end,
+                collect(convert_vertices_rev(lg.labels, setdiff(pp_a, Set(min_vertex))))
+            )
+
+            connections = filter(c -> c != 0, connections)
+
+            for v in connections
+                push!(pp_separator, v)
+                delete!(pp_a, v)
+            end
+
+            push!(pp_b, min_vertex)
+            delete!(pp_a, min_vertex)
+        end
+
+    end
+
+    # if triggered
+    #     println("\nThe new sets are \nA: $pp_a\nB:$pp_b\nC:$pp_separator\n")
+    # end
 
     return (pp_separator, pp_a, pp_b)
 end
