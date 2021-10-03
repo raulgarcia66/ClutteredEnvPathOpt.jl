@@ -153,6 +153,167 @@ function find_biclique_cover_debug(skeleton::LabeledGraph{T}, faces::Set{Vector{
     return union(node, left, right)
 end
 
+function find_biclique_cover_one_iter(skeleton::LabeledGraph{T}, faces::Set{Vector{T}}) where {T}
+    face_pairs = _find_face_pairs(faces)
+    feg = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, face_pairs)
+
+    if ClutteredEnvPathOpt.lg_is_complete(feg)
+        return Set{Pair{Set{T}, Set{T}}}()
+    end
+
+    (C, A, B) = _find_feg_separator_lt_no_empty(skeleton, face_pairs)
+    # println("Set A: $A\nSet B: $B\nSet C: $C")
+
+    # if !isempty(A) && !isempty(B)
+    #     node = Set([A => B])
+    # else
+    #     node = Set{Pair{Set{T}, Set{T}}}()
+    #     println("A or B are empty.\nSkeleton vertices are $(skeleton.labels)")
+    # end
+
+    if !isempty(union(A,C))
+        skeleton_ac, faces_ac = _find_skeleton_faces(union(A, C), skeleton, faces)
+    #     if !isempty(faces_ac)
+    #         left = find_biclique_cover(skeleton_ac, faces_ac)
+    #     else
+    #         left = Set{Pair{Set{T}, Set{T}}}()
+    #     end
+    # else
+    #     left = Set{Pair{Set{T}, Set{T}}}()
+    end
+
+    if !isempty(union(B,C))
+        skeleton_bc, faces_bc = _find_skeleton_faces(union(B, C), skeleton, faces)
+    #     if !isempty(faces_bc)
+    #         right = find_biclique_cover(skeleton_bc, faces_bc)
+    #     else
+    #         right = Set{Pair{Set{T}, Set{T}}}()
+    #     end
+    # else
+    #     right = Set{Pair{Set{T}, Set{T}}}()
+    end
+
+    # return union(node, left, right)
+    return (C,A,B), skeleton_ac, faces_ac, skeleton_bc, faces_bc
+end
+
+"""
+    biclique_merger(cover, feg)
+
+Given a biclique cover, merges bicliques together when possible for a smaller cover.
+"""
+function biclique_merger(cover::Set{Pair{Set{T}, Set{T}}}, feg::LabeledGraph{T})::Set{Pair{Set{T},Set{T}}} where {T}
+    # Sort bicliques by size so that we attempt merging smaller bicliques first
+    cover = sort(collect(cover), by=(s->length(s.first)+length(s.second)))
+    
+    # Loop until we are unable to find any merges
+    merge_found = true
+    while merge_found
+        for i = 1:length(cover)
+            for j = i+1:length(cover)
+
+                potential_merge_found = false
+                merge_found = false
+                A1_adj_A2 = false
+                A1_adj_B2 = false
+                B1_adj_A2 = false
+                B1_adj_B2 = false
+                for u in cover[i].first
+                    for v in cover[j].first
+                        if LightGraphs.has_edge(feg.graph, feg.labels[u], feg.labels[v])
+                            A1_adj_A2 = true
+                            break
+                        end
+                    end
+                    if A1_adj_A2
+                        break
+                    end
+                end
+
+                for u in cover[i].first
+                    for v in cover[j].second
+                        if LightGraphs.has_edge(feg.graph, feg.labels[u], feg.labels[v])
+                            A1_adj_B2 = true
+                            break
+                        end
+                    end
+                    if A1_adj_B2
+                        break
+                    end
+                end
+
+                if A1_adj_A2 && A1_adj_B2
+                    continue  # cannot merge the bicliques in this case
+                end
+
+                if !A1_adj_A2
+                    for u in cover[i].second 
+                        for v in cover[j].second
+                            if LightGraphs.has_edge(feg.graph, feg.labels[u], feg.labels[v])
+                                B1_adj_B2 = true
+                                break
+                            end
+                        end
+                        if B1_adj_B2
+                            break
+                        end
+                    end
+                end
+                
+                if !A1_adj_B2
+                    for u in cover[i].second 
+                        for v in cover[j].first
+                            if LightGraphs.has_edge(feg.graph, feg.labels[u], feg.labels[v])
+                                B1_adj_A2 = true
+                                break
+                            end
+                        end
+                        if B1_adj_A2
+                            break
+                        end
+                    end
+                end
+
+                # Two possible merges. If both are possible, will need to see if it matters which merge we choose
+                A = Set([])
+                B = Set([])
+                if !A1_adj_A2 && !B1_adj_B2
+                    # A = A1 ∪ B2
+                    A = union(cover[i].first, cover[j].second)
+                    # B = B1 ∪ A2
+                    B = union(cover[i].second, cover[j].first)
+
+                    potential_merge_found = true
+                elseif !A1_adj_B2 && !B1_adj_A2
+                    # A = A1 ∪ A2
+                    A = union(cover[i].first, cover[j].first)
+                    # B = B1 ∪ B2
+                    B = union(cover[i].second, cover[j].second)
+                    
+                    potential_merge_found = true
+                end
+
+                # Second condition is to prevent vertices from being in both A and B
+                if potential_merge_found && isempty(intersect(A,B))
+                    merge_found = true
+                    deleteat!(cover, j)
+                    deleteat!(cover, i)
+                    push!(cover, A => B)
+                    sort!(cover, by=(s->length(s.first)+length(s.second)))
+                    break
+                end
+            
+            end
+            if merge_found
+                break
+            end
+        end
+
+    end
+
+    return Set(cover)
+end
+
 struct BicliqueCoverTree
     biclique
     left
