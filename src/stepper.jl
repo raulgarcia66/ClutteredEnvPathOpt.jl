@@ -119,31 +119,35 @@ function get_M_A_b(obstacles)
     #return Ms, As, bs, acc
 end
 
-# obstacles <- obstacles (list of polyhedra, see email)
+# obstacles <- obstacles (list of polyhedra)
 # N <- max number of steps (scalar)
 # f1 <- initial left foot ([x, y, theta])
 # f2 <- initial right foot ([x, y, theta])
 # g <- goal pose
-# Q_g <- pose weights to goal (4x4 mat) (just identity for now)
+# Q_g <- pose weights to goal (4x4 mat)
 # Q_r <- pose weights between steps (4x4 mat)
 # q_t <- weight on unused steps (scalar)
 # L <- number of pieces of pwl sin/cos (scalar)
 # delta_f_max <- max stride norm
-function solve_deits(obstacles, N, f1, f2, g, Q_g, Q_r, q_t, L, delta_f_max; d1=0.2, d2=0.2, p1=[0, 0.05], p2=[0, -0.25])
+# method <- "merged" for the compact biclique cover, "full" for the original biclique cover, "bigM" for big-M constraints
+# d1 <- radius of reference foot circle
+# d2 <- radius of moving foot circle
+# p1 <- center of reference foot circle
+# p2 <- center of moving foot circle
+function solve_deits(obstacles, N, f1, f2, g, Q_g, Q_r, q_t, L, delta_f_max; method="merged", d1=0.2, d2=0.2, p1=[0, 0.05], p2=[0, -0.25])
 
-    _, points, graph, obstacle_faces, free_faces = ClutteredEnvPathOpt.construct_graph(obstacles)
+    _, points, graph, _, free_faces = ClutteredEnvPathOpt.construct_graph(obstacles)
     skeleton = LabeledGraph(graph)
     # all_faces = union(obstacle_faces, free_faces)
 
-    model = JuMP.Model(JuMP.optimizer_with_attributes(Gurobi.Optimizer))
-    # model = JuMP.Model(JuMP.optimizer_with_attributes(Gurobi.Optimizer, "MIPGap" => .01))
+    # model = JuMP.Model(JuMP.optimizer_with_attributes(Gurobi.Optimizer))
+    model = JuMP.Model(JuMP.optimizer_with_attributes(Gurobi.Optimizer, "MIPGap" => .01, "TimeLimit" => 150))
     # "TimeLimit" => 150, "MIPGap" => 0.10
     
-    # model has scalar variables x, y, theta, bin var t and d (2x1 decision), p (2x1 decision)
+    # model has scalar variables x, y, θ, bin var t and d (2x1 decision), p (2x1 decision)
     JuMP.@variable(model, x[1:N])
     JuMP.@variable(model, y[1:N])
     JuMP.@variable(model, θ[1:N])
-
     JuMP.@variable(model, t[1:N], Bin)
 
     # Objective
@@ -155,29 +159,30 @@ function solve_deits(obstacles, N, f1, f2, g, Q_g, Q_r, q_t, L, delta_f_max; d1=
         ((f[N] - g)' * Q_g * (f[N] - g)) + sum(q_t * t) + sum((f[j + 1] - f[j])' * Q_r * (f[j + 1] - f[j]) for j in 1:(N-1))
     )
 
-    # # Big M constraints for footstep location
-    # M, A, b, acc = get_M_A_b(obstacles)
-    # num_free_faces = length(acc)-1
-    # JuMP.@variable(model, z[1:N, 1:num_free_faces], Bin)
-    # for j in 1:N
-    #     for r in 1:num_free_faces
-    #         ids = (acc[r]+1):(acc[r+1])
-    #         for i in ids
-    #             # JuMP.@constraint(model, A[r, :]' * [x[j], y[j]] <= b[r] * z[j, r] + M[r] * (1 - z[j, r]))
-    #             # JuMP.@constraint(model, A[r, :]' * [x[j], y[j]] <= b[r] * z[j, r] + 1 * (1 - z[j, r]))
-    #             # println("$i")
-    #             JuMP.@constraint(model, A[i, :]' * [x[j]; y[j]] <= b[i] * z[j, r] + M[i] * (1 - z[j, r]))
-    #         end
-    #     end
-    #     JuMP.@constraint(model, sum(z[j, :]) == 1)
-    # end
+    if method != "bigM"
+        cover = ClutteredEnvPathOpt.find_biclique_cover(skeleton, free_faces)
+        feg = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(free_faces))
+        merged_cover = ClutteredEnvPathOpt.biclique_merger(cover, feg)
 
-    # Disjunctive constraints for footstep location
-    cover = ClutteredEnvPathOpt.find_biclique_cover(skeleton, free_faces)
-    feg = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(free_faces))
-    (valid_cover, _, missing_edges, _) = ClutteredEnvPathOpt._is_valid_biclique_cover_diff(feg, cover)
+        (valid_cover, _, _, _) = ClutteredEnvPathOpt._is_valid_biclique_cover_diff(feg, cover)
+        (valid_cover_merged, _, _, _) = ClutteredEnvPathOpt._is_valid_biclique_cover_diff(feg, merged_cover)
+    end
     
-    if valid_cover
+    # Footstep Location Constraints
+    if method == "merged" && valid_cover_merged
+        J = LightGraphs.nv(skeleton.graph)
+        JuMP.@variable(model, λ[1:N, 1:J] >= 0)
+        JuMP.@variable(model, z[1:N, 1:length(merged_cover)], Bin)
+        for i = 1:N
+            for (j,(A,B)) in enumerate(merged_cover)
+                JuMP.@constraint(model, sum(λ[i, v] for v in A) <= z[i, j])
+                JuMP.@constraint(model, sum(λ[i, v] for v in B) <= 1 - z[i, j])
+            end
+            JuMP.@constraint(model, sum(λ[i,:]) == 1)
+            JuMP.@constraint(model, x[i] == sum(points[j].first * λ[i, j] for j in 1:J))
+            JuMP.@constraint(model, y[i] == sum(points[j].second * λ[i, j] for j in 1:J))
+        end
+    elseif method != "bigM" && valid_cover
         J = LightGraphs.nv(skeleton.graph)
         JuMP.@variable(model, λ[1:N, 1:J] >= 0)
         JuMP.@variable(model, z[1:N, 1:length(cover)], Bin)
@@ -191,58 +196,23 @@ function solve_deits(obstacles, N, f1, f2, g, Q_g, Q_r, q_t, L, delta_f_max; d1=
             JuMP.@constraint(model, y[i] == sum(points[j].second * λ[i, j] for j in 1:J))
         end
     else
-        error("Valid Cover Not Found")
-        # # Big M constraints
-        # M, A, b, acc = get_M_A_b(obstacles)
-        # num_free_faces = length(acc)-1
-        # JuMP.@variable(model, z[1:N, 1:num_free_faces], Bin)
-        # for j in 1:N
-        #     for r in 1:num_free_faces
-        #         ids = (acc[r]+1):(acc[r+1])
-        #         for i in ids
-        #             # JuMP.@constraint(model, A[r, :]' * [x[j], y[j]] <= b[r] * z[j, r] + M[r] * (1 - z[j, r]))
-        #             # JuMP.@constraint(model, A[r, :]' * [x[j], y[j]] <= b[r] * z[j, r] + 1 * (1 - z[j, r]))
-        #             # println("$i")
-        #             JuMP.@constraint(model, A[i, :]' * [x[j]; y[j]] <= b[i] * z[j, r] + M[i] * (1 - z[j, r]))
-        #         end
-        #     end
-        #     JuMP.@constraint(model, sum(z[j, :]) == 1)
-        # end
+        # Runs if method = "bigM", or if a valid biclique cover is not found
+        M, A, b, acc = get_M_A_b(obstacles)
+        num_free_faces = length(acc)-1
+        JuMP.@variable(model, z[1:N, 1:num_free_faces], Bin)
+        for j in 1:N
+            for r in 1:num_free_faces
+                ids = (acc[r]+1):(acc[r+1])
+                for i in ids
+                    # JuMP.@constraint(model, A[r, :]' * [x[j], y[j]] <= b[r] * z[j, r] + M[r] * (1 - z[j, r]))
+                    # JuMP.@constraint(model, A[r, :]' * [x[j], y[j]] <= b[r] * z[j, r] + 1 * (1 - z[j, r]))
+                    # println("$i")
+                    JuMP.@constraint(model, A[i, :]' * [x[j]; y[j]] <= b[i] * z[j, r] + M[i] * (1 - z[j, r]))
+                end
+            end
+            JuMP.@constraint(model, sum(z[j, :]) == 1)
+        end
     end
-
-    # # Alternately with anonymous variabels
-    # if valid_cover
-    #     J = LightGraphs.nv(skeleton.graph)
-    #     for i = 1:N
-    #         λ = JuMP.@variable(model, [1:J], lower_bound = 0)
-    #         # z = JuMP.@variable(model, [1:length(cover)], Bin)
-    #         for (j,(A,B)) in enumerate(cover)
-    #             JuMP.@constraint(model, sum(λ[v] for v in A) <= z[j])
-    #             JuMP.@constraint(model, sum(λ[v] for v in B) <= 1 - z[j])
-    #         end
-    #         JuMP.@constraint(model, sum(λ) == 1)
-    #         JuMP.@constraint(model, x[i] == sum(points[j].first * λ[j] for j in 1:J))
-    #         JuMP.@constraint(model, y[i] == sum(points[j].second * λ[j] for j in 1:J))
-    #     end
-    # else
-    #     error("Valid Cover Not Found")
-    #     # # Big M constraints
-    #     # M, A, b, acc = get_M_A_b(obstacles)
-    #     # num_free_faces = length(acc)-1
-    #     # JuMP.@variable(model, z[1:N, 1:num_free_faces], Bin)
-    #     # for j in 1:N
-    #     #     for r in 1:num_free_faces
-    #     #         ids = (acc[r]+1):(acc[r+1])
-    #     #         for i in ids
-    #     #             # JuMP.@constraint(model, A[r, :]' * [x[j], y[j]] <= b[r] * z[j, r] + M[r] * (1 - z[j, r]))
-    #     #             # JuMP.@constraint(model, A[r, :]' * [x[j], y[j]] <= b[r] * z[j, r] + 1 * (1 - z[j, r]))
-    #     #             # println("$i")
-    #     #             JuMP.@constraint(model, A[i, :]' * [x[j]; y[j]] <= b[i] * z[j, r] + M[i] * (1 - z[j, r]))
-    #     #         end
-    #     #     end
-    #     #     JuMP.@constraint(model, sum(z[j, :]) == 1)
-    #     # end
-    # end
 
     # Reachability
     s = [piecewiselinear(model, θ[j], range(0, stop=(2 * pi), length=L), sin) for j in 1:N]
@@ -318,7 +288,15 @@ function solve_deits(obstacles, N, f1, f2, g, Q_g, Q_r, q_t, L, delta_f_max; d1=
     # Solve
     JuMP.optimize!(model)
 
-    return value.(x), value.(y), value.(θ), value.(t), value.(z) # objective_value(model)
+    if method == "merged" && valid_cover_merged
+        println("\n\nUsed merged cover.\n\n")
+    elseif method != "bigM" && valid_cover 
+        println("\n\nUsed full cover.\n\n")
+    else
+        println("\n\nUsed big-M constraints.")
+    end
+
+    return value.(x), value.(y), value.(θ), value.(t), solve_time(model) # objective_value(model)
 end
 
 function plot_steps(obstacles, x, y, theta)
