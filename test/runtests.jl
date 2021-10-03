@@ -10,7 +10,7 @@ using JuMP, Gurobi
 
 # @testset "ClutteredEnvPathOpt.jl" begin
     # Create obstacles
-    num_obs = 1;
+    num_obs = 4;
     seed = 5;
     obstacles = ClutteredEnvPathOpt.gen_field(num_obs, seed = seed)
     plot();
@@ -36,9 +36,22 @@ using JuMP, Gurobi
     p2 = [0, -0.25]
 
     # Compute optimal path
-    x, y, θ, t, z = solve_deits(obstacles, N, f1, f2, goal, Q_g, Q_r, q_t, L, delta_f_max)
-    x2, y2, θ2, t2, z2 = solve_deits(obstacles, N, f1, f2, goal, Q_g, Q_r, q_t, L, delta_f_max)
+    x, y, θ, t, time = solve_deits(obstacles, N, f1, f2, goal, Q_g, Q_r, q_t, L, delta_f_max)
+    x2, y2, θ2, t2, time2 = solve_deits(obstacles, N, f1, f2, goal, Q_g, Q_r, q_t, L, delta_f_max, full_cover=true)
     # x, y, θ, t = solve_deits(obstacles, N, f1, f2, goal, Q_g, Q_r, q_t, L, delta_f_max, d1=d1, d2=d2, p1=p1, p2=p2)
+
+    seed_range = 1:3
+    num_obs_range = 1:4
+    time_diff = []
+    for seed in seed_range
+        for num_obs in num_obs_range
+            println("\nOn test Seed = $seed, Num_Obs = $num_obs")
+            obstacles = ClutteredEnvPathOpt.gen_field(num_obs, seed = seed)
+            _,_,_,_,time = solve_deits(obstacles, N, f1, f2, goal, Q_g, Q_r, q_t, L, delta_f_max)
+            _,_,_,_,time2 = solve_deits(obstacles, N, f1, f2, goal, Q_g, Q_r, q_t, L, delta_f_max, full_cover=true)        
+            push!(time_diff, time2 - time)
+        end
+    end
 
     # Trim excess steps
     num_to_trim = length(filter(tj -> tj > 0.5, t[3:end]))
@@ -332,19 +345,19 @@ using JuMP, Gurobi
 ####################################### Unofficial Tests ########################################
 
 # Problem Data
-num_obs = 3;
-seed = 5;
+num_obs = 1;
+seed = 8;
 obstacles, points, g, obstacle_faces, free_faces = ClutteredEnvPathOpt.plot_new(num_obs, "Obstacles Seed $seed Num Obs $num_obs", seed = seed)
 skeleton = LabeledGraph(g)
 all_faces = union(obstacle_faces, free_faces)
 
 # Plot obstacles
-plot();
+plot(title="Obstacles");
 ClutteredEnvPathOpt.plot_field(obstacles)
 ClutteredEnvPathOpt.plot_lines(obstacles)
 ClutteredEnvPathOpt.plot_borders()
 ClutteredEnvPathOpt.plot_intersections(obstacles)
-png("Obstacles with Lines Seed $seed Num Obs $num_obs")
+png("Obstacles Seed $seed Num Obs $num_obs")
 display(plot!())
 
 # Plot faces
@@ -401,6 +414,11 @@ png("FEG Obstacles Seed $seed Num Obs $num_obs")
 # Free Faces Cover
 cover = ClutteredEnvPathOpt.find_biclique_cover(skeleton, free_faces)
 (valid_cover, size_diff, missing_edges, missing_edges_lg) = ClutteredEnvPathOpt._is_valid_biclique_cover_diff(ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(free_faces)), cover)
+
+feg_free = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(free_faces))
+merged_cover = ClutteredEnvPathOpt.biclique_merger(cover, feg_free)
+(valid_cover, size_diff, missing_edges, missing_edges_lg) = ClutteredEnvPathOpt._is_valid_biclique_cover_diff(ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(free_faces)), merged_cover)
+
 ClutteredEnvPathOpt.plot_edges(missing_edges_lg, points, obstacles, plot_name = "Missing Edges")
 png("Missing Edges Seed $seed Num Obs $num_obs Free")
 
@@ -409,16 +427,20 @@ f = open(file_name, "w")
 write(f, "Plot 1\n")
 flush(f)
 close(f)
-cover4 = ClutteredEnvPathOpt.find_biclique_cover_debug(skeleton, free_faces, points, obstacles, file_name)
-# f = open("Biclique Cover Debug Output.txt","w")
-# write(f, "Plot 1\n")
-# flush(f)
-# close(f)
-# cover2 = ClutteredEnvPathOpt.find_biclique_cover_debug(skeleton, free_faces, points, obstacles)
+cover2 = ClutteredEnvPathOpt.find_biclique_cover_debug(skeleton, free_faces, points, obstacles, file_name)
+
+# To produce individual FEGs/Skeletons in the recursion process
+(C,A,B), skeleton_ac, faces_ac, skeleton_bc, faces_bc = ClutteredEnvPathOpt.find_biclique_cover_one_iter(skeleton, free_faces)
+feg_S_ac = ClutteredEnvPathOpt._find_finite_element_graph(skeleton_ac, ClutteredEnvPathOpt._find_face_pairs(faces_ac))
+ClutteredEnvPathOpt.plot_edges(feg_S_ac, points, obstacles, plot_name = "Finite Element Graph of S_ac")
+png("Ex FEG of S_ac Seed $seed Num Obs $num_obs")
+feg_S_bc = ClutteredEnvPathOpt._find_finite_element_graph(skeleton_bc, ClutteredEnvPathOpt._find_face_pairs(faces_bc))
+ClutteredEnvPathOpt.plot_edges(feg_S_bc, points, obstacles, plot_name = "Finite Element Graph of S_bc")
+png("Ex FEG of S_bc Seed $seed Num Obs $num_obs")
 
 # DON'T NEED TO ALL FACES COVER; JUST GIVING THE FREE FACES IS VALID
 # All Faces Cover
-# cover = ClutteredEnvPathOpt.find_biclique_cover(skeleton, all_faces)
+# cover3 = ClutteredEnvPathOpt.find_biclique_cover(skeleton, all_faces)
 # (valid_cover, size_diff, missing_edges, missing_edges_lg) = ClutteredEnvPathOpt._is_valid_biclique_cover_diff(ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(all_faces)), cover)
 # ClutteredEnvPathOpt.plot_edges(missing_edges_lg, points, obstacles, plot_name = "Missing Edges")
 # png("Missing Edges Seed $seed Num Obs $num_obs All")
@@ -429,19 +451,14 @@ cover4 = ClutteredEnvPathOpt.find_biclique_cover_debug(skeleton, free_faces, poi
 # flush(f)
 # close(f)
 # cover4 = ClutteredEnvPathOpt.find_biclique_cover_debug(skeleton, all_faces, points, obstacles, file_name)
-# f = open("Biclique Cover Debug Output.txt","w")
-# write(f, "Plot 1\n")
-# flush(f)
-# close(f)
-# cover2 = ClutteredEnvPathOpt.find_biclique_cover_debug(skeleton, all_faces, points, obstacles)
 
 # Biclique Cover Validity Tests
 seed_range = 1:100
 num_obs_range = 1:4
 fails, tuples = biclique_cover_validity_tests(seed_range, num_obs_range, faces = "all")
-# tuples = [(26,4), (100,4)] for seed_range = 1:100 and num_obs_range = 1:4
 fails, tuples = biclique_cover_validity_tests(seed_range, num_obs_range, faces = "free")
-# tuples = [(71,4)] for seed_range = 1:100 and num_obs_range = 1:4
+
+percent_decreases = biclique_cover_merger_stats(seed_range, num_obs_range)
 
 
 # Biclique validity tester function
@@ -457,11 +474,17 @@ function biclique_cover_validity_tests(seed_range, num_obs_range; faces::String,
             if faces == "all"
                 cover = ClutteredEnvPathOpt.find_biclique_cover(skeleton, all_faces);
                 feg = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(all_faces));
-                (valid_cov, size_diff, miss_edges, miss_edges_lg) = ClutteredEnvPathOpt._is_valid_biclique_cover_diff(feg, cover);
+                merged_cover = ClutteredEnvPathOpt.biclique_merger(cover, feg)
+                # (valid_cov, size_diff, miss_edges, miss_edges_lg) = ClutteredEnvPathOpt._is_valid_biclique_cover_diff(feg, cover);
+                (valid_cov, size_diff, miss_edges, miss_edges_lg) = ClutteredEnvPathOpt._is_valid_biclique_cover_diff(feg, merged_cover);
+                println("Difference: $(length(cover)-length(merged_cover)) | Merged: $(length(merged_cover)) | Original: $(length(cover))")
             else
                 cover = ClutteredEnvPathOpt.find_biclique_cover(skeleton, free_faces);
                 feg = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(free_faces));
-                (valid_cov, size_diff, miss_edges, miss_edges_lg) = ClutteredEnvPathOpt._is_valid_biclique_cover_diff(feg, cover);
+                merged_cover = ClutteredEnvPathOpt.biclique_merger(cover, feg)
+                # (valid_cov, size_diff, miss_edges, miss_edges_lg) = ClutteredEnvPathOpt._is_valid_biclique_cover_diff(feg, cover);
+                (valid_cov, size_diff, miss_edges, miss_edges_lg) = ClutteredEnvPathOpt._is_valid_biclique_cover_diff(feg, merged_cover);
+                println("Difference: $(length(cover)-length(merged_cover)) | Merged: $(length(merged_cover)) | Original: $(length(cover))")
             end
             if size_diff != 0
                 fails += 1
@@ -496,6 +519,61 @@ function biclique_cover_validity_tests(seed_range, num_obs_range; faces::String,
         end
     end
     return (fails, tuples)
+end
+
+# Biclique cover merger function for stats
+function biclique_cover_merger_stats(seed_range, num_obs_range)
+    file_name = "Biclique Cover Merging Stats.txt" #Seed Range = $seed_range, Num Obs Range = $num_obs_range.txt"
+    f = open(file_name, "w")
+    write(f, "Seed Range = $seed_range, Num Obs Range = $num_obs_range\n")
+    flush(f)
+    close(f)
+    
+    f = open(file_name, "a")
+    fails = 0
+    tuples = []
+    percent_vec = []
+    for seed = seed_range
+        for num_obs = num_obs_range
+            # f = open(file_name, "a")
+            write(f, "\nTest Seed = $seed, Num_Obs = $num_obs\n")
+            # flush(f)
+            # close(f)
+
+            # println("On test Seed = $seed, Num_Obs = $num_obs")
+            obstacles, points, g, obstacle_faces, free_faces = ClutteredEnvPathOpt.plot_new(num_obs,"Obstacles Seed $seed Num Obs $num_obs",seed=seed); # optional seed argument, default is 11
+            skeleton = LabeledGraph(g)
+            all_faces = union(obstacle_faces, free_faces)
+            
+            cover = ClutteredEnvPathOpt.find_biclique_cover(skeleton, free_faces);
+            feg = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(free_faces));
+            merged_cover = ClutteredEnvPathOpt.biclique_merger(cover, feg)
+            (valid_cover, size_diff, miss_edges, miss_edges_lg) = ClutteredEnvPathOpt._is_valid_biclique_cover_diff(feg, cover);
+            (valid_cover_merged, size_diff, miss_edges, miss_edges_lg) = ClutteredEnvPathOpt._is_valid_biclique_cover_diff(feg, merged_cover);
+            # println("Difference: $(length(cover)-length(merged_cover)) | Merged: $(length(merged_cover)) | Original: $(length(cover))")
+
+            if valid_cover && valid_cover_merged
+                write(f,"Difference: $(length(cover)-length(merged_cover)) | Merged: $(length(merged_cover)) | Original: $(length(cover))")
+                percent = round( ((length(cover)-length(merged_cover)) / length(cover)) * 100, digits = 2)
+                write(f," | Percent Decrease: $percent\n")
+                push!(percent_vec, percent)
+            else
+                fails += 1
+                push!(tuples, (seed, num_obs))
+                if !valid_cover_merged
+                    write(f,"Merged cover invalid.\n")
+                else
+                    write(f,"Original cover invalid.\n")
+                end
+            end
+        end
+    end
+
+    write(f, "\nTotal Fails: $fails.\nTuples: $tuples")
+    flush(f)
+    close(f)
+
+    return percent_vec
 end
 
 # Debugging Functions ---------------------------------------------------------------
