@@ -677,7 +677,7 @@ end
 
 Given a set of vectors corresponding to faces of a planar graph, plots the faces in the unit square.
 """
-function plot_faces(faces::Set{Vector{T}}, points::Vector{Any}; plot_name::String="Faces", col::String="green4", new_plot::Bool=true, individually::Bool=false) where {T}
+function plot_faces(faces::Set{Vector{T}}, points::Vector{Any}; plot_name::String="Faces", col::String="green3", new_plot::Bool=true, individually::Bool=false) where {T}
     if new_plot && !individually
         Plots.plot()
     end
@@ -718,7 +718,7 @@ end
 
 Given a LabeledGraph, plots its nodes and edges in the unit square.
 """
-function plot_edges(lg::LabeledGraph{T}, points::Vector{Any}, obstacles; plot_name::String="Edges", col::String="colorful", new_plot::Bool=true) where {T}
+function plot_edges(lg::LabeledGraph{T}, points::Vector{Any}, obstacles; plot_name::String="Edges", col::String="colorful", new_plot::Bool=true, vertices::Dict{T,T}=Dict{T,T}()) where {T}
     if new_plot
         Plots.plot()
     end
@@ -727,15 +727,15 @@ function plot_edges(lg::LabeledGraph{T}, points::Vector{Any}, obstacles; plot_na
     rev = ClutteredEnvPathOpt._reverse_labels(lg.labels)
     for edge in LightGraphs.edges(lg.graph)
         if col == "colorful"
-            Plots.plot!([points[rev[edge.src]].first, points[rev[edge.dst]].first], [points[rev[edge.src]].second, points[rev[edge.dst]].second])
+            Plots.plot!([points[rev[edge.src]].first, points[rev[edge.dst]].first], [points[rev[edge.src]].second, points[rev[edge.dst]].second],linewidth=2)
             # display(Plots.plot!(title="Edge ($(rev[edge.src]), $(rev[edge.dst]))"))
         else
-            Plots.plot!([points[rev[edge.src]].first, points[rev[edge.dst]].first], [points[rev[edge.src]].second, points[rev[edge.dst]].second], color=col)
+            Plots.plot!([points[rev[edge.src]].first, points[rev[edge.dst]].first], [points[rev[edge.src]].second, points[rev[edge.dst]].second], color=col,linewidth=2)
             # display(Plots.plot!(title="Edge ($(rev[edge.src]), $(rev[edge.dst]))"))
         end
     end
 
-    ClutteredEnvPathOpt.plot_intersections(obstacles)
+    ClutteredEnvPathOpt.plot_intersections(obstacles, vertices=vertices)
 
     display(Plots.plot!(title=plot_name, xlims=(-0.05,1.05), ylims=(-0.05,1.05), legend=false))
 end
@@ -811,7 +811,7 @@ end
 Plots and labels the points where the lines that make up the obstacles'
 halfspaces intersect to the existing active plot.
 """
-function plot_intersections(field)
+function plot_intersections(field; vertices::Dict{T,T}=Dict{T,T}()) where {T}
     intersections, _, inside_quant = find_intersections(field)
 
     # Remove points inside obstacles
@@ -819,10 +819,15 @@ function plot_intersections(field)
         pop!(intersections)
     end
 
+    if !isempty(vertices)
+        intersections = @pipe filter(v -> v in keys(vertices), 1:length(intersections)) |> intersections[_]
+    end
+
     x = map(point -> point[1], intersections)
     y = map(point -> point[2], intersections)
 
-    Plots.scatter!(x,y, color="red3", series_annotations=([Plots.text(string(x), :right, 8, "courier") for x in 1:length(x)]))
+    # Plots.scatter!(x,y, color="red3", series_annotations=([Plots.text(string(x), :right, 8, "courier") for x in 1:length(x)]))
+    Plots.scatter!(x,y, color="red", series_annotations=([Plots.text(string(x), :right, 8, "courier") for x in 1:length(x)]))
 end
 
 """
