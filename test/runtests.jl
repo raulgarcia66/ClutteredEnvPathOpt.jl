@@ -10,8 +10,8 @@ using JuMP, Gurobi
 
 # @testset "ClutteredEnvPathOpt.jl" begin
     # Create obstacles
-    num_obs = 4;
-    seed = 5;
+    num_obs = 3;
+    seed = 10;
     obstacles = ClutteredEnvPathOpt.gen_field(num_obs, seed = seed)
     plot();
     ClutteredEnvPathOpt.plot_field(obstacles)
@@ -19,58 +19,98 @@ using JuMP, Gurobi
     
     # Set parameters
     N = 30  # number of steps
-    f1 = [0, 0.07, 0]  # initial footstep pose 1
-    f2 = [0.0, 0, 0]  # initial footstep pose 2
-    goal = [1, 1, 0]  # goal pose
-    Q_g = 10*Matrix(I, 3, 3)  # weight between final footstep and goal pose
-    Q_r = Matrix(I, 3, 3)  # weight between footsteps
+    f1 = [0.0, 0.1, 0.0]  # initial footstep pose 1
+    f2 = [0.0, 0.0, 0.0]  # initial footstep pose 2
+    goal = [1.0, 1.0, 0.0]  # goal pose
+    Q_g = 10 * Matrix{Float64}(I, 3, 3)  # weight between final footstep and goal pose
+    Q_r = [1 0 0; 0 1 0; 0 0 0] # Matrix{Float64}(I, 3, 3)  # weight between footsteps
     q_t = -.05  # weight for trimming unused steps
-    L = 10  # number of pieces in p.w.l approx. of sine/cosine 
-    delta_f_max = 1  # max stride norm
     # TODO: Assure second footstep is within reachability given first
     
     # Optional named arguments
-    d1 = 0.20
-    d2 = 0.20
-    p1 = [0. 0.05]
-    p2 = [0, -0.25]
+    d1 = 0.2
+    d2 = 0.2
+    p1 = [0. 0.07]
+    p2 = [0, -0.27]
+    delta_x_y_max = 0.1  # max stride norm in space
+    delta_θ_max = pi/4  # max difference in θ
+    L = 5  # number of pieces in p.w.l approx. of sine/cosine 
 
     # Compute optimal path
-    x, y, θ, t, time = solve_deits(obstacles, N, f1, f2, goal, Q_g, Q_r, q_t, L, delta_f_max)
-    x2, y2, θ2, t2, time2 = solve_deits(obstacles, N, f1, f2, goal, Q_g, Q_r, q_t, L, delta_f_max, full_cover=true)
-    # x, y, θ, t = solve_deits(obstacles, N, f1, f2, goal, Q_g, Q_r, q_t, L, delta_f_max, d1=d1, d2=d2, p1=p1, p2=p2)
-
+    x1, y1, θ1, t1, stats1 = solve_deits(obstacles, N, f1, f2, goal, Q_g, Q_r, q_t, method="merged")
+    x = copy(x1); y = copy(y1); θ = copy(θ1); t = copy(t1);
+    term_status, r_solve_time, rel_gap, simplex_iters, r_node_count, num_vertices, merged_size, full_size, num_free_faces, num_free_face_ineq, method_used = stats1
+    
+    x2, y2, θ2, t2, stats2 = solve_deits(obstacles, N, f1, f2, goal, Q_g, Q_r, q_t, method="full")
+    term_status2, r_solve_time2, rel_gap2, simplex_iters2, r_node_count2, num_vertices2, merged_size2, full_size2, num_free_faces2, num_free_face_ineq2, method_used2 = stats2
+    
+    x3, y3, θ3, t3, stats3 = solve_deits(obstacles, N, f1, f2, goal, Q_g, Q_r, q_t, method="bigM")
+    term_status3, r_solve_time3, rel_gap3, simplex_iters3, r_node_count3, num_vertices3, merged_size3, full_size3, num_free_faces3, num_free_face_ineq3, method_used3 = stats3
+    
     seed_range = 1:3
     num_obs_range = 1:4
-    time_diff = []
+    time_diffs = []
     for seed in seed_range
         for num_obs in num_obs_range
             println("\nOn test Seed = $seed, Num_Obs = $num_obs")
             obstacles = ClutteredEnvPathOpt.gen_field(num_obs, seed = seed)
-            _,_,_,_,time = solve_deits(obstacles, N, f1, f2, goal, Q_g, Q_r, q_t, L, delta_f_max)
-            _,_,_,_,time2 = solve_deits(obstacles, N, f1, f2, goal, Q_g, Q_r, q_t, L, delta_f_max, full_cover=true)        
-            push!(time_diff, time2 - time)
+            _,_,_,_,stats = solve_deits(obstacles, N, f1, f2, goal, Q_g, Q_r, q_t, method = "merged")
+            _,_,_,_,stats2 = solve_deits(obstacles, N, f1, f2, goal, Q_g, Q_r, q_t, method="full")
+            _,_,_,_,stats3 = solve_deits(obstacles, N, f1, f2, goal, Q_g, Q_r, q_t, method="bigM")              
+            term_status, solve_time, rel_gap, simplex_iters, node_count, num_vertices, merged_size, full_size, num_free_faces, num_free_face_ineq, method_used = stats
+            term_status2, solve_time2, rel_gap2, simplex_iters2, node_count2, num_vertices2, merged_size2, full_size2, num_free_faces2, num_free_face_ineq2, method_used2 = stats2
+            term_status3, solve_time3, rel_gap3, simplex_iters3, node_count3, num_vertices3, merged_size3, full_size3, num_free_faces3, num_free_face_ineq3, method_used3 = stats3
+            # Merged biclique times vs bigM
+            t_diff = solve_time3 - solve_time
+            push!(time_diffs, t_diff)
         end
     end
 
     # Trim excess steps
     num_to_trim = length(filter(tj -> tj > 0.5, t[3:end]))
-    x = vcat(x[1:2], x[num_to_trim + 3 : end]);
-    y = vcat(y[1:2], y[num_to_trim + 3 : end]);
-    θ = vcat(θ[1:2], θ[num_to_trim + 3 : end]);
+    if num_to_trim % 2 == 0
+        x = vcat(x[1:2], x[num_to_trim + 3 : end]);
+        y = vcat(y[1:2], y[num_to_trim + 3 : end]);
+        θ = vcat(θ[1:2], θ[num_to_trim + 3 : end]);
+    else
+        x = vcat(x[1], x[num_to_trim + 3 : end]);
+        y = vcat(y[1], y[num_to_trim + 3 : end]);
+        θ = vcat(θ[1], θ[num_to_trim + 3 : end]);
+    end
+
     num_to_trim2 = length(filter(tj -> tj > 0.5, t2[3:end]))
-    x2 = vcat(x2[1:2], x2[num_to_trim + 3 : end]);
-    y2 = vcat(y2[1:2], y2[num_to_trim + 3 : end]);
-    θ2 = vcat(θ2[1:2], θ2[num_to_trim + 3 : end]);
+    if num_to_trim2 % 2 == 0
+        x2 = vcat(x2[1:2], x2[num_to_trim2 + 3 : end]);
+        y2 = vcat(y2[1:2], y2[num_to_trim2 + 3 : end]);
+        θ2 = vcat(θ2[1:2], θ2[num_to_trim2 + 3 : end]);
+    else
+        x2 = vcat(x2[1], x2[num_to_trim2 + 3 : end]);
+        y2 = vcat(y2[1], y2[num_to_trim2 + 3 : end]);
+        θ2 = vcat(θ2[1], θ2[num_to_trim2 + 3 : end]);
+    end
+
+    num_to_trim3 = length(filter(tj -> tj > 0.5, t3[3:end]))
+    if num_to_trim3 % 2 == 0
+        x3 = vcat(x3[1:2], x3[num_to_trim3 + 3 : end]);
+        y3 = vcat(y3[1:2], y3[num_to_trim3 + 3 : end]);
+        θ3 = vcat(θ3[1:2], θ3[num_to_trim3 + 3 : end]);
+    else
+        x3 = vcat(x3[1], x3[num_to_trim3 + 3 : end]);
+        y3 = vcat(y3[1], y3[num_to_trim3 + 3 : end]);
+        θ3 = vcat(θ3[1], θ3[num_to_trim3 + 3 : end]);
+    end
 
     # Plot footstep plan
     plot_steps(obstacles, x, y, θ)
     plot_steps(obstacles, x2, y2, θ2)
+    plot_steps(obstacles, x3, y3, θ3)
     png("Path Seed $seed Num Obs $num_obs")
 
 
     # Plot intersections of circles
-    plot_circles(d1, d2, p1, p2, x2, y2, θ2)
+    plot_circles(x, y, θ)
+    plot_circles(x2, y2, θ2)
+    plot_circles(x3, y3, θ3)
 
 #     @test 1 == 1
 # end
@@ -345,8 +385,8 @@ using JuMP, Gurobi
 ####################################### Unofficial Tests ########################################
 
 # Problem Data
-num_obs = 1;
-seed = 8;
+num_obs = 2;
+seed = 3;
 obstacles, points, g, obstacle_faces, free_faces = ClutteredEnvPathOpt.plot_new(num_obs, "Obstacles Seed $seed Num Obs $num_obs", seed = seed)
 skeleton = LabeledGraph(g)
 all_faces = union(obstacle_faces, free_faces)
@@ -379,18 +419,20 @@ ClutteredEnvPathOpt.plot_faces(free_faces, points, individually = true)
 ClutteredEnvPathOpt.plot_edges(skeleton, points, obstacles, plot_name = "Skeleton")
 png("Skeleton Seed $seed Num Obs $num_obs")
 
-feg = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(all_faces))
-ClutteredEnvPathOpt.plot_edges(feg, points, obstacles, plot_name = "Finite Element Graph")
-png("FEG Seed $seed Num Obs $num_obs")
+# feg = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(all_faces))
+# ClutteredEnvPathOpt.plot_edges(feg, points, obstacles, plot_name = "Finite Element Graph")
+# png("FEG Seed $seed Num Obs $num_obs")
 
 feg_S = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(free_faces))
-ClutteredEnvPathOpt.plot_edges(feg_S, points, obstacles, plot_name = "Finite Element Graph of S")
+ClutteredEnvPathOpt.plot_edges(feg_S, points, obstacles, plot_name = "Finite Element Graph of S",col="black")
 png("FEG of S Seed $seed Num Obs $num_obs")
 
-feg_obs = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(obstacle_faces))
-ClutteredEnvPathOpt.plot_edges(feg_obs, points, obstacles, plot_name = "Finite Element Graph Obstacle Faces")
-png("FEG Obstacles Seed $seed Num Obs $num_obs")
+# feg_obs = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(obstacle_faces))
+# ClutteredEnvPathOpt.plot_edges(feg_obs, points, obstacles, plot_name = "Finite Element Graph Obstacle Faces")
+# png("FEG Obstacles Seed $seed Num Obs $num_obs")
 
+
+# Duplicate tests
 # obstacles = ClutteredEnvPathOpt.gen_field(num_obs, seed = seed)
 # points, mapped, inside_quant = ClutteredEnvPathOpt.find_intersections(obstacles)
 # neighbors = ClutteredEnvPathOpt._find_neighbors(points, mapped)
@@ -407,8 +449,9 @@ png("FEG Obstacles Seed $seed Num Obs $num_obs")
 # list_neighbors(neighbors, points)
 # suspect = suspect_neighbors(neighbors)
 
-# cover3 = ClutteredEnvPathOpt._find_biclique_cover_visual(skeleton, free_faces, points)
 
+
+# cover3 = ClutteredEnvPathOpt._find_biclique_cover_visual(skeleton, free_faces, points)
 # tree = ClutteredEnvPathOpt.find_biclique_cover_as_tree(skeleton, free_faces)
 
 # Free Faces Cover
@@ -432,10 +475,12 @@ cover2 = ClutteredEnvPathOpt.find_biclique_cover_debug(skeleton, free_faces, poi
 # To produce individual FEGs/Skeletons in the recursion process
 (C,A,B), skeleton_ac, faces_ac, skeleton_bc, faces_bc = ClutteredEnvPathOpt.find_biclique_cover_one_iter(skeleton, free_faces)
 feg_S_ac = ClutteredEnvPathOpt._find_finite_element_graph(skeleton_ac, ClutteredEnvPathOpt._find_face_pairs(faces_ac))
-ClutteredEnvPathOpt.plot_edges(feg_S_ac, points, obstacles, plot_name = "Finite Element Graph of S_ac")
+ClutteredEnvPathOpt.plot_edges(feg_S_ac, points, obstacles, plot_name = "Finite Element Graph of S_ac",vertices=feg_S_ac.labels,col="black")
+# plot!(title="",axis=([], false))
 png("Ex FEG of S_ac Seed $seed Num Obs $num_obs")
 feg_S_bc = ClutteredEnvPathOpt._find_finite_element_graph(skeleton_bc, ClutteredEnvPathOpt._find_face_pairs(faces_bc))
-ClutteredEnvPathOpt.plot_edges(feg_S_bc, points, obstacles, plot_name = "Finite Element Graph of S_bc")
+ClutteredEnvPathOpt.plot_edges(feg_S_bc, points, obstacles, plot_name = "Finite Element Graph of S_bc", vertices=feg_S_bc.labels, col="black")
+# plot!(title="",axis=([], false))
 png("Ex FEG of S_bc Seed $seed Num Obs $num_obs")
 
 # DON'T NEED TO ALL FACES COVER; JUST GIVING THE FREE FACES IS VALID
@@ -452,7 +497,8 @@ png("Ex FEG of S_bc Seed $seed Num Obs $num_obs")
 # close(f)
 # cover4 = ClutteredEnvPathOpt.find_biclique_cover_debug(skeleton, all_faces, points, obstacles, file_name)
 
-# Biclique Cover Validity Tests
+
+# Biclique Cover Validity Tests-----------------------------------------------------------------------
 seed_range = 1:100
 num_obs_range = 1:4
 fails, tuples = biclique_cover_validity_tests(seed_range, num_obs_range, faces = "all")
@@ -575,6 +621,116 @@ function biclique_cover_merger_stats(seed_range, num_obs_range)
 
     return percent_vec
 end
+
+#------------------------------------------------------------------------------------------------------
+
+# method <- "merged" for the compact biclique cover, "full" for the original biclique cover, "bigM" for big-M constraints
+function solve_time_stats(seed_range, num_obs_range; method="merged", file_name="Solve Time Stats.txt")
+    # file_name = "Solve Time Stats.txt" #Seed Range = $seed_range, Num Obs Range = $num_obs_range.txt"
+    # f = open(file_name, "a")
+    # write(f, "Method = $method, Seed Range = $seed_range, Num Obs Range = $num_obs_range\n")
+    # flush(f)
+    # close(f)
+
+    # Set parameters
+    N = 30  # number of steps
+    f1 = [0.0, 0.1, 0.0]  # initial footstep pose 1
+    f2 = [0.0, 0.0, 0.0]  # initial footstep pose 2
+    goal = [1, 1, 0]  # goal pose
+    Q_g = 10*Matrix{Float64}(I, 3, 3)  # weight between final footstep and goal pose
+    Q_r = [1 0 0; 0 1 0; 0 0 0] # Matrix{Float64}(I, 3, 3)  # weight between footsteps
+    q_t = -.05  # weight for trimming unused steps
+    # Optional named arguments
+    # d1 = 0.2 <- radius of reference foot circle
+    # d2 = 0.2 <- radius of moving foot circle
+    # p1 = [0, 0.07] <- center of reference foot circle
+    # p2 = [0, -0.27] <- center of moving foot circle
+    # delta_x_y_max = 0.10  # max stride norm in space
+    # delta_θ_max = pi/4  # max difference in θ
+    # L = 5  # number of pieces in p.w.l approx. of sine/cosine
+    
+    f = open(file_name, "a")
+    # write(f, "Seed\tNum_obs\tTime\n")
+    write(f, "Seed\tNum_obs\tSolve_time\tRel_gap\tSimplex_iterations\tNodes_explored\tNum_vertices\tMerged_size\tFull_size\tNum_free_faces\tNum_free_face_inequalities\n")
+    times = zeros(length(seed_range) * length(num_obs_range))
+    i = 1
+    for seed = seed_range
+        for num_obs = num_obs_range
+            # f = open(file_name, "a")
+            # write(f, "Seed = $seed, Num_Obs = $num_obs\n")
+            # flush(f)
+            # close(f)
+            # println("On test Seed = $seed, Num_Obs = $num_obs")
+
+            # Create obstacles
+            obstacles = ClutteredEnvPathOpt.gen_field(num_obs, seed = seed)
+
+            x, y, θ, t, stats = solve_deits(obstacles, N, f1, f2, goal, Q_g, Q_r, q_t, method=method)
+            term_status, r_solve_time, rel_gap, simplex_iters, r_node_count, num_vertices, merged_size, full_size, num_free_faces, num_free_face_ineq, method_used = stats
+
+            if method_used == method
+                times[i] = r_solve_time # time
+            else
+                times[i] = -1
+            end
+            write(f, "$seed\t$num_obs\t$(times[i])\t$rel_gap\t$simplex_iters\t$r_node_count\t$num_vertices\t$merged_size\t$full_size\t$num_free_faces\t$num_free_face_ineq\n")
+            flush(f)
+
+            i += 1
+
+            # # Trim excess steps
+            # num_to_trim = length(filter(tj -> tj > 0.5, t[3:end]))
+            # if num_to_trim % 2 == 0
+            #     x = vcat(x[1:2], x[num_to_trim + 3 : end]);
+            #     y = vcat(y[1:2], y[num_to_trim + 3 : end]);
+            #     θ = vcat(θ[1:2], θ[num_to_trim + 3 : end]);
+            # else
+            #     x = vcat(x[1], x[num_to_trim + 3 : end]);
+            #     y = vcat(y[1], y[num_to_trim + 3 : end]);
+            #     θ = vcat(θ[1], θ[num_to_trim + 3 : end]);
+            # end
+            # plot_steps(obstacles, x, y, θ)
+            # plot_circles(x, y, θ, p1=p1, p2=p2)
+
+        end
+    end
+
+    # write(f, "\nEND")
+    # flush(f)
+    close(f)
+
+    return times
+
+end
+
+seed_range = 21:30 # done 1:20
+num_obs_range = 1:4
+methods = ("merged", "full", "bigM")
+times = Dict()
+# method = "merged"
+for method in methods
+    file_name = "Solve Time Stats Method $method.txt"
+    f = open(file_name, "a")   # write or append appropriately
+    write(f, "Seed Range = $seed_range, Num Obs Range = $num_obs_range\nMethod = $method\n")
+    flush(f)
+    close(f)
+    time = solve_time_stats(seed_range, num_obs_range, method=method, file_name=file_name)
+    times[method] = time
+end
+
+file_name = "Solve Time Stats Comparison.txt" #Seed Range = $seed_range, Num Obs Range = $num_obs_range.txt"
+f = open(file_name, "a")    # write or append appropriately
+times_m_b = times["bigM"] .- times["merged"]
+times_m_f = times["full"] .- times["merged"]
+times_f_b = times["bigM"] .- times["full"]
+write(f, "Seed Range = $seed_range, Num Obs Range = $num_obs_range\n")
+write(f, "Merged_vs_BigM\tMerged_vs_Full\tFull_vs_BigM\n")
+for i = 1:length(times_m_b)
+    write(f, "$(times_m_b[i])\t$(times_m_f[i])\t$(times_f_b[i])\n")
+end
+flush(f)
+close(f)
+
 
 # Debugging Functions ---------------------------------------------------------------
 
