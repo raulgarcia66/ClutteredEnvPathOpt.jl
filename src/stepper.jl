@@ -32,7 +32,7 @@ function get_M_A_b_easy(obstacles)
             A = hs.a'
             b = hs.β
 
-            M = maximum(map(x -> A * x, v.points)) # think it needs to be over all subfaces
+            M = maximum(map(x -> A * x, v.points))
 
             push!(Ms, M)
             push!(As, A)
@@ -44,15 +44,15 @@ function get_M_A_b_easy(obstacles)
     return vcat(Ms...), vcat(As...), vcat(bs...), acc
 end
 
-function get_M_A_b(obstacles)
+function get_M_A_b(points, free_faces)
     Ms = []
     As = []
     bs = []
     acc = [0] # try using reduce() instead
 
-    _, points, _, _, free_faces = ClutteredEnvPathOpt.construct_graph(obstacles)
+    # _, points, _, _, free_faces = ClutteredEnvPathOpt.construct_graph(obstacles)
 
-    # Solve over the unitcell for now
+    # Solve over the unitcell
     u = Polyhedra.convexhull([0//1,0//1],[0//1,1//1],[1//1,0//1],[1//1,1//1])
     unitcell = Polyhedra.polyhedron(u)
 
@@ -127,24 +127,24 @@ end
 # Q_g <- pose weights to goal (4x4 mat)
 # Q_r <- pose weights between steps (4x4 mat)
 # q_t <- weight on unused steps (scalar)
-# L <- number of pieces of pwl sin/cos (scalar)
-# delta_f_max <- max stride norm
 # method <- "merged" for the compact biclique cover, "full" for the original biclique cover, "bigM" for big-M constraints
-# d1 <- radius of reference foot circle
-# d2 <- radius of moving foot circle
-# p1 <- center of reference foot circle
-# p2 <- center of moving foot circle
-function solve_deits(obstacles, N, f1, f2, g, Q_g, Q_r, q_t, L, delta_f_max; method="merged", d1=0.2, d2=0.2, p1=[0, 0.05], p2=[0, -0.25])
+# d1 = 0.2 <- radius of reference foot circle
+# d2 = 0.2 <- radius of moving foot circle
+# p1 = [0, 0.07] <- center of reference foot circle
+# p2 = [0, -0.27] <- center of moving foot circle
+# delta_x_y_max = 0.1 <- max stride norm in space
+# delta_θ_max = pi/4 <- max difference in θ
+# L = 5 <- number of pieces of pwl sin/cos (scalar)
+function solve_deits(obstacles, N, f1, f2, g, Q_g, Q_r, q_t; method="merged", d1=0.2, d2=0.2, p1=[0, 0.07], p2=[0, -0.27])
 
     _, points, graph, _, free_faces = ClutteredEnvPathOpt.construct_graph(obstacles)
     skeleton = LabeledGraph(graph)
-    # all_faces = union(obstacle_faces, free_faces)
 
     # model = JuMP.Model(JuMP.optimizer_with_attributes(Gurobi.Optimizer))
-    model = JuMP.Model(JuMP.optimizer_with_attributes(Gurobi.Optimizer, "MIPGap" => .01, "TimeLimit" => 150))
-    # "TimeLimit" => 150, "MIPGap" => 0.10
+    model = JuMP.Model(JuMP.optimizer_with_attributes(Gurobi.Optimizer, "MIPGap" => .01, "TimeLimit" => 180))
+    # model = JuMP.Model(JuMP.optimizer_with_attributes(Gurobi.Optimizer, "Heuristics"=> 0, "Cuts"=> 0, "Precrush"=>1, "MIPGap" => .01, "TimeLimit" => 180))
     
-    # model has scalar variables x, y, θ, bin var t and d (2x1 decision), p (2x1 decision)
+    # model has scalar variables x, y, θ, binary variable t
     JuMP.@variable(model, x[1:N])
     JuMP.@variable(model, y[1:N])
     JuMP.@variable(model, θ[1:N])
@@ -152,12 +152,16 @@ function solve_deits(obstacles, N, f1, f2, g, Q_g, Q_r, q_t, L, delta_f_max; met
 
     # Objective
     f = vec([[x[j], y[j], θ[j]] for j in 1:N])
-    f_no_theta = vec([[x[j], y[j]] for j in 1:N])
+    # f_no_theta = vec([[x[j], y[j]] for j in 1:N])
     JuMP.@objective(
         model,
         Min,
         ((f[N] - g)' * Q_g * (f[N] - g)) + sum(q_t * t) + sum((f[j + 1] - f[j])' * Q_r * (f[j + 1] - f[j]) for j in 1:(N-1))
     )
+
+    cover = Set{Pair{Set{Int64}, Set{Int64}}}()
+    merged_cover = Set{Pair{Set{Int64}, Set{Int64}}}()
+    num_free_face_ineq = 0
 
     if method != "bigM"
         cover = ClutteredEnvPathOpt.find_biclique_cover(skeleton, free_faces)
@@ -168,12 +172,12 @@ function solve_deits(obstacles, N, f1, f2, g, Q_g, Q_r, q_t, L, delta_f_max; met
         (valid_cover_merged, _, _, _) = ClutteredEnvPathOpt._is_valid_biclique_cover_diff(feg, merged_cover)
     end
     
-    # Footstep Location Constraints
+    # Footstep location constraints
     if method == "merged" && valid_cover_merged
         J = LightGraphs.nv(skeleton.graph)
         JuMP.@variable(model, λ[1:N, 1:J] >= 0)
         JuMP.@variable(model, z[1:N, 1:length(merged_cover)], Bin)
-        for i = 1:N
+        for i in 1:N
             for (j,(A,B)) in enumerate(merged_cover)
                 JuMP.@constraint(model, sum(λ[i, v] for v in A) <= z[i, j])
                 JuMP.@constraint(model, sum(λ[i, v] for v in B) <= 1 - z[i, j])
@@ -186,7 +190,7 @@ function solve_deits(obstacles, N, f1, f2, g, Q_g, Q_r, q_t, L, delta_f_max; met
         J = LightGraphs.nv(skeleton.graph)
         JuMP.@variable(model, λ[1:N, 1:J] >= 0)
         JuMP.@variable(model, z[1:N, 1:length(cover)], Bin)
-        for i = 1:N
+        for i in 1:N
             for (j,(A,B)) in enumerate(cover)
                 JuMP.@constraint(model, sum(λ[i, v] for v in A) <= z[i, j])
                 JuMP.@constraint(model, sum(λ[i, v] for v in B) <= 1 - z[i, j])
@@ -197,11 +201,11 @@ function solve_deits(obstacles, N, f1, f2, g, Q_g, Q_r, q_t, L, delta_f_max; met
         end
     else
         # Runs if method = "bigM", or if a valid biclique cover is not found
-        M, A, b, acc = get_M_A_b(obstacles)
-        num_free_faces = length(acc)-1
-        JuMP.@variable(model, z[1:N, 1:num_free_faces], Bin)
+        M, A, b, acc = get_M_A_b(points, free_faces)
+        num_free_face_ineq = length(M)
+        JuMP.@variable(model, z[1:N, 1:length(free_faces)], Bin)
         for j in 1:N
-            for r in 1:num_free_faces
+            for r in 1:length(free_faces)
                 ids = (acc[r]+1):(acc[r+1])
                 for i in ids
                     # JuMP.@constraint(model, A[r, :]' * [x[j], y[j]] <= b[r] * z[j, r] + M[r] * (1 - z[j, r]))
@@ -215,8 +219,12 @@ function solve_deits(obstacles, N, f1, f2, g, Q_g, Q_r, q_t, L, delta_f_max; met
     end
 
     # Reachability
-    s = [piecewiselinear(model, θ[j], range(0, stop=(2 * pi), length=L), sin) for j in 1:N]
-    c = [piecewiselinear(model, θ[j], range(0, stop=(2 * pi), length=L), cos) for j in 1:N]
+    # s = [piecewiselinear(model, θ[j], range(0, stop=(2 * pi), length=L), sin) for j in 1:N]
+    # c = [piecewiselinear(model, θ[j], range(0, stop=(2 * pi), length=L), cos) for j in 1:N]
+    s_break_pts = [0, 5pi/16, 11pi/16, 21pi/16, 27pi/16, 2pi]
+    c_break_pts = [0, 3pi/16, 13pi/16, 19pi/16, 29pi/16, 2pi]
+    s = [piecewiselinear(model, θ[j], s_break_pts, sin) for j in 1:N]
+    c = [piecewiselinear(model, θ[j], c_break_pts, cos) for j in 1:N]
 
     # For footstep j, the cirles are created from the frame of reference of footstep j-1
     # Use negative if in frame of reference of right foot (j = 1 is left foot)
@@ -266,7 +274,7 @@ function solve_deits(obstacles, N, f1, f2, g, Q_g, Q_r, q_t, L, delta_f_max; met
     # Set T to punish extra steps
     for j in 1:N
         if j % 2 == 1
-            JuMP.@constraint(model, t[j] => {x[j] == f1[1]})
+            JuMP.@constraint(model, t[j] => {x[j] == f1[1]}) # use f1 and f2?
             JuMP.@constraint(model, t[j] => {y[j] == f1[2]})
             JuMP.@constraint(model, t[j] => {θ[j] == f1[3]})
         else
@@ -277,8 +285,20 @@ function solve_deits(obstacles, N, f1, f2, g, Q_g, Q_r, q_t, L, delta_f_max; met
     end
 
     # Max step distance
+    # for j in 3:2:(N-1)
+    #     JuMP.@constraint(model, [delta_x_y_max; f_no_theta[j] - f_no_theta[j - 2]] in SecondOrderCone())
+    #     JuMP.@constraint(model, [delta_x_y_max; f_no_theta[j + 1] - f_no_theta[j - 1]] in SecondOrderCone())
+    # end
+
+    # Max theta difference for individual feet
+    # for j in 3:2:(N-1)
+    #     JuMP.@constraint(model, -delta_θ_max <= θ[j] - θ[j - 2] <= delta_θ_max)
+    #     JuMP.@constraint(model, -delta_θ_max <= θ[j + 1] - θ[j - 1] <= delta_θ_max)
+    # end
+
+    # Max θ difference between feet
     for j in 2:N
-        JuMP.@constraint(model, [delta_f_max; f_no_theta[j] - f_no_theta[j - 1]] in SecondOrderCone())
+        JuMP.@constraint(model, -pi/8 <= θ[j] - θ[j-1] <= pi/8)
     end
 
     # Initial footstep positions
@@ -292,23 +312,28 @@ function solve_deits(obstacles, N, f1, f2, g, Q_g, Q_r, q_t, L, delta_f_max; met
         println("\n\nUsed merged cover.\n\n")
     elseif method != "bigM" && valid_cover 
         println("\n\nUsed full cover.\n\n")
+        method = "full"
     else
-        println("\n\nUsed big-M constraints.")
+        println("\n\nUsed big-M constraints.\n\n")
+        method = "bigM"
     end
 
-    return value.(x), value.(y), value.(θ), value.(t), solve_time(model) # objective_value(model)
+    stats = (termination_status(model), solve_time(model), relative_gap(model), simplex_iterations(model), 
+            node_count(model), LightGraphs.nv(skeleton.graph), length(merged_cover), length(cover), length(free_faces), num_free_face_ineq, method)
+
+    return value.(x), value.(y), value.(θ), value.(t), stats
 end
 
-function plot_steps(obstacles, x, y, theta)
+function plot_steps(obstacles, x, y, θ)
     plot()
     ClutteredEnvPathOpt.plot_field(obstacles);
     scatter!(x[1:2:end], y[1:2:end], color="red", series_annotations=([Plots.text(string(x), :right, 8, "courier") for x in 1:2:length(x)]));
     scatter!(x[2:2:end], y[2:2:end], color="blue", series_annotations=([Plots.text(string(x), :right, 8, "courier") for x in 2:2:length(x)]));
-    quiver!(x, y, quiver=(0.075 * cos.(theta), 0.075 * sin.(theta)))
+    quiver!(x, y, quiver=(0.075 * cos.(θ), 0.075 * sin.(θ)))
     display(plot!(title="Footsteps"))
 end
 
-function plot_circles(R1, R2, p1, p2, x, y, theta)
+function plot_circles(x, y, theta; R1=0.20, R2=0.20, p1=[0, 0.07], p2=[0, -0.27])
     angles = LinRange(0,2*pi, 100)
     #plot()
     for i = 2:length(x)
@@ -319,14 +344,26 @@ function plot_circles(R1, R2, p1, p2, x, y, theta)
 
             circlex2 = R2*cos.(angles) .+ ( x[i-1] + cos(theta[i-1])*(-p2[1]) - sin(theta[i-1])*(-p2[2]) )
             circley2 = R2*sin.(angles) .+ ( y[i-1] + sin(theta[i-1])*(-p2[1]) + cos(theta[i-1])*(-p2[2]) )
-            scatter!([x[i-1]; x[i]], [y[i-1]; y[i]])
+            #scatter!([x[i-1]; x[i]], [y[i-1]; y[i]])
+            scatter!([x[i-1]], [y[i-1]], color = "blue")
+            scatter!([x[i]], [y[i]], color = "red")
+            quiver!([x[i-1]; x[i]], [y[i-1]; y[i]], 
+                quiver=([0.075 * cos(theta[i-1]); 0.075 * cos(theta[i])], 
+                [0.075 * sin(theta[i-1]); 0.075 * sin(theta[i])])
+                )
         else
             circlex1 = R1*cos.(angles) .+ ( x[i-1] + cos(theta[i-1])*(p1[1]) - sin(theta[i-1])*(p1[2]) )
             circley1 = R1*sin.(angles) .+ ( y[i-1] + sin(theta[i-1])*(p1[1]) + cos(theta[i-1])*(p1[2]) )
 
             circlex2 = R2*cos.(angles) .+ ( x[i-1] + cos(theta[i-1])*(p2[1]) - sin(theta[i-1])*(p2[2]) )
             circley2 = R2*sin.(angles) .+ ( y[i-1] + sin(theta[i-1])*(p2[1]) + cos(theta[i-1])*(p2[2]) )
-            scatter!([x[i-1]; x[i]], [y[i-1]; y[i]])
+            #scatter!([x[i-1]; x[i]], [y[i-1]; y[i]])
+            scatter!([x[i-1]], [y[i-1]], color = "red")
+            scatter!([x[i]], [y[i]], color = "blue")
+            quiver!([x[i-1]; x[i]], [y[i-1]; y[i]], 
+                quiver=([0.075 * cos(theta[i-1]); 0.075 * cos(theta[i])], 
+                [0.075 * sin(theta[i-1]); 0.075 * sin(theta[i])])
+                )
         end
         plot!(circlex1, circley1, color="dodgerblue")
         plot!(circlex2, circley2, color="maroon")
