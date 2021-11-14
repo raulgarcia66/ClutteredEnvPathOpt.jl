@@ -11,3 +11,6 @@
 *.synctex(busy)
 /Images Float Error
 *.txt
+!Biclique Cover Merging Stats.txt
+!Solve Time Stats *.txt
+Solve Time Stats 2 *.txt
