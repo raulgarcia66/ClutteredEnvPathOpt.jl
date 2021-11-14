@@ -504,7 +504,7 @@ num_obs_range = 1:4
 fails, tuples = biclique_cover_validity_tests(seed_range, num_obs_range, faces = "all")
 fails, tuples = biclique_cover_validity_tests(seed_range, num_obs_range, faces = "free")
 
-percent_decreases = biclique_cover_merger_stats(seed_range, num_obs_range)
+percent_decreases, tuples = biclique_cover_merger_stats(seed_range, num_obs_range)
 
 
 # Biclique validity tester function
@@ -576,13 +576,15 @@ function biclique_cover_merger_stats(seed_range, num_obs_range)
     close(f)
     
     f = open(file_name, "a")
+    write(f, "Seed\tNum_obs\tFull_cover\tMerged_cover\tDecrease\tPercent_decrease\n")
     fails = 0
     tuples = []
     percent_vec = []
     for seed = seed_range
         for num_obs = num_obs_range
             # f = open(file_name, "a")
-            write(f, "\nTest Seed = $seed, Num_Obs = $num_obs\n")
+            # write(f, "\nTest Seed = $seed, Num_Obs = $num_obs\n")
+            write(f, "$seed\t$num_obs")
             # flush(f)
             # close(f)
 
@@ -598,28 +600,45 @@ function biclique_cover_merger_stats(seed_range, num_obs_range)
             (valid_cover_merged, size_diff, miss_edges, miss_edges_lg) = ClutteredEnvPathOpt._is_valid_biclique_cover_diff(feg, merged_cover);
             # println("Difference: $(length(cover)-length(merged_cover)) | Merged: $(length(merged_cover)) | Original: $(length(cover))")
 
+            # if valid_cover && valid_cover_merged
+            #     write(f,"Difference: $(length(cover)-length(merged_cover)) | Merged: $(length(merged_cover)) | Original: $(length(cover))")
+            #     percent = round( ((length(cover)-length(merged_cover)) / length(cover)) * 100, digits = 2)
+            #     write(f," | Percent Decrease: $percent\n")
+            #     push!(percent_vec, percent)
+            # else
+            #     fails += 1
+            #     push!(tuples, (seed, num_obs))
+            #     if !valid_cover_merged
+            #         write(f,"Merged cover invalid.\n")
+            #     else
+            #         write(f,"Original cover invalid.\n")
+            #     end
+            # end
             if valid_cover && valid_cover_merged
-                write(f,"Difference: $(length(cover)-length(merged_cover)) | Merged: $(length(merged_cover)) | Original: $(length(cover))")
                 percent = round( ((length(cover)-length(merged_cover)) / length(cover)) * 100, digits = 2)
-                write(f," | Percent Decrease: $percent\n")
+                write(f,"\t$(length(cover))\t$(length(merged_cover))\t$(length(cover)-length(merged_cover))\t$percent\n")
                 push!(percent_vec, percent)
-            else
+            elseif valid_cover
+                percent = round( ((length(cover)-0) / length(cover)) * 100, digits = 2)
+                write(f,"\t$(length(cover))\t0\t$(length(cover)-0)\t$percent\n")
+                push!(percent_vec, percent)
+
                 fails += 1
                 push!(tuples, (seed, num_obs))
-                if !valid_cover_merged
-                    write(f,"Merged cover invalid.\n")
-                else
-                    write(f,"Original cover invalid.\n")
-                end
+                # if !valid_cover_merged
+                #     write(f,"Merged cover invalid.\n")
+                # else
+                #     write(f,"Original cover invalid.\n")
+                # end
             end
         end
     end
 
-    write(f, "\nTotal Fails: $fails.\nTuples: $tuples")
+    # write(f, "\nTotal Fails: $fails.\nTuples: $tuples")
     flush(f)
     close(f)
 
-    return percent_vec
+    return percent_vec, tuples
 end
 
 #------------------------------------------------------------------------------------------------------
