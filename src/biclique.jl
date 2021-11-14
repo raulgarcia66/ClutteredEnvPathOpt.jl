@@ -211,6 +211,12 @@ function biclique_merger(cover::Set{Pair{Set{T}, Set{T}}}, feg::LabeledGraph{T})
     while merge_found
         for i = 1:length(cover)
             for j = i+1:length(cover)
+                # TODO: Check if this is right
+                # if (!isempty(intersect(cover[i].first, cover[j].first)) && !isempty(intersect(cover[i].first, cover[j].second))) ||
+                #     (!isempty(intersect(cover[i].second, cover[j].first)) && !isempty(intersect(cover[i].second, cover[j].second)))
+                #     continue
+                # end
+
 
                 potential_merge_found = false
                 merge_found = false
@@ -294,7 +300,7 @@ function biclique_merger(cover::Set{Pair{Set{T}, Set{T}}}, feg::LabeledGraph{T})
                 end
 
                 # Second condition is to prevent vertices from being in both A and B
-                if potential_merge_found && isempty(intersect(A,B))
+                if potential_merge_found && isempty(intersect(A,B)) # don't need second condition if above is correct
                     merge_found = true
                     deleteat!(cover, j)
                     deleteat!(cover, i)
