@@ -751,6 +751,39 @@ flush(f)
 close(f)
 
 
+import DelimitedFiles
+data_merged = DelimitedFiles.readdlm("Solve Time Stats Method merged.txt", '\t')
+matrix_merged = Matrix{Float64}(data_merged[4:end,:])
+data_bigM = DelimitedFiles.readdlm("Solve Time Stats Method bigM.txt", '\t')
+matrix_bigM = Matrix{Float64}(data_bigM[4:end,:])
+header = Vector{String}(data_merged[3,:])
+
+file_name = "Solve Stats Comparison.txt" #Seed Range = $seed_range, Num Obs Range = $num_obs_range.txt"
+f = open(file_name, "w")    # write or append appropriately
+write(f, "S_T_m\tS_T_b\tS_T_diff\tS_I_m\tS_I_b\tS_I_diff\tN_C_m\tN_C_b\tN_C_diff\n")
+S_T_m = matrix_merged[:,3]
+S_T_b = matrix_bigM[:,3]
+S_T_diff = S_T_b .- S_T_m
+S_I_m = matrix_merged[:,5]
+S_I_b = matrix_bigM[:,5]
+S_I_diff = S_I_b .- S_I_m
+N_C_m = matrix_merged[:,6]
+N_C_b = matrix_bigM[:,6]
+N_C_diff = N_C_b .- N_C_m
+for i = 1:length(S_T_m)
+    write(f, "$(S_T_m[i])\t$(S_T_b[i])\t$(S_T_diff[i])\t")
+    write(f, "$(S_I_m[i])\t$(S_I_b[i])\t$(S_I_diff[i])\t")
+    write(f, "$(N_C_m[i])\t$(N_C_b[i])\t$(N_C_diff[i])\n")
+end
+flush(f)
+close(f)
+
+data_summary = DelimitedFiles.readdlm("Solve Stats Comparison.txt", '\t')
+matrix_summary = Matrix{Float64}(data_summary[2:end,:])
+header_summary = Vector{String}(data_summary[1,:])
+
+
+
 # Debugging Functions ---------------------------------------------------------------
 
 # Check if free_faces has any duplicates---------------------------------------------
