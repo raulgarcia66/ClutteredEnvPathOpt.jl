@@ -3,7 +3,8 @@ import Polyhedra
 import GLPK
 import Plots
 import Random
-# import Statistics
+import Statistics
+import Triangulate
 
 """
     gen_obstacle(max_side_len)
@@ -12,6 +13,7 @@ Creates an obstacle from a given set of points in the unit square.
 """
 function gen_obstacle(max_side_len::Real)
     # TODO: Make this function accept a list of points to take the convex hull
+    # Faces must be passed in counter-clockwise order
     # Use rational points (convert if necessary). Rid redundant points and compute HRep.
     # Assure obstacles have at least 4 extreme points for pairwise IB to work
 
@@ -56,7 +58,7 @@ function gen_obstacle_four(points_per_dim::Int)
     v = Polyhedra.convexhull(top_left, top_right, bottom_left, bottom_right)
     poly = Polyhedra.polyhedron(v, Polyhedra.DefaultLibrary{Rational{Int64}}(GLPK.Optimizer))
     Polyhedra.removevredundancy!(poly)
-    # Assure the polyhedron has 4 extreme points (3 can occur under certain combinations) for pairwise IB purposes
+    # Loop below assures the polyhedron has 4 extreme points (3 can occur under certain combinations) for pairwise IB purposes
     while Polyhedra.npoints(poly) < 4
         top_right = [ nums[x_index + 3 + rand(-1:1)] ; nums[y_index + 3 + rand(-1:1)] ]
         v = Polyhedra.convexhull(top_left, top_right, bottom_left, bottom_right)
@@ -75,7 +77,7 @@ Creates an obstacle course, an array of obstacles in the unit square. If
 obstacles overlap, the convex hull of their combined extreme points will be taken
 instead.
 """
-function gen_field(num_obstacles::Int; custom::Bool=false, seed::Int=1)
+function gen_field(num_obstacles::Int; custom::Bool=false, points_it::Set{Vector{T}}=Set{Vector{Rational}}(), seed::Int=1) where {T}
     if custom
         obstacles = []
         for points in points_it
@@ -292,7 +294,8 @@ function find_intersections(obstacles)
     end, 1:length(points_vec))
 
     # Move inside vertices to the end of the points vector, so that they may be removed from the points
-    # vector and the lightgraph graph without altering the vertex labels and edges remaining. Removal does not occur here.
+    # vector and the lightgraph graph without altering the vertex labels and edges remaining. 
+    # Removal does not occur here.
     for i = 1:(length(inside_indices))
         temp = points_vec[inside_indices[i]]
         points_vec[inside_indices[i]] = points_vec[end - (i-1)]
@@ -410,7 +413,8 @@ function construct_graph(obs)
 
     # Find free faces (by determining which do not overlap obstacles)
     free_faces = filter(face -> begin
-        face_set = Set(face)
+        face_set = Set(face)   # face is already a set, luckily taking a Set of a Set doesn't do anything
+        # TODO: It's not even used! Comment it and test, then remove
 
         face_set_v = Polyhedra.convexhull(map(i -> collect(points[i]), face)...)
         face_set_poly = Polyhedra.polyhedron(face_set_v, Polyhedra.DefaultLibrary{Rational{Int64}}(GLPK.Optimizer))
@@ -508,7 +512,7 @@ function construct_graph(obs)
                     push!(edges_to_remove, (edge.src, edge.dst))
                     on_boundary = false
                 end
-                if on_boundary
+                if on_boundary   # this can be change to an if-else with the above
                     # println("Adding edge $(edge.src) => $(edge.dst) with i = $i")
                     push!(boundary_edges[i], edge)
                 end
@@ -529,7 +533,7 @@ function construct_graph(obs)
     #     end
     # end
 
-    # Now need to order points on obstacle faces counter-clockwise (they're returned clockwise)
+    # Now need to order points on obstacle faces counter-clockwise (they're then returned clockwise)
 
     # Start with left-most point (if multiple, use bottom-most)
     starting_points = []
@@ -615,6 +619,100 @@ function construct_graph(obs)
     end
 
     return (obs, points, graph, Set(map(face -> reverse(face), obstacle_faces_ordered)), Set(map(f -> reverse(f), free_faces)))
+end
+
+"""
+    construct_graph_delaunay(obs)
+
+Generate the constrained Delaunay triangulation partition of the free space.
+Returns a tuple containing the obstacles, a list of the location of the nodes' coordinates,
+the graph, a set of every face of obstacle space, and a set of every face of free space.
+(Each face is a clockwise-ordered vector of vertices).
+"""
+function construct_graph_delaunay(obs)
+
+    S = []   # Store segments
+    obstacle_faces = []   # Store obstacle face vertices (should be ordered)
+    points = []   # Store points as Vector of Pairs
+    vertex_num = 0
+    for ob in obs
+        vertices_in_ob = []
+        iter = Polyhedra.points(ob)
+        # Store x and y coordinates in points
+        for point in iter
+            push!(points, point[1] => point[2])
+            vertex_num += 1
+            push!(vertices_in_ob, vertex_num)
+        end
+        # Push edges of obstacle boundary (assumes they're in order) 
+        for i = 1:(length(vertices_in_ob)-1)
+            push!(S, [vertices_in_ob[i] ; vertices_in_ob[i+1]])
+        end
+        push!(S, [vertices_in_ob[end] ; vertices_in_ob[1]])
+        push!(obstacle_faces, vertices_in_ob)
+    end
+
+    points = [points; 0//1 => 0//1 ; 0//1 => 1//1; 1//1 => 1//1; 1//1 => 0//1]
+    # unique!(points)   # Code above relies on the points being unique
+
+    # Add boundary segments
+    num_points = length(points)
+    for i = (num_points-3):(num_points-1)
+        push!(S, [i ; i+1])
+    end
+    push!(S, [num_points ; num_points-3])
+
+    # Initialize triangulate structure
+    triin = Triangulate.TriangulateIO()
+
+    # Store points
+    C = zeros(2,length(points))
+    for j = 1:length(points)
+        C[:,j] = [points[j].first ; points[j].second]
+    end
+    triin.pointlist = Matrix{Cdouble}(C)
+
+    # Store segments in matrix
+    segments = zeros(Int,2,length(S))
+    for j=1:length(S)
+        segments[:,j] = [S[j][1]; S[j][2]]
+    end
+    triin.segmentlist = Matrix{Cint}(segments)
+
+    # Add hole list
+    hole_center = zeros(2,length(obstacle_faces))
+    for (j,face) in enumerate(obstacle_faces)
+        x_locations = map(i -> points[i].first, face)
+        y_locations = map(i -> points[i].second, face)
+        avg_x = Statistics.mean(x_locations)
+        avg_y = Statistics.mean(y_locations)
+        hole_center[:,j] = [avg_x; avg_y]
+    end
+    triin.holelist = Matrix{Cdouble}(hole_center)
+
+    # Computed CDT
+    (triout, _) = Triangulate.triangulate("pQ", triin)
+
+    triangles = Matrix{Int64}(triout.trianglelist)   # matrix with 3 rows
+    # edges = Matrix{Int64}(triout.edgelist)   # matrix with 2 rows
+
+    # Create graph
+    graph = LightGraphs.SimpleGraph(length(points))
+    # Add edges
+    for j = 1:size(triangles,2)
+        LightGraphs.add_edge!(graph, triangles[1,j] => triangles[2,j])
+        LightGraphs.add_edge!(graph, triangles[1,j] => triangles[3,j])
+        LightGraphs.add_edge!(graph, triangles[2,j] => triangles[3,j])
+    end
+    # Store free faces as vectors (utilizing holes, all triangles are free faces)
+    free_faces = []
+    for j = 1:size(triangles,2)
+        push!(free_faces, triangles[:,j])
+    end
+
+    # TODO: Face merging
+
+    return (obs, points, graph, Set(map(face -> face, obstacle_faces)), Set(map(f -> reverse(f), free_faces)))
 end
 
 """
@@ -735,7 +833,8 @@ function plot_edges(lg::LabeledGraph{T}, points::Vector{Any}, obstacles; plot_na
         end
     end
 
-    ClutteredEnvPathOpt.plot_intersections(obstacles, vertices=vertices)
+    # ClutteredEnvPathOpt.plot_intersections(obstacles, vertices=vertices)
+    ClutteredEnvPathOpt.plot_points(points, vertices=vertices)
 
     display(Plots.plot!(title=plot_name, xlims=(-0.05,1.05), ylims=(-0.05,1.05), legend=false))
 end
@@ -831,6 +930,38 @@ function plot_intersections(field; vertices::Dict{T,T}=Dict{T,T}()) where {T}
 end
 
 """
+    plot_points(points; vertices)
+
+Plots and labels points given.
+"""
+function plot_points(points::Vector{Any}; vertices::Dict{T,T}=Dict{T,T}()) where {T}
+
+    if !isempty(vertices)
+        points_filtered = []
+        for v in keys(vertices)
+            push!(points_filtered, points[v])
+        end
+        x = map(point -> point.first, points_filtered)
+        y = map(point -> point.second, points_filtered)
+        Plots.scatter!(x,y, color="red", series_annotations=([Plots.text(string(x), :right, 8, "courier") for x in keys(vertices)]))
+    else
+        x = map(point -> point.first, points)
+        y = map(point -> point.second, points)
+        Plots.scatter!(x,y, color="red", series_annotations=([Plots.text(string(x), :right, 8, "courier") for x in 1:length(points)]))
+    end
+
+
+    # x = map(point -> point.first, points)
+    # y = map(point -> point.second, points)
+
+    # if !isempty(vertices)
+    #     Plots.scatter!(x,y, color="red", series_annotations=([Plots.text(string(x), :right, 8, "courier") for x in keys(vertices)]))
+    # else
+    #     Plots.scatter!(x,y, color="red", series_annotations=([Plots.text(string(x), :right, 8, "courier") for x in 1:length(points)]))
+    # end
+end
+
+"""
     plot_new(n, name; custom, seed, save_image)
 
 Generates a new obstacle course with n obstacles. If custom = true, obstacles will be
@@ -839,7 +970,7 @@ the course will be plotted and saved to an image.
 """
 function plot_new(n::Int, name::String; custom::Bool=false, seed::Int=1, save_image::Bool=false)
     if custom
-        # gen_obstacle()
+        # gen_field(num_obstacles::Int; custom::Bool=false, points_it::Set{Vector{T}}=Set{Vector{Rational}}(), seed::Int=1) where {T}
     else
         obs = gen_field(n, seed = seed)
     end
@@ -854,5 +985,6 @@ function plot_new(n::Int, name::String; custom::Bool=false, seed::Int=1, save_im
         display(Plots.plot!(title="Field"))
     end
 
-    return construct_graph(obs)
+    # return construct_graph(obs)
+    return construct_graph_delaunay(obs)
 end
