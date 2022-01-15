@@ -56,7 +56,7 @@ Same as find_biclique_cover, with the added features of plotting the new skeleto
 recording separator information at each call.
 """
 function find_biclique_cover_debug(skeleton::LabeledGraph{T}, faces::Set{Vector{T}}, points::Vector{Any}, obstacles, file_name)::Set{Pair{Set{T}, Set{T}}} where {T}
-    ClutteredEnvPathOpt.plot_edges(skeleton, points, obstacles)
+    ClutteredEnvPathOpt.plot_edges(skeleton, points)
     f = open(file_name, "a")
     for (i,face) in enumerate(faces)
         write(f, "Face $i: $face\n")
