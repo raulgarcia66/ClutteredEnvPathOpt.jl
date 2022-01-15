@@ -961,6 +961,7 @@ function plot_intersections(field; vertices::Dict{T,T}=Dict{T,T}()) where {T}
         Plots.scatter!(x,y, color="red", series_annotations=([Plots.text(string(x), :right, 8, "courier") for x in 1:length(points)]))
     end
 
+    # TODO: Delete this once certain it works
     # if !isempty(vertices)
     #     intersections = @pipe filter(v -> v in keys(vertices), 1:length(intersections)) |> intersections[_]
     # end
