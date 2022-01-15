@@ -30,12 +30,22 @@ function gen_obstacle(max_side_len::Real)
 
     # This might also be helpful
     # v = Polyhedra.convexhull(map(i -> collect(points[i]), face)...)
+    
+    # Remove redundant points with 
 
     point = rand(2)
 
     v = Polyhedra.convexhull(point, map(x -> x > 1 ? 1 : x, point + max_side_len * rand(2)), map(x -> x > 1 ? 1 : x, point + max_side_len * rand(2)))
-        
-    return Polyhedra.polyhedron(v, Polyhedra.DefaultLibrary{Rational{Int64}}(GLPK.Optimizer))
+
+    if Polyhedra.npoints(poly) < 4
+        # something
+    end
+    
+    poly = Polyhedra.polyhedron(v, Polyhedra.DefaultLibrary{Rational{Int64}}(GLPK.Optimizer))
+    Polyhedra.removevredundancy!(poly)
+    Polyhedra.hrep(poly)
+    return poly
+
 end
 
 """
@@ -119,6 +129,8 @@ function remove_overlaps(obstacles)
                 overlap = Polyhedra.intersect(accumulator, other)
                 if !isempty(overlap)
                     accumulator = Polyhedra.convexhull(accumulator, other)
+                    Polyhedra.removevredundancy!(accumulator)
+                    Polyhedra.removehredundancy!(accumulator)
                     push!(fused, j)
                 end
             end
@@ -979,6 +991,8 @@ end
 Plots and labels points given.
 """
 function plot_points(points::Vector{Any}; vertices::Dict{Int,Int}=Dict{Int,Int}())
+    
+    Plots.plot!(legend=false)
 
     if !isempty(vertices)
         points_filtered = []
