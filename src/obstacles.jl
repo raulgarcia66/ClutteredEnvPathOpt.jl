@@ -309,6 +309,34 @@ function find_intersections(obstacles)
 end
 
 """
+    find_points(obs)
+Compute the points corresponding to obstacle extreme points and the four corners
+of the unit square.
+"""
+function find_points(obs)
+    obstacle_faces = []   # Store obstacle face vertices (should be ordered)
+    points = []   # Store points as Vector of Pairs
+    vertex_num = 0
+    for ob in obs
+        vertices_in_ob = []
+        iter = Polyhedra.points(ob)
+        # Store x and y coordinates in points
+        for point in iter
+            push!(points, point[1] => point[2])
+            vertex_num += 1
+            push!(vertices_in_ob, vertex_num)
+        end
+
+        push!(obstacle_faces, vertices_in_ob)
+    end
+
+    points = [points; 0//1 => 0//1 ; 0//1 => 1//1; 1//1 => 1//1; 1//1 => 0//1]
+    # unique!(points)   # Code above relies on the points being unique
+
+    return points
+end
+
+"""
     construct_graph(obs)
 
 Given a list of obstacles with no overlaps, finds the intersections of the lines
@@ -649,6 +677,7 @@ function construct_graph_delaunay(obs)
             push!(S, [vertices_in_ob[i] ; vertices_in_ob[i+1]])
         end
         push!(S, [vertices_in_ob[end] ; vertices_in_ob[1]])
+
         push!(obstacle_faces, vertices_in_ob)
     end
 
@@ -665,7 +694,7 @@ function construct_graph_delaunay(obs)
     # Initialize triangulate structure
     triin = Triangulate.TriangulateIO()
 
-    # Store points
+    # Store points in matrix
     C = zeros(2,length(points))
     for j = 1:length(points)
         C[:,j] = [points[j].first ; points[j].second]
@@ -812,11 +841,11 @@ function plot_faces(faces::Set{Vector{T}}, points::Vector{Any}; plot_name::Strin
 end
 
 """
-    plot_edges(lg, points, obstacles; plot_name, col, new_plot)
+    plot_edges(lg, points; plot_name, col, new_plot)
 
 Given a LabeledGraph, plots its nodes and edges in the unit square.
 """
-function plot_edges(lg::LabeledGraph{T}, points::Vector{Any}, obstacles; plot_name::String="Edges", col::String="colorful", new_plot::Bool=true, vertices::Dict{T,T}=Dict{T,T}()) where {T}
+function plot_edges(lg::LabeledGraph{T}, points::Vector{Any}; plot_name::String="Edges", col::String="colorful", new_plot::Bool=true, vertices::Dict{T,T}=Dict{T,T}()) where {T}
     if new_plot
         Plots.plot()
     end
@@ -914,19 +943,33 @@ function plot_intersections(field; vertices::Dict{T,T}=Dict{T,T}()) where {T}
     intersections, _, inside_quant = find_intersections(field)
 
     # Remove points inside obstacles
-    for i = 1:inside_quant
+    for _ = 1:inside_quant
         pop!(intersections)
     end
 
     if !isempty(vertices)
-        intersections = @pipe filter(v -> v in keys(vertices), 1:length(intersections)) |> intersections[_]
+        points_filtered = []
+        for v in keys(vertices)
+            push!(points_filtered, intersections[v])
+        end
+        x = map(point -> point.first, points_filtered)
+        y = map(point -> point.second, points_filtered)
+        Plots.scatter!(x,y, color="red", series_annotations=([Plots.text(string(x), :right, 8, "courier") for x in keys(vertices)]))
+    else
+        x = map(point -> point.first, intersections)
+        y = map(point -> point.second, intersections)
+        Plots.scatter!(x,y, color="red", series_annotations=([Plots.text(string(x), :right, 8, "courier") for x in 1:length(points)]))
     end
 
-    x = map(point -> point[1], intersections)
-    y = map(point -> point[2], intersections)
+    # if !isempty(vertices)
+    #     intersections = @pipe filter(v -> v in keys(vertices), 1:length(intersections)) |> intersections[_]
+    # end
 
-    # Plots.scatter!(x,y, color="red3", series_annotations=([Plots.text(string(x), :right, 8, "courier") for x in 1:length(x)]))
-    Plots.scatter!(x,y, color="red", series_annotations=([Plots.text(string(x), :right, 8, "courier") for x in 1:length(x)]))
+    # x = map(point -> point[1], intersections)
+    # y = map(point -> point[2], intersections)
+
+    # # Plots.scatter!(x,y, color="red3", series_annotations=([Plots.text(string(x), :right, 8, "courier") for x in 1:length(x)]))
+    # Plots.scatter!(x,y, color="red", series_annotations=([Plots.text(string(x), :right, 8, "courier") for x in 1:length(x)]))
 end
 
 """
@@ -934,7 +977,7 @@ end
 
 Plots and labels points given.
 """
-function plot_points(points::Vector{Any}; vertices::Dict{T,T}=Dict{T,T}()) where {T}
+function plot_points(points::Vector{Any}; vertices::Dict{Int,Int}=Dict{Int,Int}())
 
     if !isempty(vertices)
         points_filtered = []
@@ -950,15 +993,6 @@ function plot_points(points::Vector{Any}; vertices::Dict{T,T}=Dict{T,T}()) where
         Plots.scatter!(x,y, color="red", series_annotations=([Plots.text(string(x), :right, 8, "courier") for x in 1:length(points)]))
     end
 
-
-    # x = map(point -> point.first, points)
-    # y = map(point -> point.second, points)
-
-    # if !isempty(vertices)
-    #     Plots.scatter!(x,y, color="red", series_annotations=([Plots.text(string(x), :right, 8, "courier") for x in keys(vertices)]))
-    # else
-    #     Plots.scatter!(x,y, color="red", series_annotations=([Plots.text(string(x), :right, 8, "courier") for x in 1:length(points)]))
-    # end
 end
 
 """
@@ -968,9 +1002,9 @@ Generates a new obstacle course with n obstacles. If custom = true, obstacles wi
 created from an array containing the points for each obstacle. If save_image = true,
 the course will be plotted and saved to an image.
 """
-function plot_new(n::Int, name::String; custom::Bool=false, seed::Int=1, save_image::Bool=false)
+function plot_new(n::Int, name::String; custom::Bool=false, seed::Int=1, save_image::Bool=false, partition::String="CDT")
     if custom
-        # gen_field(num_obstacles::Int; custom::Bool=false, points_it::Set{Vector{T}}=Set{Vector{Rational}}(), seed::Int=1) where {T}
+        # obs = gen_field(num_obstacles::Int; custom::Bool=false, points_it::Set{Vector{T}}=Set{Vector{Rational}}(), seed::Int=1) where {T}
     else
         obs = gen_field(n, seed = seed)
     end
@@ -978,13 +1012,18 @@ function plot_new(n::Int, name::String; custom::Bool=false, seed::Int=1, save_im
     if save_image
         Plots.plot()
         plot_field(obs)
-        plot_lines(obs)
-        plot_borders()
-        plot_intersections(obs)
+        points = ClutteredEnvPathOpt.find_points(obs)
+        ClutteredEnvPathOpt.plot_points(points)
+        #plot_lines(obs)
+        #plot_borders()
+        #plot_intersections(obs)
         Plots.png(name)
         display(Plots.plot!(title="Field"))
     end
 
-    # return construct_graph(obs)
-    return construct_graph_delaunay(obs)
+    if partition == "CDT"
+        return construct_graph_delaunay(obs)
+    else
+        return construct_graph(obs)
+    end
 end
