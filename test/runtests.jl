@@ -384,9 +384,11 @@ using JuMP, Gurobi
 
 ####################################### Unofficial Tests ########################################
 
+# PUT ALL THIS IN A NEW DOCUMENT
+
 # Problem Data
-num_obs = 2;
-seed = 3;
+num_obs = 3;
+seed = 5;  # other seed was 3
 obstacles, points, g, obstacle_faces, free_faces = ClutteredEnvPathOpt.plot_new(num_obs, "Obstacles Seed $seed Num Obs $num_obs", seed = seed)
 skeleton = LabeledGraph(g)
 all_faces = union(obstacle_faces, free_faces)
@@ -396,7 +398,8 @@ plot(title="Obstacles");
 ClutteredEnvPathOpt.plot_field(obstacles)
 ClutteredEnvPathOpt.plot_lines(obstacles)
 ClutteredEnvPathOpt.plot_borders()
-ClutteredEnvPathOpt.plot_intersections(obstacles)
+# ClutteredEnvPathOpt.plot_intersections(obstacles)
+ClutteredEnvPathOpt.plot_points(points; vertices=skeleton.labels)
 png("Obstacles Seed $seed Num Obs $num_obs")
 display(plot!())
 
@@ -416,7 +419,7 @@ ClutteredEnvPathOpt.plot_faces(obstacle_faces, points, col = "dodgerblue", indiv
 ClutteredEnvPathOpt.plot_faces(free_faces, points, individually = true)
 
 # Plot edges
-ClutteredEnvPathOpt.plot_edges(skeleton, points, obstacles, plot_name = "Skeleton")
+ClutteredEnvPathOpt.plot_edges(skeleton, points, obstacles, plot_name = "Skeleton", vertices=skeleton.labels)
 png("Skeleton Seed $seed Num Obs $num_obs")
 
 # feg = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(all_faces))
@@ -424,7 +427,7 @@ png("Skeleton Seed $seed Num Obs $num_obs")
 # png("FEG Seed $seed Num Obs $num_obs")
 
 feg_S = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(free_faces))
-ClutteredEnvPathOpt.plot_edges(feg_S, points, obstacles, plot_name = "Finite Element Graph of S",col="black")
+ClutteredEnvPathOpt.plot_edges(feg_S, points, obstacles, plot_name = "Finite Element Graph of S",col="black", vertices=feg_S.labels)
 png("FEG of S Seed $seed Num Obs $num_obs")
 
 # feg_obs = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(obstacle_faces))
@@ -462,7 +465,7 @@ feg_free = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnv
 merged_cover = ClutteredEnvPathOpt.biclique_merger(cover, feg_free)
 (valid_cover, size_diff, missing_edges, missing_edges_lg) = ClutteredEnvPathOpt._is_valid_biclique_cover_diff(ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(free_faces)), merged_cover)
 
-ClutteredEnvPathOpt.plot_edges(missing_edges_lg, points, obstacles, plot_name = "Missing Edges")
+ClutteredEnvPathOpt.plot_edges(missing_edges_lg, points, obstacles, plot_name = "Missing Edges",vertices=missing_edges_lg.labels)
 png("Missing Edges Seed $seed Num Obs $num_obs Free")
 
 file_name = "Biclique Cover Debug Output Seed $seed Num Obs $num_obs Free Unedited.txt"
@@ -477,11 +480,11 @@ cover2 = ClutteredEnvPathOpt.find_biclique_cover_debug(skeleton, free_faces, poi
 feg_S_ac = ClutteredEnvPathOpt._find_finite_element_graph(skeleton_ac, ClutteredEnvPathOpt._find_face_pairs(faces_ac))
 ClutteredEnvPathOpt.plot_edges(feg_S_ac, points, obstacles, plot_name = "Finite Element Graph of S_ac",vertices=feg_S_ac.labels,col="black")
 # plot!(title="",axis=([], false))
-png("Ex FEG of S_ac Seed $seed Num Obs $num_obs")
+png("FEG of S_ac Seed $seed Num Obs $num_obs")
 feg_S_bc = ClutteredEnvPathOpt._find_finite_element_graph(skeleton_bc, ClutteredEnvPathOpt._find_face_pairs(faces_bc))
 ClutteredEnvPathOpt.plot_edges(feg_S_bc, points, obstacles, plot_name = "Finite Element Graph of S_bc", vertices=feg_S_bc.labels, col="black")
 # plot!(title="",axis=([], false))
-png("Ex FEG of S_bc Seed $seed Num Obs $num_obs")
+png("FEG of S_bc Seed $seed Num Obs $num_obs")
 
 # DON'T NEED TO ALL FACES COVER; JUST GIVING THE FREE FACES IS VALID
 # All Faces Cover
