@@ -7,4 +7,5 @@ include("types.jl")
 include("separator.jl")
 include("biclique.jl")
 include("obstacles.jl")
+include("plotting.jl")
 end # module
