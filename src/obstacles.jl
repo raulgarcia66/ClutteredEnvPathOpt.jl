@@ -1,10 +1,11 @@
 import LightGraphs
 import Polyhedra
 import GLPK
-import Plots
 import Random
 import Statistics
 import Triangulate
+# using Pipe
+# import Plots
 
 """
     gen_obstacle(max_side_len)
@@ -170,7 +171,7 @@ mapping each halfspace to the points of intersection that lie on it, sorted. Poi
 in the interior of obstacles are stored at the end of the array.
 """
 function find_intersections(obstacles)
-    res = []
+    res = Pair{Rational{Int64},Rational{Int64}}[]
     
     halfspaces = @pipe map(obstacle -> Polyhedra.hrep(obstacle).halfspaces, obstacles) |> Iterators.flatten(_) |> collect(_)
     unique!(halfspaces)
@@ -198,9 +199,9 @@ function find_intersections(obstacles)
         end
     end
 
-    points = fill([], length(lines))    # For storing the points on each halfspace
+    points = fill(Pair{Rational{Int64},Rational{Int64}}[], length(lines))    # For storing the points on each halfspace
     for i = 1:length(lines)
-        points[i] = []
+        points[i] = Pair{Rational{Int64},Rational{Int64}}[]
     end
 
     # Function for determining if a point should be considered a duplicate of another. If so, the index
@@ -216,7 +217,8 @@ function find_intersections(obstacles)
     end
     
     tol = Rational(1.e-13)
-    x_vert = Dict([]) # keys are the indices in "lines"
+    # keys are the indices in "lines"
+    x_vert = Dict([])
     y_hor = Dict([]) 
     for i = 1:length(lines)     
         for j = (i + 1):length(lines)
@@ -306,7 +308,7 @@ function find_intersections(obstacles)
     end, 1:length(points_vec))
 
     # Move inside vertices to the end of the points vector, so that they may be removed from the points
-    # vector and the lightgraph graph without altering the vertex labels and edges remaining. 
+    # vector and the lightgraph graph without altering the vertex labels and the edges remaining. 
     # Removal does not occur here.
     for i = 1:(length(inside_indices))
         temp = points_vec[inside_indices[i]]
@@ -323,14 +325,16 @@ end
 """
     find_points(obs)
 Compute the points corresponding to obstacle extreme points and the four corners
-of the unit square.
+of the unit square. Returns the points, and possibly the obstacle face vertices and edges.
+Function assumes obstacles have rational data.
 """
-function find_points(obs)
-    obstacle_faces = []   # Store obstacle face vertices (should be ordered)
-    points = []   # Store points as Vector of Pairs
+function find_points(obs; with_faces::Bool=false)
+    S = Vector{Int64}[]   # Store segments
+    obstacle_faces = Vector{Int64}[]   # Store obstacle face vertices (should be ordered)
+    points = Pair{Rational{Int64},Rational{Int64}}[]   # Store points as Vector of Pairs
     vertex_num = 0
     for ob in obs
-        vertices_in_ob = []
+        vertices_in_ob = Int64[]
         iter = Polyhedra.points(ob)
         # Store x and y coordinates in points
         for point in iter
@@ -339,13 +343,34 @@ function find_points(obs)
             push!(vertices_in_ob, vertex_num)
         end
 
+        # Push edges of obstacle boundary (assumes they're in order) 
+        if with_faces
+            for i = 1:(length(vertices_in_ob)-1)
+                push!(S, [vertices_in_ob[i] ; vertices_in_ob[i+1]])
+            end
+            push!(S, [vertices_in_ob[end] ; vertices_in_ob[1]])
+        end
+
         push!(obstacle_faces, vertices_in_ob)
     end
 
     points = [points; 0//1 => 0//1 ; 0//1 => 1//1; 1//1 => 1//1; 1//1 => 0//1]
-    # unique!(points)   # Code above relies on the points being unique
+    # TODO: Function relies on the points being unique
+    # unique!(points)
 
-    return points
+    if with_faces
+        # Add boundary segments
+        num_points = length(points)
+        for i = (num_points-3):(num_points-1)
+            push!(S, [i ; i+1])
+        end
+        push!(S, [num_points ; num_points-3])
+
+        return points, obstacle_faces, S
+    else 
+        return points
+    end
+
 end
 
 """
@@ -366,7 +391,7 @@ function construct_graph(obs)
     # Create lightgraph
     graph = ClutteredEnvPathOpt._gen_graph(neighbors)
 
-    # TODO: Tolerances issues due to approximating an irrational with a rational
+    # TODO: Angles become floats once campared with the irrational pi
     # angles[i,j] is the angle point j makes with point i
     angles = fill(Rational(Inf), length(points), length(points))
     for i in 1:length(points)
@@ -504,7 +529,7 @@ function construct_graph(obs)
 
 
     # Swap obstacle (sub)faces with whole faces, then remove inside nodes and inside edges
-    # CHAD SUBSET APPROACH
+    # Chad Subset Approach
 
     # Remove inside vertices
     if inside_quant > 0
@@ -662,6 +687,62 @@ function construct_graph(obs)
 end
 
 """
+    _find_neighbors(points, mapped)
+
+Given a list of points and an association of halfspace lines to points that lie
+on the line, return an array where res[i] <- the neighbors of node i.
+"""
+function _find_neighbors(points::Vector{Pair{Rational{Int64},Rational{Int64}}}, mapped::Vector{Vector{Pair{Rational{Int64},Rational{Int64}}}})::Vector{Vector{Int64}}
+    # This function should only be used in construct_graph(), before "inside" points are removed
+    neighbors = Dict()
+
+    for point in points
+        neighbors[point] = Pair{Rational{Int64},Rational{Int64}}[]
+
+        for colinear in mapped
+            if in(point, colinear)
+                index = findfirst(p -> p == point, colinear)
+                # Do not push the same point more than once
+                if index - 1 > 0 && !(colinear[index - 1] in neighbors[point])
+                    push!(neighbors[point], colinear[index - 1])
+                end
+
+                if index + 1 <= length(colinear) && !(colinear[index + 1] in neighbors[point])
+                    push!(neighbors[point], colinear[index + 1])
+                end
+            end
+        end
+    end
+
+    # Res will contain the neighbors by their node label
+    res = fill(Int64[], length(points))
+    for i in 1:length(res)
+        res[i] = map(point -> findfirst(p -> p == point, points), neighbors[points[i]])
+    end
+
+    return res
+end
+
+"""
+    _gen_graph(neighbors)
+
+Given an array where res[i] <- the neighbors of node i, return the
+corresponding lightgraph.
+"""
+function _gen_graph(neighbors)    
+    res = LightGraphs.SimpleGraph(length(neighbors))
+
+    for i in 1:length(neighbors)
+        for j in 1:length(neighbors[i])
+            LightGraphs.add_edge!(res, i => neighbors[i][j])
+        end
+    end
+
+    return res
+end
+
+
+"""
     construct_graph_delaunay(obs)
 
 Generate the constrained Delaunay triangulation partition of the free space.
@@ -671,37 +752,39 @@ the graph, a set of every face of obstacle space, and a set of every face of fre
 """
 function construct_graph_delaunay(obs)
 
-    S = []   # Store segments
-    obstacle_faces = []   # Store obstacle face vertices (should be ordered)
-    points = []   # Store points as Vector of Pairs
-    vertex_num = 0
-    for ob in obs
-        vertices_in_ob = []
-        iter = Polyhedra.points(ob)
-        # Store x and y coordinates in points
-        for point in iter
-            push!(points, point[1] => point[2])
-            vertex_num += 1
-            push!(vertices_in_ob, vertex_num)
-        end
-        # Push edges of obstacle boundary (assumes they're in order) 
-        for i = 1:(length(vertices_in_ob)-1)
-            push!(S, [vertices_in_ob[i] ; vertices_in_ob[i+1]])
-        end
-        push!(S, [vertices_in_ob[end] ; vertices_in_ob[1]])
+    # S = []   # Store segments
+    # obstacle_faces = []   # Store obstacle face vertices (should be ordered)
+    # points = []   # Store points as Vector of Pairs
+    # vertex_num = 0
+    # for ob in obs
+    #     vertices_in_ob = []
+    #     iter = Polyhedra.points(ob)
+    #     # Store x and y coordinates in points
+    #     for point in iter
+    #         push!(points, point[1] => point[2])
+    #         vertex_num += 1
+    #         push!(vertices_in_ob, vertex_num)
+    #     end
+    #     # Push edges of obstacle boundary (assumes they're in order) 
+    #     for i = 1:(length(vertices_in_ob)-1)
+    #         push!(S, [vertices_in_ob[i] ; vertices_in_ob[i+1]])
+    #     end
+    #     push!(S, [vertices_in_ob[end] ; vertices_in_ob[1]])
 
-        push!(obstacle_faces, vertices_in_ob)
-    end
+    #     push!(obstacle_faces, vertices_in_ob)
+    # end
 
-    points = [points; 0//1 => 0//1 ; 0//1 => 1//1; 1//1 => 1//1; 1//1 => 0//1]
+    # points = [points; 0//1 => 0//1 ; 0//1 => 1//1; 1//1 => 1//1; 1//1 => 0//1]
     # unique!(points)   # Code above relies on the points being unique
 
-    # Add boundary segments
-    num_points = length(points)
-    for i = (num_points-3):(num_points-1)
-        push!(S, [i ; i+1])
-    end
-    push!(S, [num_points ; num_points-3])
+    # # Add boundary segments
+    # num_points = length(points)
+    # for i = (num_points-3):(num_points-1)
+    #     push!(S, [i ; i+1])
+    # end
+    # push!(S, [num_points ; num_points-3])
+
+    points, obstacle_faces, S = ClutteredEnvPathOpt.find_points(obs; with_faces=true)
 
     # Initialize triangulate structure
     triin = Triangulate.TriangulateIO()
@@ -731,7 +814,7 @@ function construct_graph_delaunay(obs)
     end
     triin.holelist = Matrix{Cdouble}(hole_center)
 
-    # Computed CDT
+    # Compute CDT
     (triout, _) = Triangulate.triangulate("pQ", triin)
 
     triangles = Matrix{Int64}(triout.trianglelist)   # matrix with 3 rows
@@ -739,12 +822,13 @@ function construct_graph_delaunay(obs)
 
     # Create graph
     graph = LightGraphs.SimpleGraph(length(points))
-    # Add edges
+    # Add edges; Use output matrix of edges instead?
     for j = 1:size(triangles,2)
         LightGraphs.add_edge!(graph, triangles[1,j] => triangles[2,j])
         LightGraphs.add_edge!(graph, triangles[1,j] => triangles[3,j])
         LightGraphs.add_edge!(graph, triangles[2,j] => triangles[3,j])
     end
+
     # Store free faces as vectors (utilizing holes, all triangles are free faces)
     free_faces = []
     for j = 1:size(triangles,2)
@@ -754,291 +838,4 @@ function construct_graph_delaunay(obs)
     # TODO: Face merging
 
     return (obs, points, graph, Set(map(face -> face, obstacle_faces)), Set(map(f -> reverse(f), free_faces)))
-end
-
-"""
-    _find_neighbors(points, mapped)
-
-Given a list of points and an association of halfspace lines to points that lie
-on the line, return an array where res[i] <- the neighbors of node i.
-"""
-function _find_neighbors(points::Vector{Any}, mapped::Vector{Vector{Any}})::Vector{Vector{Any}}
-    # This function should only be used in construct_graph(), before "inside" points are removed
-    neighbors = Dict()
-
-    for point in points
-        neighbors[point] = []
-
-        for colinear in mapped
-            if in(point, colinear)
-                index = findfirst(p -> p == point, colinear)
-                # Do not push the same point more than once
-                if index - 1 > 0 && !(colinear[index - 1] in neighbors[point])
-                    push!(neighbors[point], colinear[index - 1])
-                end
-
-                if index + 1 <= length(colinear) && !(colinear[index + 1] in neighbors[point])
-                    push!(neighbors[point], colinear[index + 1])
-                end
-            end
-        end
-    end
-
-    # Res will contain the neighbors by their node label
-    res = fill([], length(points))
-    for i in 1:length(res)
-        res[i] = map(point -> findfirst(p -> p == point, points), neighbors[points[i]])
-    end
-
-    return res
-end
-
-"""
-    _gen_graph(neighbors)
-
-Given an array where res[i] <- the neighbors of node i, return the
-corresponding lightgraph.
-"""
-function _gen_graph(neighbors)    
-    res = LightGraphs.SimpleGraph(length(neighbors))
-
-    for i in 1:length(neighbors)
-        for j in 1:length(neighbors[i])
-            LightGraphs.add_edge!(res, i => neighbors[i][j])
-        end
-    end
-
-    return res
-end
-
-"""
-    plot_faces(faces, points; plot_name, col, new_plot, individually)
-
-Given a set of vectors corresponding to faces of a planar graph, plots the faces in the unit square.
-"""
-function plot_faces(faces::Set{Vector{T}}, points::Vector{Any}; plot_name::String="Faces", col::String="green3", new_plot::Bool=true, individually::Bool=false) where {T}
-    if new_plot && !individually
-        Plots.plot()
-    end
-
-    for (j,face) in enumerate(faces)
-        v = Polyhedra.convexhull(map(i -> collect(points[i]), face)...)
-        x_locations = map(i -> points[i].first, face)
-        y_locations = map(i -> points[i].second, face)
-
-        # avg_x = Statistics.mean(x_locations)
-        # avg_y = Statistics.mean(y_locations)
-
-        polygon = Polyhedra.polyhedron(
-            v,
-            Polyhedra.DefaultLibrary{Rational{Int64}}(GLPK.Optimizer)
-        )
-
-        if individually
-            # Plot each face on a separate plot with node labels
-            Plots.plot(polygon, color=col, alpha=0.9)
-            Plots.plot!(x_locations, y_locations, series_annotations=([Plots.text(string(x), :center, 8, "courier") for x in face]))
-            display(Plots.plot!(xlims=(-0.05,1.05), ylims=(-0.05,1.05), title="Face $j: $face"))
-        else
-            # Accumulate the faces on the same plot
-            Plots.plot!(polygon, color=col, alpha=0.9)
-            # Plots.plot!([avg_x], [avg_y], series_annotations=([Plots.text("$j", :center, 8, "courier")]))
-            # display(Plots.plot!(polygon, title="Free Face # $j", xlims=(-0.05,1.05), ylims=(-0.05,1.05)))
-        end
-    end
-
-    if !individually
-        display(Plots.plot!(title=plot_name, xlims=(-0.05,1.05), ylims=(-0.05,1.05)))
-    end
-end
-
-"""
-    plot_edges(lg, points; plot_name, col, new_plot)
-
-Given a LabeledGraph, plots its nodes and edges in the unit square.
-"""
-function plot_edges(lg::LabeledGraph{T}, points::Vector{Any}; plot_name::String="Edges", col::String="colorful", new_plot::Bool=true, vertices::Dict{T,T}=Dict{T,T}()) where {T}
-    if new_plot
-        Plots.plot()
-    end
-
-    # Need to map nodes to the point they refer to in "points"
-    rev = ClutteredEnvPathOpt._reverse_labels(lg.labels)
-    for edge in LightGraphs.edges(lg.graph)
-        if col == "colorful"
-            Plots.plot!([points[rev[edge.src]].first, points[rev[edge.dst]].first], [points[rev[edge.src]].second, points[rev[edge.dst]].second],linewidth=2)
-            # display(Plots.plot!(title="Edge ($(rev[edge.src]), $(rev[edge.dst]))"))
-        else
-            Plots.plot!([points[rev[edge.src]].first, points[rev[edge.dst]].first], [points[rev[edge.src]].second, points[rev[edge.dst]].second], color=col,linewidth=2)
-            # display(Plots.plot!(title="Edge ($(rev[edge.src]), $(rev[edge.dst]))"))
-        end
-    end
-
-    # ClutteredEnvPathOpt.plot_intersections(obstacles, vertices=vertices)
-    ClutteredEnvPathOpt.plot_points(points, vertices=vertices)
-
-    display(Plots.plot!(title=plot_name, xlims=(-0.05,1.05), ylims=(-0.05,1.05), legend=false))
-end
-
-"""
-    plot_field(field)
-
-Plots the obstacles to the existing active plot.
-"""
-function plot_field(field)
-    for i = 1:length(field)
-        Plots.plot!(field[i], xlims = (-0.05,1.05), ylim = (-0.05, 1.05))
-    end
-end
-
-"""
-    plot_lines(field)
-
-Plots the lines that make up the obstacles' halfspaces to the existing active
-plot.
-"""
-function plot_lines(field)
-    halfspaces = @pipe map(obstacle -> Polyhedra.hrep(obstacle).halfspaces, field) |> Iterators.flatten(_) |> collect(_)
-    unique!(halfspaces)
-
-    for h in halfspaces
-        if abs(h.a[2]) != 0//1
-            f = x -> (h.β - h.a[1] * x) // h.a[2]
-
-            x = LinRange(0//1, 1//1, 11)
-            y = map(f, x)
-        else  # vertical lines
-            x = fill(abs(h.β // h.a[1]), 11)
-            y = LinRange(0//1, 1//1, 11)
-        end
-
-        Plots.plot!(x, y)
-    end
-end
-
-"""
-    plot_borders()
-
-Plots the lines that make up the unit square's borders to the existing active
-plot.
-"""
-function plot_borders()
-    halfspaces = [
-        Polyhedra.HalfSpace([-1//1, 0//1], 0//1),
-        Polyhedra.HalfSpace([1//1, 0//1], 1//1),
-        Polyhedra.HalfSpace([0//1, -1//1], 0//1),
-        Polyhedra.HalfSpace([0//1, 1//1], 1//1)
-    ]
-
-    for h in halfspaces
-        if abs(h.a[2]) != 0//1
-            f = x -> (h.β - h.a[1] * x) // h.a[2]
-
-            x = LinRange(0//1, 1//1, 11)
-            y = map(f, x)
-        else  # vertical lines
-            x = fill(abs(h.β // h.a[1]), 11)
-            y = LinRange(0//1, 1//1, 11)
-        end
-
-        Plots.plot!(x, y)
-    end
-end
-
-"""
-    plot_intersections(field)
-
-Plots and labels the points where the lines that make up the obstacles'
-halfspaces intersect to the existing active plot.
-"""
-function plot_intersections(field; vertices::Dict{T,T}=Dict{T,T}()) where {T}
-    intersections, _, inside_quant = find_intersections(field)
-
-    # Remove points inside obstacles
-    for _ = 1:inside_quant
-        pop!(intersections)
-    end
-
-    if !isempty(vertices)
-        points_filtered = []
-        for v in keys(vertices)
-            push!(points_filtered, intersections[v])
-        end
-        x = map(point -> point.first, points_filtered)
-        y = map(point -> point.second, points_filtered)
-        Plots.scatter!(x,y, color="red", series_annotations=([Plots.text(string(x), :right, 8, "courier") for x in keys(vertices)]))
-    else
-        x = map(point -> point.first, intersections)
-        y = map(point -> point.second, intersections)
-        Plots.scatter!(x,y, color="red", series_annotations=([Plots.text(string(x), :right, 8, "courier") for x in 1:length(points)]))
-    end
-
-    # TODO: Delete this once certain it works
-    # if !isempty(vertices)
-    #     intersections = @pipe filter(v -> v in keys(vertices), 1:length(intersections)) |> intersections[_]
-    # end
-
-    # x = map(point -> point[1], intersections)
-    # y = map(point -> point[2], intersections)
-
-    # # Plots.scatter!(x,y, color="red3", series_annotations=([Plots.text(string(x), :right, 8, "courier") for x in 1:length(x)]))
-    # Plots.scatter!(x,y, color="red", series_annotations=([Plots.text(string(x), :right, 8, "courier") for x in 1:length(x)]))
-end
-
-"""
-    plot_points(points; vertices)
-
-Plots and labels points given.
-"""
-function plot_points(points::Vector{Any}; vertices::Dict{Int,Int}=Dict{Int,Int}())
-    
-    Plots.plot!(legend=false)
-
-    if !isempty(vertices)
-        points_filtered = []
-        for v in keys(vertices)
-            push!(points_filtered, points[v])
-        end
-        x = map(point -> point.first, points_filtered)
-        y = map(point -> point.second, points_filtered)
-        Plots.scatter!(x,y, color="red", series_annotations=([Plots.text(string(x), :right, 8, "courier") for x in keys(vertices)]))
-    else
-        x = map(point -> point.first, points)
-        y = map(point -> point.second, points)
-        Plots.scatter!(x,y, color="red", series_annotations=([Plots.text(string(x), :right, 8, "courier") for x in 1:length(points)]))
-    end
-
-end
-
-"""
-    plot_new(n, name; custom, seed, save_image)
-
-Generates a new obstacle course with n obstacles. If custom = true, obstacles will be
-created from an array containing the points for each obstacle. If save_image = true,
-the course will be plotted and saved to an image.
-"""
-function plot_new(n::Int, name::String; custom::Bool=false, seed::Int=1, save_image::Bool=false, partition::String="CDT")
-    if custom
-        # obs = gen_field(num_obstacles::Int; custom::Bool=false, points_it::Set{Vector{T}}=Set{Vector{Rational}}(), seed::Int=1) where {T}
-    else
-        obs = gen_field(n, seed = seed)
-    end
-
-    if save_image
-        Plots.plot()
-        plot_field(obs)
-        points = ClutteredEnvPathOpt.find_points(obs)
-        ClutteredEnvPathOpt.plot_points(points)
-        #plot_lines(obs)
-        #plot_borders()
-        #plot_intersections(obs)
-        Plots.png(name)
-        display(Plots.plot!(title="Field"))
-    end
-
-    if partition == "CDT"
-        return construct_graph_delaunay(obs)
-    else
-        return construct_graph(obs)
-    end
 end
