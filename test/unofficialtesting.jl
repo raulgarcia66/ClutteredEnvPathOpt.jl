@@ -6,15 +6,15 @@ using Plots
 using JuMP
 using Gurobi
 
-################################# solve_deits ########################################
+################################### solve_deits ########################################
 # Create obstacles
 num_obs = 3;
 seed = 10;
 obstacles = ClutteredEnvPathOpt.gen_field(num_obs, seed = seed)
 plot();
 ClutteredEnvPathOpt.plot_field(obstacles)
-# points = ClutteredEnvPathOpt.find_points(obstacles)
-# ClutteredEnvPathOpt.plot_points(points)
+points = ClutteredEnvPathOpt.find_points(obstacles)
+ClutteredEnvPathOpt.plot_points(points)
 display(plot!())
 
 # Set parameters
@@ -115,11 +115,11 @@ plot_circles(x3, y3, θ3)
 
 ######################################################################################
 
-num_obs = 4;
-seed = 3;
+num_obs = 3;
+seed = 5;
 obstacles, points, g, obstacle_faces, free_faces = ClutteredEnvPathOpt.plot_new(num_obs, "Obstacles Seed $seed Num Obs $num_obs", seed = seed)
 skeleton = LabeledGraph(g)
-all_faces = union(obstacle_faces, free_faces)
+all_faces = Set{Vector{Int64}}(union(obstacle_faces, free_faces))
 
 # Plot obstacles
 plot(title="Obstacles");
@@ -129,7 +129,7 @@ ClutteredEnvPathOpt.plot_points(points, vertices=skeleton.labels)
 # ClutteredEnvPathOpt.plot_lines(obstacles)
 # ClutteredEnvPathOpt.plot_borders()
 # ClutteredEnvPathOpt.plot_intersections(obstacles);
-png("Obstacles Seed $seed Num Obs $num_obs")
+png("DT Obstacles Seed $seed Num Obs $num_obs")
 display(plot!())
 
 # Plot faces
@@ -137,11 +137,11 @@ ClutteredEnvPathOpt.plot_faces(obstacle_faces, points, plot_name = "Obstacle Fac
 png("Obstacle Faces Seed $seed Num Obs $num_obs")
 
 ClutteredEnvPathOpt.plot_faces(free_faces, points, plot_name = "Free Faces")
-png("Free Faces Seed $seed Num Obs $num_obs")
+png("DT Free Faces Seed $seed Num Obs $num_obs")
 
 ClutteredEnvPathOpt.plot_faces(obstacle_faces, points, plot_name = "All Faces", col = "red")
-ClutteredEnvPathOpt.plot_faces(free_faces, points, plot_name = "All Faces", col = "green", new_plot = false)
-png("All Faces Seed $seed Num Obs $num_obs")
+ClutteredEnvPathOpt.plot_faces(free_faces, points, plot_name = "All Faces", new_plot = false)
+png("DT All Faces Seed $seed Num Obs $num_obs")
 
 # Plot faces individually
 ClutteredEnvPathOpt.plot_faces(obstacle_faces, points, col = "dodgerblue", individually = true)
@@ -149,19 +149,19 @@ ClutteredEnvPathOpt.plot_faces(free_faces, points, individually = true)
 
 # Plot edges
 ClutteredEnvPathOpt.plot_edges(skeleton, points, plot_name = "Skeleton", vertices=skeleton.labels)
-png("Skeleton Seed $seed Num Obs $num_obs")
+png("DT Skeleton Seed $seed Num Obs $num_obs")
 
 feg_S = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(free_faces))
 ClutteredEnvPathOpt.plot_edges(feg_S, points, plot_name = "Finite Element Graph of S",col="black", vertices=feg_S.labels)
-png("FEG of S Seed $seed Num Obs $num_obs")
+png("DT FEG of S Seed $seed Num Obs $num_obs")
 
-# feg_obs = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(obstacle_faces))
-# ClutteredEnvPathOpt.plot_edges(feg_obs, points, plot_name = "Finite Element Graph Obstacle Faces")
-# png("FEG Obstacles Seed $seed Num Obs $num_obs")
+feg_obs = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(obstacle_faces))
+ClutteredEnvPathOpt.plot_edges(feg_obs, points, plot_name = "Finite Element Graph Obstacle Faces")
+png("DT FEG Obstacles Seed $seed Num Obs $num_obs")
 
-# feg_all = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(all_faces))
-# ClutteredEnvPathOpt.plot_edges(feg_all, points, plot_name = "Finite Element Graph")
-# png("FEG All Seed $seed Num Obs $num_obs")
+feg_all = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(all_faces))
+ClutteredEnvPathOpt.plot_edges(feg_all, points, plot_name = "Finite Element Graph")
+png("DT FEG All Seed $seed Num Obs $num_obs")
 
 
 
@@ -211,11 +211,11 @@ png("Missing Edges Seed $seed Num Obs $num_obs Free")
 feg_S_ac = ClutteredEnvPathOpt._find_finite_element_graph(skeleton_ac, ClutteredEnvPathOpt._find_face_pairs(faces_ac))
 ClutteredEnvPathOpt.plot_edges(feg_S_ac, points, plot_name = "Finite Element Graph of S_ac",vertices=feg_S_ac.labels,col="black")
 # plot!(title="",axis=([], false))
-png("FEG of S_ac Seed $seed Num Obs $num_obs")
+png("DT FEG of S_ac Seed $seed Num Obs $num_obs")
 feg_S_bc = ClutteredEnvPathOpt._find_finite_element_graph(skeleton_bc, ClutteredEnvPathOpt._find_face_pairs(faces_bc))
 ClutteredEnvPathOpt.plot_edges(feg_S_bc, points, plot_name = "Finite Element Graph of S_bc", vertices=feg_S_bc.labels, col="black")
 # plot!(title="",axis=([], false))
-png("FEG of S_bc Seed $seed Num Obs $num_obs")
+png("DT FEG of S_bc Seed $seed Num Obs $num_obs")
 
 
 
