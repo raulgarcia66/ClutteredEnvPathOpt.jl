@@ -1,3 +1,5 @@
+import Plots
+
 """
     find_biclique_cover(skeleton, faces)
 
@@ -55,7 +57,7 @@ end
 Same as find_biclique_cover, with the added features of plotting the new skeletons and
 recording separator information at each call.
 """
-function find_biclique_cover_debug(skeleton::LabeledGraph{T}, faces::Set{Vector{T}}, points::Vector{Any}, obstacles, file_name)::Set{Pair{Set{T}, Set{T}}} where {T}
+function find_biclique_cover_debug(skeleton::LabeledGraph{T}, faces::Set{Vector{T}}, points::Vector{Pair{Rational{Int64},Rational{Int64}}}, obstacles, file_name)::Set{Pair{Set{T}, Set{T}}} where {T}
     ClutteredEnvPathOpt.plot_edges(skeleton, points)
     f = open(file_name, "a")
     for (i,face) in enumerate(faces)
@@ -609,7 +611,7 @@ end
     _find_feg_separator_lt_no_empty_visual(skeleton, face_pairs, locations)
 Finds (C, A, B) and plots the edges found between A and B.
 """
-function _find_feg_separator_lt_no_empty_visual(skeleton::LabeledGraph{T}, face_pairs::Set{Set{Pair{T, T}}}, points::Vector{Any})::Tuple{Set{T}, Set{T}, Set{T}} where {T}
+function _find_feg_separator_lt_no_empty_visual(skeleton::LabeledGraph{T}, face_pairs::Set{Set{Pair{T, T}}}, points::Vector{Pair{Rational{Int64},Rational{Int64}}})::Tuple{Set{T}, Set{T}, Set{T}} where {T}
     (C,A,B) = _find_feg_separator_lt_no_empty(skeleton, face_pairs)
 
     if isempty(A) || isempty(B)
@@ -644,7 +646,7 @@ end
     _find_biclique_cover_visual(skeleton, faces, locations)
 Finds a biclique cover and plots the edges of each biclique.
 """
-function _find_biclique_cover_visual(skeleton::LabeledGraph{T}, faces::Set{Vector{T}}, points::Vector{Any})::Set{Pair{Set{T}, Set{T}}} where {T}
+function _find_biclique_cover_visual(skeleton::LabeledGraph{T}, faces::Set{Vector{T}}, points::Vector{Pair{Rational{Int64},Rational{Int64}}})::Set{Pair{Set{T}, Set{T}}} where {T}
     face_pairs = _find_face_pairs(faces)
     feg = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, face_pairs)
 
