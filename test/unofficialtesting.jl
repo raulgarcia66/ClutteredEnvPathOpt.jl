@@ -197,7 +197,7 @@ merged_cover = ClutteredEnvPathOpt.biclique_merger(cover, feg_free)
 (valid_cover, size_diff, missing_edges, missing_edges_lg) = ClutteredEnvPathOpt._is_valid_biclique_cover_diff(ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(free_faces)), merged_cover)
 
 ClutteredEnvPathOpt.plot_edges(missing_edges_lg, points, plot_name = "Missing Edges",vertices=missing_edges_lg.labels)
-png("Missing Edges Seed $seed Num Obs $num_obs Free")
+png("DT Missing Edges Seed $seed Num Obs $num_obs Free")
 
 # file_name = "Biclique Cover Debug Output Seed $seed Num Obs $num_obs Free Unedited.txt"
 # f = open(file_name, "w")
@@ -222,43 +222,75 @@ png("DT FEG of S_bc Seed $seed Num Obs $num_obs")
 # Biclique Cover Validity Tests-----------------------------------------------------------------------
 seed_range = 1:100
 num_obs_range = 1:4
-# fails, tuples = biclique_cover_validity_tests(seed_range, num_obs_range, faces = "all")
-fails, tuples = biclique_cover_validity_tests(seed_range, num_obs_range, faces = "free", with_plots=true)
+partition = "CDT"
+# fail_tuples = biclique_cover_validity_tests(seed_range, num_obs_range, faces = "all", partition=partition)
+fail_tuples = biclique_cover_validity_tests(seed_range, num_obs_range, faces = "free", with_plots=true, partition=partition)
 
-percent_decreases, tuples, c_sizes, mc_sizes = biclique_cover_merger_stats(seed_range, num_obs_range)
-percent_decreases_hp, tuples_hp, c_sizes_hp, mc_sizes_hp = biclique_cover_merger_stats(seed_range, num_obs_range, file_name="Biclique Cover Merging Stats HP Partition.txt", partition="hp")
-size_diff_cover = c_sizes_hp - c_sizes
-size_diff_merged_cover = mc_sizes_hp - mc_sizes
+file_name = "Biclique Cover Merging Stats Partition $partition.txt"
+file_name_dt = "Biclique Cover Merging Stats Partition DT.txt"
+file_name_hp = "Biclique Cover Merging Stats Partition HP.txt"
+percent_decreases_dt, tuples_dt, c_sizes_dt, mc_sizes_dt, num_free_faces_dt = biclique_cover_merger_stats(seed_range, num_obs_range, file_name=file_name_dt, partition="CDT")
+percent_decreases_hp, tuples_hp, c_sizes_hp, mc_sizes_hp, num_free_faces_hp = biclique_cover_merger_stats(seed_range, num_obs_range, file_name=file_name_hp, partition="HP")
+size_diff_cover = c_sizes_hp - c_sizes_dt
+size_diff_merged_cover = mc_sizes_hp - mc_sizes_dt
+size_diff_free_faces = num_free_faces_hp - num_free_faces_dt
+
+maximum(size_diff_free_faces) # 68
+minimum(size_diff_free_faces) # 0
+Statistics.mean(size_diff_free_faces) # 17.79
+count(t-> t > 0, size_diff_free_faces) # 373
+count(t-> t < 0, size_diff_free_faces) # 0
+count(t-> t == 0, size_diff_free_faces) # 27
+
+maximum(size_diff_merged_cover) # 16
+minimum(size_diff_merged_cover) # -1
+Statistics.mean(size_diff_merged_cover) # 4.975
+count(t-> t > 0, size_diff_merged_cover) # 353
+count(t-> t < 0, size_diff_merged_cover) # 9
+count(t-> t == 0, size_diff_merged_cover) # 38
+
+
+# TODO: Add number of points, ratio (percentage) of num_free_faces for HP vs DT
+# file_name = "Biclique Cover Merging and Free Faces Comparison.txt"
+# f = open(file_name, "w")
+# write(f, "Title\n")
+# write(f, "Header1\tHeader2\n")
+for i = 1:length(percent_decreases_dt)
+    # percent decreases etc
+    write()
+end
+# flush(f)
+# close(f)
 
 # TODO: WRITE STATS TO FILE
 
 # Biclique validity tester function
-function biclique_cover_validity_tests(seed_range, num_obs_range; faces::String="free", with_plots::Bool=false)
-    fails = 0
+function biclique_cover_validity_tests(seed_range, num_obs_range; faces::String="free", with_plots::Bool=false,partition="CDT")
+    # fails = 0
     tuples = []
     for seed = seed_range
         for num_obs = num_obs_range
             println("On test Seed = $seed, Num_Obs = $num_obs")
-            obstacles, points, g, obstacle_faces, free_faces = ClutteredEnvPathOpt.plot_new(num_obs,"Obstacles Seed $seed Num Obs $num_obs",seed=seed); # optional seed argument, default is 11
+            obstacles, points, g, obstacle_faces, free_faces = ClutteredEnvPathOpt.plot_new(num_obs,"Obstacles Seed $seed Num Obs $num_obs",seed=seed, partition=partition)
             skeleton = LabeledGraph(g)
-            all_faces = union(obstacle_faces, free_faces)
+            all_faces = Set{Vector{Int64}}(union(obstacle_faces, free_faces))
             if faces == "all"
                 cover = ClutteredEnvPathOpt.find_biclique_cover(skeleton, all_faces);
                 feg = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(all_faces));
                 merged_cover = ClutteredEnvPathOpt.biclique_merger(cover, feg)
                 # (valid_cov, size_diff, miss_edges, miss_edges_lg) = ClutteredEnvPathOpt._is_valid_biclique_cover_diff(feg, cover);
                 (valid_cov, size_diff, miss_edges, miss_edges_lg) = ClutteredEnvPathOpt._is_valid_biclique_cover_diff(feg, merged_cover);
-                println("Difference: $(length(cover)-length(merged_cover)) | Merged: $(length(merged_cover)) | Original: $(length(cover))")
+                # println("Difference: $(length(cover)-length(merged_cover)) | Merged: $(length(merged_cover)) | Original: $(length(cover))")
             else
                 cover = ClutteredEnvPathOpt.find_biclique_cover(skeleton, free_faces);
                 feg = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(free_faces));
                 merged_cover = ClutteredEnvPathOpt.biclique_merger(cover, feg)
                 # (valid_cov, size_diff, miss_edges, miss_edges_lg) = ClutteredEnvPathOpt._is_valid_biclique_cover_diff(feg, cover);
                 (valid_cov, size_diff, miss_edges, miss_edges_lg) = ClutteredEnvPathOpt._is_valid_biclique_cover_diff(feg, merged_cover);
-                println("Difference: $(length(cover)-length(merged_cover)) | Merged: $(length(merged_cover)) | Original: $(length(cover))")
+                # println("Difference: $(length(cover)-length(merged_cover)) | Merged: $(length(merged_cover)) | Original: $(length(cover))")
             end
             if size_diff != 0
-                fails += 1
+                # fails += 1
                 push!(tuples, (seed, num_obs))
                 println("Test Failed")
 
@@ -271,27 +303,27 @@ function biclique_cover_validity_tests(seed_range, num_obs_range; faces::String=
                     # ClutteredEnvPathOpt.plot_borders()
                     # ClutteredEnvPathOpt.plot_intersections(obstacles);
                     display(plot!())
-                    png("Obstacles Seed $seed Num Obs $num_obs")
+                    png("$partition Obstacles Seed $seed Num Obs $num_obs")
 
                     ClutteredEnvPathOpt.plot_faces(free_faces, points, plot_name = "Free Faces")
-                    png("Free Faces Seed $seed Num Obs $num_obs")
+                    png("$partition Free Faces Seed $seed Num Obs $num_obs")
 
                     ClutteredEnvPathOpt.plot_edges(skeleton, points, plot_name = "Skeleton")
-                    png("Skeleton Seed $seed Num Obs $num_obs")
+                    png("$partition Skeleton Seed $seed Num Obs $num_obs")
 
                     if size_diff > 0
                         ClutteredEnvPathOpt.plot_edges(miss_edges_lg, points, plot_name = "Missing Edges")
                         if faces == "all"
-                            png("Missing Edges All Faces Used Seed $seed Num Obs $num_obs")
+                            png("$partition Missing Edges All Faces Used Seed $seed Num Obs $num_obs")
                         else
-                            png("Missing Edges Free Faces Used Seed $seed Num Obs $num_obs")
+                            png("$partition Missing Edges Free Faces Used Seed $seed Num Obs $num_obs")
                         end
                     end
                 end
             end
         end
     end
-    return (fails, tuples)
+    return tuples
 end
 
 # Biclique cover merger function for stats
@@ -303,9 +335,9 @@ function biclique_cover_merger_stats(seed_range, num_obs_range; file_name="Bicli
     close(f)
     
     f = open(file_name, "a")
-    write(f, "Seed\tNum_obs\tFull_cover\tMerged_cover\tDecrease\tPercent_decrease\n")
-    fails = 0
+    write(f, "Seed\tNum_obs\tNum_free_faces\tFull_cover\tMerged_cover\tDecrease\tPercent_decrease\n")
     tuples = []
+    num_free_faces_vec = []
     percent_vec = []
     cover_vec = []
     merged_cover_vec = []
@@ -318,9 +350,11 @@ function biclique_cover_merger_stats(seed_range, num_obs_range; file_name="Bicli
             # close(f)
 
             # println("On test Seed = $seed, Num_Obs = $num_obs")
-            obstacles, points, g, obstacle_faces, free_faces = ClutteredEnvPathOpt.plot_new(num_obs,"Obstacles Seed $seed Num Obs $num_obs",seed=seed;partition=partition); # optional seed argument, default is 11
+            obstacles, points, g, obstacle_faces, free_faces = ClutteredEnvPathOpt.plot_new(num_obs,"Obstacles Seed $seed Num Obs $num_obs",seed=seed;partition=partition);
             skeleton = LabeledGraph(g)
-            all_faces = union(obstacle_faces, free_faces)
+            # all_faces = Set{Vector{Int64}}(union(obstacle_faces, free_faces))
+            write(f, "\t$(length(free_faces))")
+            push!(num_free_faces_vec, (length(free_faces)))
             
             cover = ClutteredEnvPathOpt.find_biclique_cover(skeleton, free_faces);
             feg = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(free_faces));
@@ -356,7 +390,6 @@ function biclique_cover_merger_stats(seed_range, num_obs_range; file_name="Bicli
                 push!(cover_vec, -1)
                 push!(merged_cover_vec, -1)
 
-                fails += 1
                 push!(tuples, (seed, num_obs))
                 # if !valid_cover_merged
                 #     write(f,"Merged cover invalid.\n")
@@ -367,12 +400,16 @@ function biclique_cover_merger_stats(seed_range, num_obs_range; file_name="Bicli
         end
     end
 
-    # write(f, "\nTotal Fails: $fails.\nTuples: $tuples")
+    # write(f, "\nTotal Fails: $length(tuples).\nTuples: $tuples")
     flush(f)
     close(f)
 
-    return percent_vec, tuples, cover_vec, merged_cover_vec
+    return percent_vec, tuples, cover_vec, merged_cover_vec, num_free_faces_vec
 end
+
+# function size_stats()
+
+# end
 
 #------------------------------------------------------------------------------------------------------
 
@@ -516,7 +553,7 @@ matrix_summary = Matrix{Float64}(data_summary[2:end,:])
 header_summary = Vector{String}(data_summary[1,:])
 
 
-
+#######################################################################################
 # Debugging Functions ---------------------------------------------------------------
 
 # Check if free_faces has any duplicates---------------------------------------------
