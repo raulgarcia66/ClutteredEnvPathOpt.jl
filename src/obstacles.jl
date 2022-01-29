@@ -830,12 +830,92 @@ function construct_graph_delaunay(obs)
     end
 
     # Store free faces as vectors (utilizing holes, all triangles are free faces)
-    free_faces = []
+    free_faces = Vector{Int64}[]
     for j = 1:size(triangles,2)
-        push!(free_faces, triangles[:,j])
+        push!(free_faces, reverse(triangles[:,j]))
     end
 
-    # TODO: Face merging
+    # Face merging
+    free_faces, graph = face_merger(free_faces, graph, points)
 
-    return (obs, points, graph, Set(map(face -> face, obstacle_faces)), Set(map(f -> reverse(f), free_faces)))
+    # return (obs, points, graph, Set(map(face -> face, obstacle_faces)), Set(map(f -> reverse(f), free_faces)))
+    return (obs, points, graph, Set(map(face -> face, obstacle_faces)), Set(map(f -> f, free_faces)))
+end
+
+"""
+    face_merger(faces, graph, points)
+Given a set of vectors corresponding to faces, this function merges faces together when possible
+to decrease the number of faces and edges in the skeleton graph. 
+"""
+function face_merger(faces::Vector{Vector{T}}, graph::W, points::Vector{Pair{Rational{Int64},Rational{Int64}}}) where {T, W <: LightGraphs.AbstractGraph}
+    edges_to_remove = Tuple{T,T}[]
+    
+    merge_found = true
+    while merge_found
+        sort!(faces, by=length)
+        merge_found = false
+        for i = 1:length(faces)
+            for j = i+1:length(faces)
+                # merge_found = false
+                face_i = Set(faces[i])
+                face_j = Set(faces[j])
+                if length(intersect(face_i, face_j)) == 2
+                    v_i = Polyhedra.convexhull(map(i -> collect(points[i]), faces[i])...)
+                    v_j = Polyhedra.convexhull(map(i -> collect(points[i]), faces[j])...)
+                    new_face_vec = union(face_i, face_j)   # not really a vector
+                    v_new = Polyhedra.convexhull(map(i -> collect(points[i]), collect(new_face_vec))...)
+
+                    polygon_i = Polyhedra.polyhedron(
+                        v_i,
+                        Polyhedra.DefaultLibrary{Rational{Int64}}(GLPK.Optimizer)
+                    )
+                    polygon_j = Polyhedra.polyhedron(
+                        v_j,
+                        Polyhedra.DefaultLibrary{Rational{Int64}}(GLPK.Optimizer)
+                    )
+                    polygon_new = Polyhedra.polyhedron(
+                        v_new,
+                        Polyhedra.DefaultLibrary{Rational{Int64}}(GLPK.Optimizer)
+                    )
+                    if (Polyhedra.volume(polygon_i) + Polyhedra.volume(polygon_j)) ≈ Polyhedra.volume(polygon_new)
+                        Polyhedra.removevredundancy!(polygon_new)
+                        if Polyhedra.npoints(polygon_i) + Polyhedra.npoints(polygon_j) - 2 == Polyhedra.npoints(polygon_new)
+                            merge_found = true
+                            # Find new face
+                            shared_edge_vec = intersect(faces[i], faces[j])
+                            push!(edges_to_remove, (shared_edge_vec[1], shared_edge_vec[2]))
+                            if shared_edge_vec == vcat(faces[i][1], faces[i][end]) && length(faces[i]) > 2
+                                faces[i] = circshift(faces[i],1)
+                                reverse!(shared_edge_vec)   # makes shared edge same order as faces[i]
+                            end
+                            first_index = findfirst(vertex -> vertex == shared_edge_vec[1],faces[i])
+                            second_index = first_index + 1
+                            # Shift faces[j] so that the second vertex is at end (first vertex is then at beginning)
+                            index_of_second_vertex_in_edge = findfirst(v -> v == shared_edge_vec[2], faces[j])
+                            shift_size = length(faces[j]) - index_of_second_vertex_in_edge
+                            faces[j] = circshift(faces[j], shift_size)
+
+                            new_face_vec_final = vcat(faces[i][1:first_index], faces[j][2:end-1], faces[i][second_index:end])
+                            push!(faces, new_face_vec_final)
+
+                            deleteat!(faces,j)
+                            deleteat!(faces,i)
+
+                            break
+                        end
+                    end
+                end
+            end
+            if merge_found == true
+                break
+            end
+        end
+    end
+
+    # Remove edges from graph
+    for (a,b) in edges_to_remove
+        LightGraphs.rem_edge!(graph, a, b)
+    end
+
+    return faces, graph
 end
