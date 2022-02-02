@@ -135,13 +135,18 @@ end
 # delta_x_y_max = 0.1 <- max stride norm in space
 # delta_θ_max = pi/4 <- max difference in θ
 # L = 5 <- number of pieces of pwl sin/cos (scalar)
-function solve_deits(obstacles, N, f1, f2, g, Q_g, Q_r, q_t; method="merged", d1=0.2, d2=0.2, p1=[0, 0.07], p2=[0, -0.27])
+function solve_deits(obstacles, N, f1, f2, g, Q_g, Q_r, q_t; method="merged", partition="CDT", merge_faces=true, d1=0.2, d2=0.2, p1=[0, 0.07], p2=[0, -0.27])
 
-    _, points, graph, _, free_faces = ClutteredEnvPathOpt.construct_graph(obstacles)
+    if partition == "CDT"
+        _, points, graph, _, free_faces = ClutteredEnvPathOpt.construct_graph_delaunay(obstacles, merge_faces=merge_faces)
+    else
+        _, points, graph, _, free_faces = ClutteredEnvPathOpt.construct_graph(obstacles)
+    end
+
     skeleton = LabeledGraph(graph)
 
     # model = JuMP.Model(JuMP.optimizer_with_attributes(Gurobi.Optimizer))
-    model = JuMP.Model(JuMP.optimizer_with_attributes(Gurobi.Optimizer, "MIPGap" => .01, "TimeLimit" => 180))
+    model = JuMP.Model(JuMP.optimizer_with_attributes(Gurobi.Optimizer, "MIPGap" => .01, "TimeLimit" => 300))
     # model = JuMP.Model(JuMP.optimizer_with_attributes(Gurobi.Optimizer, "Heuristics"=> 0, "Cuts"=> 0, "Precrush"=>1, "MIPGap" => .01, "TimeLimit" => 180))
     
     # model has scalar variables x, y, θ, binary variable t

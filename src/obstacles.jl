@@ -750,7 +750,7 @@ Returns a tuple containing the obstacles, a list of the location of the nodes' c
 the graph, a set of every face of obstacle space, and a set of every face of free space.
 (Each face is a clockwise-ordered vector of vertices).
 """
-function construct_graph_delaunay(obs)
+function construct_graph_delaunay(obs; merge_faces=true)
 
     # S = []   # Store segments
     # obstacle_faces = []   # Store obstacle face vertices (should be ordered)
@@ -836,7 +836,9 @@ function construct_graph_delaunay(obs)
     end
 
     # Face merging
-    free_faces, graph = face_merger(free_faces, graph, points)
+    if merge_faces
+        free_faces, graph = face_merger(free_faces, graph, points)
+    end
 
     # return (obs, points, graph, Set(map(face -> face, obstacle_faces)), Set(map(f -> reverse(f), free_faces)))
     return (obs, points, graph, Set(map(face -> face, obstacle_faces)), Set(map(f -> f, free_faces)))

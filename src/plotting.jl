@@ -210,7 +210,7 @@ Generates a new obstacle course with n obstacles. If custom = true, obstacles wi
 created from an array containing the points for each obstacle. If save_image = true,
 the course will be plotted and saved to an image.
 """
-function plot_new(n::Int, name::String; custom::Bool=false, seed::Int=1, save_image::Bool=false, partition::String="CDT")
+function plot_new(n::Int, name::String; custom::Bool=false, seed::Int=1, save_image::Bool=false, partition::String="CDT", merge_faces=true)
     if custom
         # obs = gen_field(num_obstacles::Int; custom::Bool=false, points_it::Set{Vector{T}}=Set{Vector{Rational}}(), seed::Int=1) where {T}
     else
@@ -230,7 +230,7 @@ function plot_new(n::Int, name::String; custom::Bool=false, seed::Int=1, save_im
     end
 
     if partition == "CDT"
-        return construct_graph_delaunay(obs)
+        return construct_graph_delaunay(obs; merge_faces=merge_faces)
     else
         return construct_graph(obs)
     end
