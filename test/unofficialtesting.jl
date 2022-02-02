@@ -9,7 +9,7 @@ using Gurobi
 ################################### solve_deits ########################################
 # Create obstacles
 num_obs = 3;
-seed = 10;
+seed = 5;
 obstacles = ClutteredEnvPathOpt.gen_field(num_obs, seed = seed)
 plot();
 ClutteredEnvPathOpt.plot_field(obstacles)
@@ -219,50 +219,12 @@ png("DT FEG of S_bc Seed $seed Num Obs $num_obs")
 
 
 
-# Biclique Cover Validity Tests-----------------------------------------------------------------------
+########################### Biclique Cover Validity Tests #############################
 seed_range = 1:100
 num_obs_range = 1:4
 partition = "CDT"
 # fail_tuples = biclique_cover_validity_tests(seed_range, num_obs_range, faces = "all", partition=partition)
 fail_tuples = biclique_cover_validity_tests(seed_range, num_obs_range, faces = "free", with_plots=true, partition=partition)
-
-file_name = "Biclique Cover Merging Stats Partition $partition.txt"
-file_name_dt = "Biclique Cover Merging Stats Partition DT.txt"
-file_name_hp = "Biclique Cover Merging Stats Partition HP.txt"
-percent_decreases_dt, tuples_dt, c_sizes_dt, mc_sizes_dt, num_free_faces_dt = biclique_cover_merger_stats(seed_range, num_obs_range, file_name=file_name_dt, partition="CDT")
-percent_decreases_hp, tuples_hp, c_sizes_hp, mc_sizes_hp, num_free_faces_hp = biclique_cover_merger_stats(seed_range, num_obs_range, file_name=file_name_hp, partition="HP")
-size_diff_cover = c_sizes_hp - c_sizes_dt
-size_diff_merged_cover = mc_sizes_hp - mc_sizes_dt
-size_diff_free_faces = num_free_faces_hp - num_free_faces_dt
-
-maximum(size_diff_free_faces) # 68
-minimum(size_diff_free_faces) # 0
-Statistics.mean(size_diff_free_faces) # 17.79
-count(t-> t > 0, size_diff_free_faces) # 373
-count(t-> t < 0, size_diff_free_faces) # 0
-count(t-> t == 0, size_diff_free_faces) # 27
-
-maximum(size_diff_merged_cover) # 16
-minimum(size_diff_merged_cover) # -1
-Statistics.mean(size_diff_merged_cover) # 4.975
-count(t-> t > 0, size_diff_merged_cover) # 353
-count(t-> t < 0, size_diff_merged_cover) # 9
-count(t-> t == 0, size_diff_merged_cover) # 38
-
-
-# TODO: Add number of points, ratio (percentage) of num_free_faces for HP vs DT
-# file_name = "Biclique Cover Merging and Free Faces Comparison.txt"
-# f = open(file_name, "w")
-# write(f, "Title\n")
-# write(f, "Header1\tHeader2\n")
-for i = 1:length(percent_decreases_dt)
-    # percent decreases etc
-    write()
-end
-# flush(f)
-# close(f)
-
-# TODO: WRITE STATS TO FILE
 
 # Biclique validity tester function
 function biclique_cover_validity_tests(seed_range, num_obs_range; faces::String="free", with_plots::Bool=false,partition="CDT")
@@ -325,6 +287,31 @@ function biclique_cover_validity_tests(seed_range, num_obs_range; faces::String=
     end
     return tuples
 end
+
+######################### Biclique Cover Merging Stats #######################
+
+file_name = "Biclique Cover Merging Stats Partition $partition.txt"
+file_name_dt = "Biclique Cover Merging Stats Partition DT.txt"
+file_name_hp = "Biclique Cover Merging Stats Partition HP.txt"
+percent_decreases_dt, tuples_dt, c_sizes_dt, mc_sizes_dt, num_free_faces_dt = biclique_cover_merger_stats(seed_range, num_obs_range, file_name=file_name_dt, partition="CDT")
+percent_decreases_hp, tuples_hp, c_sizes_hp, mc_sizes_hp, num_free_faces_hp = biclique_cover_merger_stats(seed_range, num_obs_range, file_name=file_name_hp, partition="HP")
+size_diff_cover = c_sizes_hp - c_sizes_dt
+size_diff_merged_cover = mc_sizes_hp - mc_sizes_dt
+size_diff_free_faces = num_free_faces_hp - num_free_faces_dt
+
+maximum(size_diff_free_faces) # 68
+minimum(size_diff_free_faces) # 0
+Statistics.mean(size_diff_free_faces) # 17.79
+count(t-> t > 0, size_diff_free_faces) # 373
+count(t-> t < 0, size_diff_free_faces) # 0
+count(t-> t == 0, size_diff_free_faces) # 27
+
+maximum(size_diff_merged_cover) # 16
+minimum(size_diff_merged_cover) # -1
+Statistics.mean(size_diff_merged_cover) # 4.975
+count(t-> t > 0, size_diff_merged_cover) # 353
+count(t-> t < 0, size_diff_merged_cover) # 9
+count(t-> t == 0, size_diff_merged_cover) # 38
 
 # Biclique cover merger function for stats
 function biclique_cover_merger_stats(seed_range, num_obs_range; file_name="Biclique Cover Merging Stats.txt", partition="CDT")
@@ -407,6 +394,19 @@ function biclique_cover_merger_stats(seed_range, num_obs_range; file_name="Bicli
     return percent_vec, tuples, cover_vec, merged_cover_vec, num_free_faces_vec
 end
 
+# TODO: Add number of points, ratio (percentage) of num_free_faces for HP vs DT
+# file_name = "Biclique Cover Merging and Free Faces Comparison.txt"
+# f = open(file_name, "w")
+# write(f, "Title\n")
+# write(f, "Header1\tHeader2\n")
+for i = 1:length(percent_decreases_dt)
+    # percent decreases etc
+    write()
+end
+# flush(f)
+# close(f)
+
+# TODO: WRITE STATS TO FILE
 # function size_stats()
 
 # end
@@ -414,7 +414,7 @@ end
 #------------------------------------------------------------------------------------------------------
 
 # method <- "merged" for the compact biclique cover, "full" for the original biclique cover, "bigM" for big-M constraints
-function solve_time_stats(seed_range, num_obs_range; method="merged", file_name="Solve Time Stats.txt")
+function solve_time_stats(seed_range, num_obs_range; file_name="Solve Time Stats.txt", method="merged", partition="CDT", merge_faces=true)
     # file_name = "Solve Time Stats.txt" #Seed Range = $seed_range, Num Obs Range = $num_obs_range.txt"
     # f = open(file_name, "a")
     # write(f, "Method = $method, Seed Range = $seed_range, Num Obs Range = $num_obs_range\n")
@@ -440,7 +440,7 @@ function solve_time_stats(seed_range, num_obs_range; method="merged", file_name=
     
     f = open(file_name, "a")
     # write(f, "Seed\tNum_obs\tTime\n")
-    write(f, "Seed\tNum_obs\tSolve_time\tRel_gap\tSimplex_iterations\tNodes_explored\tNum_vertices\tMerged_size\tFull_size\tNum_free_faces\tNum_free_face_inequalities\n")
+    write(f, "Seed\tNum_obs\tSolve_time\tRel_gap\tSimplex_iterations\tNodes_explored\tNum_vertices\tBC_merged_size\tBC_full_size\tNum_free_faces\tNum_free_face_inequalities\n")
     times = zeros(length(seed_range) * length(num_obs_range))
     i = 1
     for seed = seed_range
@@ -454,7 +454,7 @@ function solve_time_stats(seed_range, num_obs_range; method="merged", file_name=
             # Create obstacles
             obstacles = ClutteredEnvPathOpt.gen_field(num_obs, seed = seed)
 
-            x, y, θ, t, stats = solve_deits(obstacles, N, f1, f2, goal, Q_g, Q_r, q_t, method=method)
+            x, y, θ, t, stats = solve_deits(obstacles, N, f1, f2, goal, Q_g, Q_r, q_t, method=method, partition=partition, merge_faces=merge_faces)
             term_status, r_solve_time, rel_gap, simplex_iters, r_node_count, num_vertices, merged_size, full_size, num_free_faces, num_free_face_ineq, method_used = stats
 
             if method_used == method
@@ -492,69 +492,174 @@ function solve_time_stats(seed_range, num_obs_range; method="merged", file_name=
 
 end
 
-seed_range = 21:30 # done 1:20
-num_obs_range = 1:4
+########################### Solve Time Stats ###############################
+
+seed_start = 1 #51
+seed_end = 50   #100
+seed_range = seed_start:seed_end
+num_obs = 3
+num_obs_range = num_obs:num_obs
+partitions = ("CDT", "HP")
+merge_faces = (true, false)
 methods = ("merged", "full", "bigM")
-times = Dict()
-# method = "merged"
-for method in methods
-    file_name = "Solve Time Stats Method $method.txt"
-    f = open(file_name, "a")   # write or append appropriately
-    write(f, "Seed Range = $seed_range, Num Obs Range = $num_obs_range\nMethod = $method\n")
-    flush(f)
-    close(f)
-    time = solve_time_stats(seed_range, num_obs_range, method=method, file_name=file_name)
-    times[method] = time
+# times = Dict()
+for partition in partitions
+    if partition == "CDT"
+        for merge_face in merge_faces
+            for method in methods
+                file_name = "Solve Time Stats Seed Range $seed_start to $seed_end Num Obs $num_obs Method $method Partition $partition Merge Face $merge_face.txt"
+                f = open(file_name, "w")   # write or append appropriately
+                write(f, "Seed Range = $seed_range, Num Obs Range = $num_obs_range\nMethod = $method\tPartition = $partition\tMerge Face = $merge_face\n")
+                flush(f)
+                close(f)
+                _ = solve_time_stats(seed_range, num_obs_range, file_name=file_name, method=method, partition=partition, merge_faces=merge_face)
+                # times[method] = time
+            end
+        end
+    else
+        for method in methods
+            file_name = "Solve Time Stats Seed Range $seed_start to $seed_end Num Obs $num_obs Method $method Partition $partition.txt"
+            f = open(file_name, "w")   # write or append appropriately
+            write(f, "Seed Range = $seed_range, Num Obs Range = $num_obs_range\nMethod = $method\tPartition = $partition\n")
+            flush(f)
+            close(f)
+            _ = solve_time_stats(seed_range, num_obs_range, file_name=file_name, method=method, partition=partition)
+            # times[method] = time
+        end
+    end
 end
 
-file_name = "Solve Time Stats Comparison.txt" #Seed Range = $seed_range, Num Obs Range = $num_obs_range.txt"
-f = open(file_name, "a")    # write or append appropriately
-times_m_b = times["bigM"] .- times["merged"]
-times_m_f = times["full"] .- times["merged"]
-times_f_b = times["bigM"] .- times["full"]
-write(f, "Seed Range = $seed_range, Num Obs Range = $num_obs_range\n")
-write(f, "Merged_vs_BigM\tMerged_vs_Full\tFull_vs_BigM\n")
-for i = 1:length(times_m_b)
-    write(f, "$(times_m_b[i])\t$(times_m_f[i])\t$(times_f_b[i])\n")
-end
-flush(f)
-close(f)
-
-
+# Import CDT data into matrices
 import DelimitedFiles
-data_merged = DelimitedFiles.readdlm("Solve Time Stats Method merged.txt", '\t')
-matrix_merged = Matrix{Float64}(data_merged[4:end,:])
-data_bigM = DelimitedFiles.readdlm("Solve Time Stats Method bigM.txt", '\t')
-matrix_bigM = Matrix{Float64}(data_bigM[4:end,:])
-header = Vector{String}(data_merged[3,:])
 
-file_name = "Solve Stats Comparison.txt" #Seed Range = $seed_range, Num Obs Range = $num_obs_range.txt"
+seed_start = 1
+seed_end = 50
+num_obs = 1
+
+# CDT, Merged Faces, Merged BC
+filename = "Solve Time Stats Seed Range $seed_start to $seed_end Num Obs $num_obs Method merged Partition CDT Merge Face true.txt"
+CDT_MF_MBC_all_data = DelimitedFiles.readdlm(filename, '\t')
+# CDT, Merged Faces, Full BC
+filename = "Solve Time Stats Seed Range $seed_start to $seed_end Num Obs $num_obs Method full Partition CDT Merge Face true.txt"
+CDT_MF_FBC_all_data = DelimitedFiles.readdlm(filename, '\t')
+# CDT, Merged Faces, BigM
+filename = "Solve Time Stats Seed Range $seed_start to $seed_end Num Obs $num_obs Method bigM Partition CDT Merge Face true.txt"
+CDT_MF_BigM_all_data = DelimitedFiles.readdlm(filename, '\t')
+# CDT, All Faces, Merged BC
+filename = "Solve Time Stats Seed Range $seed_start to $seed_end Num Obs $num_obs Method merged Partition CDT Merge Face false.txt"
+CDT_AF_MBC_all_data = DelimitedFiles.readdlm(filename, '\t')
+# CDT, All Faces, Full BC
+filename = "Solve Time Stats Seed Range $seed_start to $seed_end Num Obs $num_obs Method full Partition CDT Merge Face false.txt"
+CDT_AF_FBC_all_data = DelimitedFiles.readdlm(filename, '\t')
+# CDT, All Faces, BigM
+filename = "Solve Time Stats Seed Range $seed_start to $seed_end Num Obs $num_obs Method bigM Partition CDT Merge Face false.txt"
+CDT_AF_BigM_all_data = DelimitedFiles.readdlm(filename, '\t')
+
+header = Vector{String}(CDT_MF_MBC_all_data[3,:])
+# column indices: 1,2,3 (10,11,12) = seed, num_obs, solve_time (MBC_size, FBC_size, Num_Free_Faces)
+CDT_MF_MBC = CDT_MF_MBC_all_data[4:end,3]
+CDT_MF_FBC = CDT_MF_FBC_all_data[4:end,3]
+CDT_MF_BigM = CDT_MF_BigM_all_data[4:end,3]
+CDT_AF_MBC = CDT_AF_MBC_all_data[4:end,3]
+CDT_AF_FBC = CDT_AF_FBC_all_data[4:end,3]
+CDT_AF_BigM = CDT_AF_BigM_all_data[4:end,3]
+test_names = ["MF_MBC","MF_FBC","MF_BigM","AF_MBC","AF_FBC","AF_BigM"]
+test_matrix = hcat(CDT_MF_MBC, CDT_MF_FBC, CDT_MF_BigM, CDT_AF_MBC, CDT_AF_FBC, CDT_AF_BigM)
+
+# x1 = CDT_MF_MBC_all_data[4:end,8:10]
+# x2 = CDT_MF_FBC_all_data[4:end,8:10]
+# x3 = CDT_MF_BigM_all_data[4:end,8:10]
+# x4 = CDT_AF_MBC_all_data[4:end,8:10]
+# x5 = CDT_AF_FBC_all_data[4:end,8:10]
+# x6 = CDT_AF_BigM_all_data[4:end,8:10]
+
+winners = Vector{String}(undef,50)
+for i=1:50
+    index = argmin(test_matrix[i,:])
+    winners[i] = test_names[index]
+end
+final_matrix = hcat(test_matrix, winners)
+
+winner_count = zeros(Int,6)
+for (i,test) in enumerate(test_names)
+    winner_count[i] = count(w -> w == test, winners)
+end
+# For seed 1:50, num obs 1: [10, 10, 19, 3, 1, 7], meaning bigM fastest, full and merged BC were same, and merged faces usually faster
+# For seed 1:50, num obs 2: [10, 7, 24, 4, 0, 5], meaning bigM fastest, then merged BC, fullBC, and merged faces usually faster
+
+
+# Write summary of important data
+file_name = "Solve Time Stats Comparison CDT Seed Range $seed_start to $seed_end Num Obs $num_obs.txt"
 f = open(file_name, "w")    # write or append appropriately
-write(f, "S_T_m\tS_T_b\tS_T_diff\tS_I_m\tS_I_b\tS_I_diff\tN_C_m\tN_C_b\tN_C_diff\n")
-S_T_m = matrix_merged[:,3]
-S_T_b = matrix_bigM[:,3]
-S_T_diff = S_T_b .- S_T_m
-S_I_m = matrix_merged[:,5]
-S_I_b = matrix_bigM[:,5]
-S_I_diff = S_I_b .- S_I_m
-N_C_m = matrix_merged[:,6]
-N_C_b = matrix_bigM[:,6]
-N_C_diff = N_C_b .- N_C_m
-for i = 1:length(S_T_m)
-    write(f, "$(S_T_m[i])\t$(S_T_b[i])\t$(S_T_diff[i])\t")
-    write(f, "$(S_I_m[i])\t$(S_I_b[i])\t$(S_I_diff[i])\t")
-    write(f, "$(N_C_m[i])\t$(N_C_b[i])\t$(N_C_diff[i])\n")
+write(f, "Partition CDT, Seed Range = $seed_start:$seed_end, Num Obs = $num_obs\n")
+write(f,"Seed\tNum_Obs\t")
+for i = 1:(length(test_names))
+    write(f, "$(test_names[i])\t")
+end
+write(f, "Fastest Method\n")
+flush(f)
+
+for i = 1:size(test_matrix, 1)
+    write(f,"$i\t1\t")   # seed and num_obs
+    for j = 1:size(test_matrix, 2)
+        write(f, "$(test_matrix[i,j])\t")
+    end
+    write(f, "$(winners[i])\n")
 end
 flush(f)
 close(f)
 
-data_summary = DelimitedFiles.readdlm("Solve Stats Comparison.txt", '\t')
-matrix_summary = Matrix{Float64}(data_summary[2:end,:])
-header_summary = Vector{String}(data_summary[1,:])
+
+
+# To load new data summary into matrix
+file_name = "Solve Time Stats Comparison CDT Seed Range $seed_start to $seed_end Num Obs $num_obs.txt"
+data_summary = DelimitedFiles.readdlm(file_name, '\t')
+matrix_summary = data_summary[3:end,:]
+header_summary = Vector{String}(data_summary[2,:])
+winners = data_summary[3:end,end]
+
+winner_count = zeros(Int,6)
+for (i,test) in enumerate(test_names)
+    winner_count[i] = count(w -> w == test, winners)
+end
+
+
+# # Previous data ------------------------------------------------------------------
+# import DelimitedFiles
+# data_merged = DelimitedFiles.readdlm("Solve Time Stats Method merged.txt", '\t')
+# matrix_merged = Matrix{Float64}(data_merged[4:end,:])
+# data_bigM = DelimitedFiles.readdlm("Solve Time Stats Method bigM.txt", '\t')
+# matrix_bigM = Matrix{Float64}(data_bigM[4:end,:])
+# header = Vector{String}(data_merged[3,:])
+
+# file_name = "Solve Stats Comparison.txt" #Seed Range = $seed_range, Num Obs Range = $num_obs_range.txt"
+# f = open(file_name, "w")    # write or append appropriately
+# write(f, "S_T_m\tS_T_b\tS_T_diff\tS_I_m\tS_I_b\tS_I_diff\tN_C_m\tN_C_b\tN_C_diff\n")
+# S_T_m = matrix_merged[:,3]
+# S_T_b = matrix_bigM[:,3]
+# S_T_diff = S_T_b .- S_T_m
+# S_I_m = matrix_merged[:,5]
+# S_I_b = matrix_bigM[:,5]
+# S_I_diff = S_I_b .- S_I_m
+# N_C_m = matrix_merged[:,6]
+# N_C_b = matrix_bigM[:,6]
+# N_C_diff = N_C_b .- N_C_m
+# for i = 1:length(S_T_m)
+#     write(f, "$(S_T_m[i])\t$(S_T_b[i])\t$(S_T_diff[i])\t")
+#     write(f, "$(S_I_m[i])\t$(S_I_b[i])\t$(S_I_diff[i])\t")
+#     write(f, "$(N_C_m[i])\t$(N_C_b[i])\t$(N_C_diff[i])\n")
+# end
+# flush(f)
+# close(f)
+
+# data_summary = DelimitedFiles.readdlm("Solve Stats Comparison.txt", '\t')
+# matrix_summary = Matrix{Float64}(data_summary[2:end,:])
+# header_summary = Vector{String}(data_summary[1,:])
+
 
 
 #######################################################################################
-# Debugging Functions ---------------------------------------------------------------
+################################ Debugging Functions ##################################
 
 # Check if free_faces has any duplicates---------------------------------------------
 function face_duplicates(faces)
@@ -694,9 +799,3 @@ function suspect_neighbors(neighbors)
     end
     return suspect
 end
-
-# # Face finder ----------------------------------------------------------------------------
-# t_seed = 7
-# t_num_obs = 4
-# obstacles = ClutteredEnvPathOpt.gen_field(t_num_obs, seed = t_seed) # optional seed
-# construct_graph_debug(obstacles)
