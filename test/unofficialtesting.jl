@@ -115,9 +115,11 @@ plot_circles(x3, y3, θ3)
 
 ######################################################################################
 
-num_obs = 3;
-seed = 5;
-obstacles, points, g, obstacle_faces, free_faces = ClutteredEnvPathOpt.plot_new(num_obs, "Obstacles Seed $seed Num Obs $num_obs", seed = seed)
+num_obs = 4;
+seed = 3;
+merge_faces = true;
+partition = "CDT";
+obstacles, points, g, obstacle_faces, free_faces = ClutteredEnvPathOpt.plot_new(num_obs, "Obstacles Seed $seed Num Obs $num_obs", seed=seed, partition=partition, merge_faces=merge_faces)
 skeleton = LabeledGraph(g)
 all_faces = Set{Vector{Int64}}(union(obstacle_faces, free_faces))
 
@@ -125,43 +127,58 @@ all_faces = Set{Vector{Int64}}(union(obstacle_faces, free_faces))
 plot(title="Obstacles");
 ClutteredEnvPathOpt.plot_field(obstacles)
 # points = ClutteredEnvPathOpt.find_points(obstacles)
-ClutteredEnvPathOpt.plot_points(points, vertices=skeleton.labels)
+# ClutteredEnvPathOpt.plot_points(points, vertices=skeleton.labels)
 # ClutteredEnvPathOpt.plot_lines(obstacles)
 # ClutteredEnvPathOpt.plot_borders()
 # ClutteredEnvPathOpt.plot_intersections(obstacles);
-png("DT Obstacles Seed $seed Num Obs $num_obs")
+# plot!(title="",axis=([], false))
+png("$partition Obstacles Seed $seed Num Obs $num_obs")
+# png("$partition Obstacles Seed $seed Num Obs $num_obs No Axis")
+ClutteredEnvPathOpt.plot_points(points, vertices=skeleton.labels)
+png("$partition Obstacles with Points Seed $seed Num Obs $num_obs")
+# png("$partition Obstacles with Points Seed $seed Num Obs $num_obs No Axis")
 display(plot!())
 
 # Plot faces
 ClutteredEnvPathOpt.plot_faces(obstacle_faces, points, plot_name = "Obstacle Faces", col = "dodgerblue")
+# plot!(title="",axis=([], false))
 png("Obstacle Faces Seed $seed Num Obs $num_obs")
 
 ClutteredEnvPathOpt.plot_faces(free_faces, points, plot_name = "Free Faces")
-png("DT Free Faces Seed $seed Num Obs $num_obs")
+# plot!(title="",axis=([], false))
+png("$partition Free Faces Seed $seed Num Obs $num_obs Merged Faces $merge_faces")
+# png("$partition Free Faces Seed $seed Num Obs $num_obs Merged Faces $merge_faces No Axis")
 
 ClutteredEnvPathOpt.plot_faces(obstacle_faces, points, plot_name = "All Faces", col = "red")
 ClutteredEnvPathOpt.plot_faces(free_faces, points, plot_name = "All Faces", new_plot = false)
-png("DT All Faces Seed $seed Num Obs $num_obs")
+# plot!(title="",axis=([], false))
+png("$partition All Faces Seed $seed Num Obs $num_obs")
 
 # Plot faces individually
 ClutteredEnvPathOpt.plot_faces(obstacle_faces, points, col = "dodgerblue", individually = true)
 ClutteredEnvPathOpt.plot_faces(free_faces, points, individually = true)
 
 # Plot edges
-ClutteredEnvPathOpt.plot_edges(skeleton, points, plot_name = "Skeleton", vertices=skeleton.labels)
-png("DT Skeleton Seed $seed Num Obs $num_obs")
+ClutteredEnvPathOpt.plot_edges(skeleton, points, plot_name = "Skeleton", col="black", vertices=skeleton.labels)
+# plot!(title="",axis=([], false))
+png("$partition Skeleton Seed $seed Num Obs $num_obs Merged Faces $merge_faces")
+# png("$partition Skeleton Seed $seed Num Obs $num_obs Merged Faces $merge_faces No Axis")
 
 feg_S = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(free_faces))
 ClutteredEnvPathOpt.plot_edges(feg_S, points, plot_name = "Finite Element Graph of S",col="black", vertices=feg_S.labels)
-png("DT FEG of S Seed $seed Num Obs $num_obs")
+# plot!(title="",axis=([], false))
+png("$partition FEG of S Seed $seed Num Obs $num_obs Merged Faces $merge_faces")
+# png("$partition FEG of S Seed $seed Num Obs $num_obs Merged Faces $merge_faces No Axis")
 
-feg_obs = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(obstacle_faces))
-ClutteredEnvPathOpt.plot_edges(feg_obs, points, plot_name = "Finite Element Graph Obstacle Faces")
-png("DT FEG Obstacles Seed $seed Num Obs $num_obs")
+# feg_obs = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(obstacle_faces))
+# ClutteredEnvPathOpt.plot_edges(feg_obs, points, plot_name = "Finite Element Graph Obstacle Faces")
+# # plot!(title="",axis=([], false))
+# png("$partition FEG Obstacles Seed $seed Num Obs $num_obs")
 
-feg_all = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(all_faces))
-ClutteredEnvPathOpt.plot_edges(feg_all, points, plot_name = "Finite Element Graph")
-png("DT FEG All Seed $seed Num Obs $num_obs")
+# feg_all = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(all_faces))
+# ClutteredEnvPathOpt.plot_edges(feg_all, points, plot_name = "Finite Element Graph")
+# # plot!(title="",axis=([], false))
+# png("$partition FEG All Seed $seed Num Obs $num_obs")
 
 
 
@@ -190,14 +207,15 @@ png("DT FEG All Seed $seed Num Obs $num_obs")
 
 # Free Faces Cover
 cover = ClutteredEnvPathOpt.find_biclique_cover(skeleton, free_faces)
-(valid_cover, size_diff, missing_edges, missing_edges_lg) = ClutteredEnvPathOpt._is_valid_biclique_cover_diff(ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(free_faces)), cover)
+feg = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(free_faces))
+(valid_cover, size_diff, missing_edges, missing_edges_lg) = ClutteredEnvPathOpt._is_valid_biclique_cover_diff(feg, cover)
 
-feg_free = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(free_faces))
-merged_cover = ClutteredEnvPathOpt.biclique_merger(cover, feg_free)
-(valid_cover, size_diff, missing_edges, missing_edges_lg) = ClutteredEnvPathOpt._is_valid_biclique_cover_diff(ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(free_faces)), merged_cover)
+merged_cover = ClutteredEnvPathOpt.biclique_merger(cover, feg)
+(valid_cover, size_diff, missing_edges, missing_edges_lg) = ClutteredEnvPathOpt._is_valid_biclique_cover_diff(feg, merged_cover)
+
 
 ClutteredEnvPathOpt.plot_edges(missing_edges_lg, points, plot_name = "Missing Edges",vertices=missing_edges_lg.labels)
-png("DT Missing Edges Seed $seed Num Obs $num_obs Free")
+png("$partitition Missing Edges Seed $seed Num Obs $num_obs Merged Faces $merge_faces")
 
 # file_name = "Biclique Cover Debug Output Seed $seed Num Obs $num_obs Free Unedited.txt"
 # f = open(file_name, "w")
@@ -209,13 +227,25 @@ png("DT Missing Edges Seed $seed Num Obs $num_obs Free")
 # To produce individual FEGs/Skeletons in the recursion process
 (C,A,B), skeleton_ac, faces_ac, skeleton_bc, faces_bc = ClutteredEnvPathOpt.find_biclique_cover_one_iter(skeleton, free_faces)
 feg_S_ac = ClutteredEnvPathOpt._find_finite_element_graph(skeleton_ac, ClutteredEnvPathOpt._find_face_pairs(faces_ac))
+feg_S_bc = ClutteredEnvPathOpt._find_finite_element_graph(skeleton_bc, ClutteredEnvPathOpt._find_face_pairs(faces_bc))
+
+ClutteredEnvPathOpt.plot_edges(skeleton_ac, points, plot_name = "Skeleton S_ac",vertices=skeleton_ac.labels,col="black")
+# plot!(title="",axis=([], false))
+png("$partition Skeleton of S_ac Seed $seed Num Obs $num_obs Merged Faces $merge_faces")
+# png("$partition Skeleton of S_ac Seed $seed Num Obs $num_obs Merged Faces $merge_faces No Axis")
 ClutteredEnvPathOpt.plot_edges(feg_S_ac, points, plot_name = "Finite Element Graph of S_ac",vertices=feg_S_ac.labels,col="black")
 # plot!(title="",axis=([], false))
-png("DT FEG of S_ac Seed $seed Num Obs $num_obs")
-feg_S_bc = ClutteredEnvPathOpt._find_finite_element_graph(skeleton_bc, ClutteredEnvPathOpt._find_face_pairs(faces_bc))
-ClutteredEnvPathOpt.plot_edges(feg_S_bc, points, plot_name = "Finite Element Graph of S_bc", vertices=feg_S_bc.labels, col="black")
+png("$partition FEG of S_ac Seed $seed Num Obs $num_obs Merged Faces $merge_faces")
+# png("$partition FEG of S_ac Seed $seed Num Obs $num_obs Merged Faces $merge_faces No Axis")
+
+ClutteredEnvPathOpt.plot_edges(skeleton_bc, points, plot_name = "Skeleton S_bc",vertices=skeleton_bc.labels,col="black")
 # plot!(title="",axis=([], false))
-png("DT FEG of S_bc Seed $seed Num Obs $num_obs")
+png("$partition Skeleton of S_bc Seed $seed Num Obs $num_obs Merged Faces $merge_faces")
+# png("$partition Skeleton of S_bc Seed $seed Num Obs $num_obs Merged Faces $merge_faces No Axis")
+ClutteredEnvPathOpt.plot_edges(feg_S_bc, points, plot_name = "Finite Element Graph of S_bc",vertices=feg_S_bc.labels,col="black")
+# plot!(title="",axis=([], false))
+png("$partition FEG of S_bc Seed $seed Num Obs $num_obs Merged Faces $merge_faces")
+# png("$partition FEG of S_bc Seed $seed Num Obs $num_obs Merged Faces $merge_faces No Axis")
 
 
 
@@ -223,17 +253,18 @@ png("DT FEG of S_bc Seed $seed Num Obs $num_obs")
 seed_range = 1:100
 num_obs_range = 1:4
 partition = "CDT"
+merge_faces = true
 # fail_tuples = biclique_cover_validity_tests(seed_range, num_obs_range, faces = "all", partition=partition)
 fail_tuples = biclique_cover_validity_tests(seed_range, num_obs_range, faces = "free", with_plots=true, partition=partition)
 
 # Biclique validity tester function
-function biclique_cover_validity_tests(seed_range, num_obs_range; faces::String="free", with_plots::Bool=false,partition="CDT")
+function biclique_cover_validity_tests(seed_range, num_obs_range; faces::String="free", with_plots::Bool=false,partition="CDT",merge_faces::Bool=true)
     # fails = 0
     tuples = []
     for seed = seed_range
         for num_obs = num_obs_range
             println("On test Seed = $seed, Num_Obs = $num_obs")
-            obstacles, points, g, obstacle_faces, free_faces = ClutteredEnvPathOpt.plot_new(num_obs,"Obstacles Seed $seed Num Obs $num_obs",seed=seed, partition=partition)
+            obstacles, points, g, obstacle_faces, free_faces = ClutteredEnvPathOpt.plot_new(num_obs,"Obstacles Seed $seed Num Obs $num_obs",seed=seed, partition=partition, merge_faces=merge_faces)
             skeleton = LabeledGraph(g)
             all_faces = Set{Vector{Int64}}(union(obstacle_faces, free_faces))
             if faces == "all"
@@ -291,7 +322,7 @@ end
 ######################### Biclique Cover Merging Stats #######################
 
 file_name = "Biclique Cover Merging Stats Partition $partition.txt"
-file_name_dt = "Biclique Cover Merging Stats Partition DT.txt"
+file_name_dt = "Biclique Cover Merging Stats Partition CDT.txt"
 file_name_hp = "Biclique Cover Merging Stats Partition HP.txt"
 percent_decreases_dt, tuples_dt, c_sizes_dt, mc_sizes_dt, num_free_faces_dt = biclique_cover_merger_stats(seed_range, num_obs_range, file_name=file_name_dt, partition="CDT")
 percent_decreases_hp, tuples_hp, c_sizes_hp, mc_sizes_hp, num_free_faces_hp = biclique_cover_merger_stats(seed_range, num_obs_range, file_name=file_name_hp, partition="HP")
@@ -314,7 +345,7 @@ count(t-> t < 0, size_diff_merged_cover) # 9
 count(t-> t == 0, size_diff_merged_cover) # 38
 
 # Biclique cover merger function for stats
-function biclique_cover_merger_stats(seed_range, num_obs_range; file_name="Biclique Cover Merging Stats.txt", partition="CDT")
+function biclique_cover_merger_stats(seed_range, num_obs_range; file_name="Biclique Cover Merging Stats.txt", partition="CDT", merge_faces=true)
     # file_name = "Biclique Cover Merging Stats.txt" #Seed Range = $seed_range, Num Obs Range = $num_obs_range.txt"
     f = open(file_name, "w")
     write(f, "Seed Range = $seed_range, Num Obs Range = $num_obs_range\n")
@@ -337,7 +368,7 @@ function biclique_cover_merger_stats(seed_range, num_obs_range; file_name="Bicli
             # close(f)
 
             # println("On test Seed = $seed, Num_Obs = $num_obs")
-            obstacles, points, g, obstacle_faces, free_faces = ClutteredEnvPathOpt.plot_new(num_obs,"Obstacles Seed $seed Num Obs $num_obs",seed=seed;partition=partition);
+            obstacles, points, g, obstacle_faces, free_faces = ClutteredEnvPathOpt.plot_new(num_obs,"Obstacles Seed $seed Num Obs $num_obs",seed=seed,partition=partition,merge_faces=merge_faces);
             skeleton = LabeledGraph(g)
             # all_faces = Set{Vector{Int64}}(union(obstacle_faces, free_faces))
             write(f, "\t$(length(free_faces))")
@@ -615,6 +646,7 @@ close(f)
 file_name = "Solve Time Stats Comparison CDT Seed Range $seed_start to $seed_end Num Obs $num_obs.txt"
 data_summary = DelimitedFiles.readdlm(file_name, '\t')
 matrix_summary = data_summary[3:end,:]
+num_matrix_summary = Matrix{Float64}(matrix_summary[:,3:end-1])
 header_summary = Vector{String}(data_summary[2,:])
 winners = data_summary[3:end,end]
 
@@ -622,6 +654,26 @@ winner_count = zeros(Int,6)
 for (i,test) in enumerate(test_names)
     winner_count[i] = count(w -> w == test, winners)
 end
+
+# mergedBC vs bigM (1 vs 2) (Merged Faces both)
+MBC_wins = 0
+FBC_wins = 0
+BigM_wins = 0
+for i = 1:50
+    # Don't think this is exactly correct for counting
+    if num_matrix_summary[i,1] < num_matrix_summary[i,3]
+        MBC_wins += 1     
+    elseif num_matrix_summary[i,2] < num_matrix_summary[i,3]
+        FBC_wins += 1  
+    else
+        BigM_wins +=1 
+    end
+end
+MBC_wins
+FBC_wins
+BigM_wins
+# Num Obs 1: 24 vs 5 vs 21
+# Num Obs 2:  14 vs 7 vs 29
 
 
 # # Previous data ------------------------------------------------------------------
