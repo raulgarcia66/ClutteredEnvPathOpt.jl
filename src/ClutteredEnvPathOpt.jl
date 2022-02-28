@@ -8,4 +8,5 @@ include("separator.jl")
 include("biclique.jl")
 include("obstacles.jl")
 include("plotting.jl")
+include("stepper.jl")
 end # module
