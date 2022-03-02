@@ -12,3 +12,4 @@
 /Images Float Error
 *.txt
 /Old Tests and Images
+/test/dataanalysis.jl
