@@ -319,7 +319,7 @@ function biclique_cover_validity_tests(seed_range, num_obs_range; faces::String=
     return tuples
 end
 
-######################### Biclique Cover Merging Stats #######################
+############################ Biclique Cover Merging Stats ############################
 
 file_name = "Biclique Cover Merging Stats Partition $partition.txt"
 file_name_dt = "Biclique Cover Merging Stats Partition CDT.txt"
@@ -442,7 +442,7 @@ end
 
 # end
 
-######################### Solve time function ###########################
+############################ Solve time function ##############################
 
 # method <- "merged" for the compact biclique cover, "full" for the original biclique cover, "bigM" for big-M constraints
 function solve_time_stats(seed_range, num_obs_range; file_name="Solve Time Stats.txt", method="merged", partition="CDT", merge_faces=true)
@@ -523,10 +523,10 @@ function solve_time_stats(seed_range, num_obs_range; file_name="Solve Time Stats
 
 end
 
-########################### Solve Time Stats ###############################
+############################# Solve Time Stats ###############################
 
-seed_start = 26 #51
-seed_end = 50  #100
+seed_start = 26
+seed_end = 50
 seed_range = seed_start:seed_end
 num_obs = 4
 num_obs_range = num_obs:num_obs
@@ -566,6 +566,8 @@ for partition in partitions
     end
 end
 
+
+################################## Data Analysis #####################################
 # Import CDT data into matrices
 import DelimitedFiles
 
