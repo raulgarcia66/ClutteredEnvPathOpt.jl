@@ -1,7 +1,7 @@
 using ClutteredEnvPathOpt
 using LightGraphs
 import Polyhedra
-import GLPK
+# import GLPK
 using Pipe
 using Plots
 using JuMP, Gurobi, PiecewiseLinearOpt
@@ -135,7 +135,12 @@ end
 # delta_x_y_max = 0.1 <- max stride norm in space
 # delta_θ_max = pi/4 <- max difference in θ
 # L = 5 <- number of pieces of pwl sin/cos (scalar)
-function solve_deits(obstacles, N, f1, f2, g, Q_g, Q_r, q_t; method="merged", partition="CDT", merge_faces=true, d1=0.2, d2=0.2, p1=[0, 0.07], p2=[0, -0.27])
+"""
+    solve_steps()
+
+Adapted from Deits and Tedrake 2014.
+"""
+function solve_steps(obstacles, N, f1, f2, g, Q_g, Q_r, q_t; method="merged", partition="CDT", merge_faces=true, d1=0.2, d2=0.2, p1=[0, 0.07], p2=[0, -0.27])
 
     if partition == "CDT"
         _, points, graph, _, free_faces = ClutteredEnvPathOpt.construct_graph_delaunay(obstacles, merge_faces=merge_faces)
