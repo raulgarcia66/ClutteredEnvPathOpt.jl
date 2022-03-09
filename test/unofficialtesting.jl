@@ -445,7 +445,7 @@ end
 ############################ Solve time function ##############################
 
 # method <- "merged" for the compact biclique cover, "full" for the original biclique cover, "bigM" for big-M constraints
-function solve_time_stats(seed_range, num_obs_range; file_name="Solve Time Stats.txt", method="merged", partition="CDT", merge_faces=true)
+function solve_time_stats(seed_range, num_obs_range; file_name="Solve Time Stats.txt", method="merged", partition="CDT", merge_faces=true, relax=false)
     # file_name = "Solve Time Stats.txt" #Seed Range = $seed_range, Num Obs Range = $num_obs_range.txt"
     # f = open(file_name, "a")
     # write(f, "Method = $method, Seed Range = $seed_range, Num Obs Range = $num_obs_range\n")
@@ -471,7 +471,7 @@ function solve_time_stats(seed_range, num_obs_range; file_name="Solve Time Stats
     
     f = open(file_name, "a")
     # write(f, "Seed\tNum_obs\tTime\n")
-    write(f, "Seed\tNum_obs\tSolve_time\tRel_gap\tSimplex_iterations\tNodes_explored\tNum_vertices\tBC_merged_size\tBC_full_size\tNum_free_faces\tNum_free_face_inequalities\n")
+    write(f, "Seed\tNum_obs\tTerm_status\tObj_val\tSolve_time\tRel_gap\tSimplex_iterations\tNodes_explored\tNum_vertices\tBC_merged_size\tBC_full_size\tNum_free_faces\tNum_free_face_inequalities\n")
     times = zeros(length(seed_range) * length(num_obs_range))
     i = 1
     for seed = seed_range
@@ -485,15 +485,15 @@ function solve_time_stats(seed_range, num_obs_range; file_name="Solve Time Stats
             # Create obstacles
             obstacles = ClutteredEnvPathOpt.gen_field(num_obs, seed = seed)
 
-            x, y, θ, t, stats = solve_steps(obstacles, N, f1, f2, goal, Q_g, Q_r, q_t, method=method, partition=partition, merge_faces=merge_faces)
-            term_status, r_solve_time, rel_gap, simplex_iters, r_node_count, num_vertices, merged_size, full_size, num_free_faces, num_free_face_ineq, method_used = stats
+            x, y, θ, t, stats = solve_steps(obstacles, N, f1, f2, goal, Q_g, Q_r, q_t, method=method, partition=partition, merge_faces=merge_faces, relax=relax)
+            term_status, opt_val, r_solve_time, rel_gap, simplex_iters, r_node_count, num_vertices, merged_size, full_size, num_free_faces, num_free_face_ineq, method_used = stats
 
             if method_used == method
                 times[i] = r_solve_time # time
             else
                 times[i] = -1
             end
-            write(f, "$seed\t$num_obs\t$(times[i])\t$rel_gap\t$simplex_iters\t$r_node_count\t$num_vertices\t$merged_size\t$full_size\t$num_free_faces\t$num_free_face_ineq\n")
+            write(f, "$seed\t$num_obs\t$(term_status)\t$opt_val\t$(times[i])\t$rel_gap\t$simplex_iters\t$r_node_count\t$num_vertices\t$merged_size\t$full_size\t$num_free_faces\t$num_free_face_ineq\n")
             flush(f)
 
             i += 1
@@ -524,43 +524,44 @@ function solve_time_stats(seed_range, num_obs_range; file_name="Solve Time Stats
 end
 
 ############################# Solve Time Stats ###############################
-
-seed_start = 26
-seed_end = 50
+# Run seeds 1-5 with CDT for MIP only
+seed_start = 1
+seed_end = 5
 seed_range = seed_start:seed_end
 num_obs = 4
 num_obs_range = num_obs:num_obs
 # partitions = ["CDT", "HP"]
 partitions = ["CDT"]
-# merge_faces = [true, false]
-merge_faces = [true]
+merge_faces = [true, false]
+# merge_faces = [true]
 # merge_faces = [false]
-# methods = ["merged", "full", "bigM"]
-methods = ["merged"]
+methods = ["merged", "full", "bigM"]
+# methods = ["merged"]
 # methods = ["full"]
 # methods = ["bigM"]
+relax = true
 # times = Dict()
 for partition in partitions
     if partition == "CDT"
         for merge_face in merge_faces
             for method in methods
-                file_name = "Solve Time Stats Seed Range $seed_start to $seed_end Num Obs $num_obs Method $method Partition $partition Merge Face $merge_face.txt"
+                file_name = "Opt Val Relax $relax Solve Time Stats Seed Range $seed_start to $seed_end Num Obs $num_obs Method $method Partition $partition Merge Face $merge_face.txt"
                 f = open(file_name, "w")   # write or append appropriately
                 write(f, "Seed Range = $seed_range, Num Obs Range = $num_obs_range\nMethod = $method\tPartition = $partition\tMerge Face = $merge_face\n")
                 flush(f)
                 close(f)
-                _ = solve_time_stats(seed_range, num_obs_range, file_name=file_name, method=method, partition=partition, merge_faces=merge_face)
+                _ = solve_time_stats(seed_range, num_obs_range, file_name=file_name, method=method, partition=partition, merge_faces=merge_face, relax=relax)
                 # times[method] = time
             end
         end
     else
         for method in methods
-            file_name = "Solve Time Stats Seed Range $seed_start to $seed_end Num Obs $num_obs Method $method Partition $partition.txt"
+            file_name = "Opt Val Relax $relax Solve Time Stats Seed Range $seed_start to $seed_end Num Obs $num_obs Method $method Partition $partition.txt"
             f = open(file_name, "w")   # write or append appropriately
             write(f, "Seed Range = $seed_range, Num Obs Range = $num_obs_range\nMethod = $method\tPartition = $partition\n")
             flush(f)
             close(f)
-            _ = solve_time_stats(seed_range, num_obs_range, file_name=file_name, method=method, partition=partition)
+            _ = solve_time_stats(seed_range, num_obs_range, file_name=file_name, method=method, partition=partition, relax=relax)
             # times[method] = time
         end
     end

@@ -119,6 +119,54 @@ function get_M_A_b(points, free_faces)
     #return Ms, As, bs, acc
 end
 
+function plot_steps(obstacles, x, y, θ)
+    plot()
+    ClutteredEnvPathOpt.plot_field(obstacles);
+    scatter!(x[1:2:end], y[1:2:end], color="red", series_annotations=([Plots.text(string(x), :right, 8, "courier") for x in 1:2:length(x)]));
+    scatter!(x[2:2:end], y[2:2:end], color="blue", series_annotations=([Plots.text(string(x), :right, 8, "courier") for x in 2:2:length(x)]));
+    quiver!(x, y, quiver=(0.075 * cos.(θ), 0.075 * sin.(θ)))
+    # display(plot!(title="Footsteps"))
+end
+
+function plot_circles(x, y, theta; R1=0.20, R2=0.20, p1=[0, 0.07], p2=[0, -0.27])
+    angles = LinRange(0,2*pi, 100)
+    #plot()
+    for i = 2:length(x)
+        plot()
+        if i % 2 == 1
+            circlex1 = R1*cos.(angles) .+ ( x[i-1] + cos(theta[i-1])*(-p1[1]) - sin(theta[i-1])*(-p1[2]) )
+            circley1 = R1*sin.(angles) .+ ( y[i-1] + sin(theta[i-1])*(-p1[1]) + cos(theta[i-1])*(-p1[2]) )
+
+            circlex2 = R2*cos.(angles) .+ ( x[i-1] + cos(theta[i-1])*(-p2[1]) - sin(theta[i-1])*(-p2[2]) )
+            circley2 = R2*sin.(angles) .+ ( y[i-1] + sin(theta[i-1])*(-p2[1]) + cos(theta[i-1])*(-p2[2]) )
+            #scatter!([x[i-1]; x[i]], [y[i-1]; y[i]])
+            scatter!([x[i-1]], [y[i-1]], color = "blue")
+            scatter!([x[i]], [y[i]], color = "red")
+            quiver!([x[i-1]; x[i]], [y[i-1]; y[i]], 
+                quiver=([0.075 * cos(theta[i-1]); 0.075 * cos(theta[i])], 
+                [0.075 * sin(theta[i-1]); 0.075 * sin(theta[i])])
+                )
+        else
+            circlex1 = R1*cos.(angles) .+ ( x[i-1] + cos(theta[i-1])*(p1[1]) - sin(theta[i-1])*(p1[2]) )
+            circley1 = R1*sin.(angles) .+ ( y[i-1] + sin(theta[i-1])*(p1[1]) + cos(theta[i-1])*(p1[2]) )
+
+            circlex2 = R2*cos.(angles) .+ ( x[i-1] + cos(theta[i-1])*(p2[1]) - sin(theta[i-1])*(p2[2]) )
+            circley2 = R2*sin.(angles) .+ ( y[i-1] + sin(theta[i-1])*(p2[1]) + cos(theta[i-1])*(p2[2]) )
+            #scatter!([x[i-1]; x[i]], [y[i-1]; y[i]])
+            scatter!([x[i-1]], [y[i-1]], color = "red")
+            scatter!([x[i]], [y[i]], color = "blue")
+            quiver!([x[i-1]; x[i]], [y[i-1]; y[i]], 
+                quiver=([0.075 * cos(theta[i-1]); 0.075 * cos(theta[i])], 
+                [0.075 * sin(theta[i-1]); 0.075 * sin(theta[i])])
+                )
+        end
+        plot!(circlex1, circley1, color="dodgerblue")
+        plot!(circlex2, circley2, color="maroon")
+        display(plot!(legend=false, xlims=(-0.1,1.1), ylims=(-0.1,1.1)))
+    end
+    # display(plot!(legend=false, xlims=(-0.1,1.1), ylims=(-0.1,1.1)))
+end
+
 # obstacles <- obstacles (list of polyhedra)
 # N <- max number of steps (scalar)
 # f1 <- initial left foot ([x, y, theta])
@@ -140,7 +188,7 @@ end
 
 Adapted from Deits and Tedrake 2014.
 """
-function solve_steps(obstacles, N, f1, f2, g, Q_g, Q_r, q_t; method="merged", partition="CDT", merge_faces=true, d1=0.2, d2=0.2, p1=[0, 0.07], p2=[0, -0.27])
+function solve_steps(obstacles, N, f1, f2, g, Q_g, Q_r, q_t; method="merged", partition="CDT", merge_faces=true, d1=0.2, d2=0.2, p1=[0, 0.07], p2=[0, -0.27], relax=false)
 
     if partition == "CDT"
         _, points, graph, _, free_faces = ClutteredEnvPathOpt.construct_graph_delaunay(obstacles, merge_faces=merge_faces)
@@ -151,9 +199,13 @@ function solve_steps(obstacles, N, f1, f2, g, Q_g, Q_r, q_t; method="merged", pa
     skeleton = LabeledGraph(graph)
 
     # model = JuMP.Model(JuMP.optimizer_with_attributes(Gurobi.Optimizer))
-    model = JuMP.Model(JuMP.optimizer_with_attributes(Gurobi.Optimizer, "MIPGap" => .01, "TimeLimit" => 300))
-    # model = JuMP.Model(JuMP.optimizer_with_attributes(Gurobi.Optimizer, "Heuristics"=> 0, "Cuts"=> 0, "Precrush"=>1, "MIPGap" => .01, "TimeLimit" => 180))
-    
+    # model = JuMP.Model(JuMP.optimizer_with_attributes(Gurobi.Optimizer, "Heuristics"=> 0, "Cuts"=> 0, "Precrush"=>1, "MIPGap" => .01, "TimeLimit" => 300))
+    if relax
+        model = JuMP.Model(Gurobi.Optimizer)
+    else
+        model = JuMP.Model(JuMP.optimizer_with_attributes(Gurobi.Optimizer, "MIPGap" => .01, "TimeLimit" => 300))
+    end
+
     # model has scalar variables x, y, θ, binary variable t
     JuMP.@variable(model, x[1:N])
     JuMP.@variable(model, y[1:N])
@@ -229,8 +281,7 @@ function solve_steps(obstacles, N, f1, f2, g, Q_g, Q_r, q_t; method="merged", pa
     end
 
     # Reachability
-    # s = [piecewiselinear(model, θ[j], range(0, stop=(2 * pi), length=L), sin) for j in 1:N]
-    # c = [piecewiselinear(model, θ[j], range(0, stop=(2 * pi), length=L), cos) for j in 1:N]
+    # Breakpoints need to be strategically chosen
     s_break_pts = [0, 5pi/16, 11pi/16, 21pi/16, 27pi/16, 2pi]
     c_break_pts = [0, 3pi/16, 13pi/16, 19pi/16, 29pi/16, 2pi]
     s = [piecewiselinear(model, θ[j], s_break_pts, sin) for j in 1:N]
@@ -316,6 +367,9 @@ function solve_steps(obstacles, N, f1, f2, g, Q_g, Q_r, q_t; method="merged", pa
     JuMP.@constraint(model, f[2] .== f2)
 
     # Solve
+    if relax
+        relax_integrality(model)
+    end
     JuMP.optimize!(model)
 
     if method == "merged" && valid_cover_merged
@@ -328,56 +382,30 @@ function solve_steps(obstacles, N, f1, f2, g, Q_g, Q_r, q_t; method="merged", pa
         method = "bigM"
     end
 
-    stats = (termination_status(model), solve_time(model), relative_gap(model), simplex_iterations(model), 
+    # TODO: CHECK IF MODEL HAS VALUES FIRST?
+    stats = (termination_status(model), objective_value(model), solve_time(model), relative_gap(model), simplex_iterations(model), 
             node_count(model), LightGraphs.nv(skeleton.graph), length(merged_cover), length(cover), length(free_faces), num_free_face_ineq, method)
 
+    # TODO: SAVE PLOTS OF SOLUTIONS OF MIQCQP
+    # MOVE THIS OUTSIDE FUNCTION?
+    # if !relax && has_values(model)
+    #     x = value.(x)
+    #     y = value.(y)
+    #     θ = value.(θ)
+    #     t = value.(t)
+    #     num_to_trim = length(filter(tj -> tj > 0.5, t[3:end]))
+    #     if num_to_trim % 2 == 0
+    #         x = vcat(x[1:2], x[num_to_trim + 3 : end]);
+    #         y = vcat(y[1:2], y[num_to_trim + 3 : end]);
+    #         θ = vcat(θ[1:2], θ[num_to_trim + 3 : end]);
+    #     else
+    #         x = vcat(x[1], x[num_to_trim + 3 : end]);
+    #         y = vcat(y[1], y[num_to_trim + 3 : end]);
+    #         θ = vcat(θ[1], θ[num_to_trim + 3 : end]);
+    #     end
+    #     plot_steps(obstacles, x, y, θ)
+    #     png("IMG_NAME")
+    # end
+
     return value.(x), value.(y), value.(θ), value.(t), stats
-end
-
-function plot_steps(obstacles, x, y, θ)
-    plot()
-    ClutteredEnvPathOpt.plot_field(obstacles);
-    scatter!(x[1:2:end], y[1:2:end], color="red", series_annotations=([Plots.text(string(x), :right, 8, "courier") for x in 1:2:length(x)]));
-    scatter!(x[2:2:end], y[2:2:end], color="blue", series_annotations=([Plots.text(string(x), :right, 8, "courier") for x in 2:2:length(x)]));
-    quiver!(x, y, quiver=(0.075 * cos.(θ), 0.075 * sin.(θ)))
-    display(plot!(title="Footsteps"))
-end
-
-function plot_circles(x, y, theta; R1=0.20, R2=0.20, p1=[0, 0.07], p2=[0, -0.27])
-    angles = LinRange(0,2*pi, 100)
-    #plot()
-    for i = 2:length(x)
-        plot()
-        if i % 2 == 1
-            circlex1 = R1*cos.(angles) .+ ( x[i-1] + cos(theta[i-1])*(-p1[1]) - sin(theta[i-1])*(-p1[2]) )
-            circley1 = R1*sin.(angles) .+ ( y[i-1] + sin(theta[i-1])*(-p1[1]) + cos(theta[i-1])*(-p1[2]) )
-
-            circlex2 = R2*cos.(angles) .+ ( x[i-1] + cos(theta[i-1])*(-p2[1]) - sin(theta[i-1])*(-p2[2]) )
-            circley2 = R2*sin.(angles) .+ ( y[i-1] + sin(theta[i-1])*(-p2[1]) + cos(theta[i-1])*(-p2[2]) )
-            #scatter!([x[i-1]; x[i]], [y[i-1]; y[i]])
-            scatter!([x[i-1]], [y[i-1]], color = "blue")
-            scatter!([x[i]], [y[i]], color = "red")
-            quiver!([x[i-1]; x[i]], [y[i-1]; y[i]], 
-                quiver=([0.075 * cos(theta[i-1]); 0.075 * cos(theta[i])], 
-                [0.075 * sin(theta[i-1]); 0.075 * sin(theta[i])])
-                )
-        else
-            circlex1 = R1*cos.(angles) .+ ( x[i-1] + cos(theta[i-1])*(p1[1]) - sin(theta[i-1])*(p1[2]) )
-            circley1 = R1*sin.(angles) .+ ( y[i-1] + sin(theta[i-1])*(p1[1]) + cos(theta[i-1])*(p1[2]) )
-
-            circlex2 = R2*cos.(angles) .+ ( x[i-1] + cos(theta[i-1])*(p2[1]) - sin(theta[i-1])*(p2[2]) )
-            circley2 = R2*sin.(angles) .+ ( y[i-1] + sin(theta[i-1])*(p2[1]) + cos(theta[i-1])*(p2[2]) )
-            #scatter!([x[i-1]; x[i]], [y[i-1]; y[i]])
-            scatter!([x[i-1]], [y[i-1]], color = "red")
-            scatter!([x[i]], [y[i]], color = "blue")
-            quiver!([x[i-1]; x[i]], [y[i-1]; y[i]], 
-                quiver=([0.075 * cos(theta[i-1]); 0.075 * cos(theta[i])], 
-                [0.075 * sin(theta[i-1]); 0.075 * sin(theta[i])])
-                )
-        end
-        plot!(circlex1, circley1, color="dodgerblue")
-        plot!(circlex2, circley2, color="maroon")
-        display(plot!(legend=false, xlims=(-0.1,1.1), ylims=(-0.1,1.1)))
-    end
-    # display(plot!(legend=false, xlims=(-0.1,1.1), ylims=(-0.1,1.1)))
 end
