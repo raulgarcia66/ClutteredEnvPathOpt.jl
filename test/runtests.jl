@@ -39,15 +39,15 @@ using JuMP, Gurobi
     L = 5  # number of pieces in p.w.l approx. of sine/cosine 
 
     # Compute optimal path
-    x1, y1, θ1, t1, stats1 = solve_steps(obstacles, N, f1, f2, goal, Q_g, Q_r, q_t, method="merged")
+    x1, y1, θ1, t1, stats1 = solve_steps(obstacles, N, f1, f2, goal, Q_g, Q_r, q_t, method="merged", relax=true)
     x = copy(x1); y = copy(y1); θ = copy(θ1); t = copy(t1);
-    term_status, r_solve_time, rel_gap, simplex_iters, r_node_count, num_vertices, merged_size, full_size, num_free_faces, num_free_face_ineq, method_used = stats1
+    term_status, opt_val, r_solve_time, rel_gap, simplex_iters, r_node_count, num_vertices, merged_size, full_size, num_free_faces, num_free_face_ineq, method_used = stats1
     
     x2, y2, θ2, t2, stats2 = solve_steps(obstacles, N, f1, f2, goal, Q_g, Q_r, q_t, method="full")
-    term_status2, r_solve_time2, rel_gap2, simplex_iters2, r_node_count2, num_vertices2, merged_size2, full_size2, num_free_faces2, num_free_face_ineq2, method_used2 = stats2
+    term_status2, opt_val2, r_solve_time2, rel_gap2, simplex_iters2, r_node_count2, num_vertices2, merged_size2, full_size2, num_free_faces2, num_free_face_ineq2, method_used2 = stats2
     
     x3, y3, θ3, t3, stats3 = solve_steps(obstacles, N, f1, f2, goal, Q_g, Q_r, q_t, method="bigM")
-    term_status3, r_solve_time3, rel_gap3, simplex_iters3, r_node_count3, num_vertices3, merged_size3, full_size3, num_free_faces3, num_free_face_ineq3, method_used3 = stats3
+    term_status3, opt_val3, r_solve_time3, rel_gap3, simplex_iters3, r_node_count3, num_vertices3, merged_size3, full_size3, num_free_faces3, num_free_face_ineq3, method_used3 = stats3
     
     seed_range = 1:3
     num_obs_range = 1:4
@@ -59,9 +59,9 @@ using JuMP, Gurobi
             _,_,_,_,stats = solve_steps(obstacles, N, f1, f2, goal, Q_g, Q_r, q_t, method = "merged")
             _,_,_,_,stats2 = solve_steps(obstacles, N, f1, f2, goal, Q_g, Q_r, q_t, method="full")
             _,_,_,_,stats3 = solve_steps(obstacles, N, f1, f2, goal, Q_g, Q_r, q_t, method="bigM")              
-            term_status, solve_time, rel_gap, simplex_iters, node_count, num_vertices, merged_size, full_size, num_free_faces, num_free_face_ineq, method_used = stats
-            term_status2, solve_time2, rel_gap2, simplex_iters2, node_count2, num_vertices2, merged_size2, full_size2, num_free_faces2, num_free_face_ineq2, method_used2 = stats2
-            term_status3, solve_time3, rel_gap3, simplex_iters3, node_count3, num_vertices3, merged_size3, full_size3, num_free_faces3, num_free_face_ineq3, method_used3 = stats3
+            term_status, opt_val, solve_time, rel_gap, simplex_iters, node_count, num_vertices, merged_size, full_size, num_free_faces, num_free_face_ineq, method_used = stats
+            term_status2, opt_val2, solve_time2, rel_gap2, simplex_iters2, node_count2, num_vertices2, merged_size2, full_size2, num_free_faces2, num_free_face_ineq2, method_used2 = stats2
+            term_status3, opt_val3, solve_time3, rel_gap3, simplex_iters3, node_count3, num_vertices3, merged_size3, full_size3, num_free_faces3, num_free_face_ineq3, method_used3 = stats3
             # Merged biclique times vs bigM
             t_diff = solve_time3 - solve_time
             push!(time_diffs, t_diff)
