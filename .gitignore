@@ -13,4 +13,3 @@
 *.txt
 /Old Tests and Images
 /test/dataanalysis.jl
-/test/dataframenotes.jl
