@@ -6,10 +6,16 @@ using Plots
 using JuMP
 using Gurobi
 
-################################### solve_deits ########################################
+# import GLPK
+using LightGraphs
+import Polyhedra
+using PiecewiseLinearOpt
+
+########################################################################################
+################################### solve_steps ########################################
 # Create obstacles
-num_obs = 3;
-seed = 5;
+num_obs = 4;
+seed = 3;
 obstacles = ClutteredEnvPathOpt.gen_field(num_obs, seed = seed)
 plot();
 ClutteredEnvPathOpt.plot_field(obstacles)
@@ -28,13 +34,13 @@ q_t = -.05  # weight for trimming unused steps
 # TODO: Assure second footstep is within reachability given first
 
 # Optional named arguments
-d1 = 0.2
-d2 = 0.2
-p1 = [0. 0.07]
-p2 = [0, -0.27]
-delta_x_y_max = 0.1  # max stride norm in space
-delta_θ_max = pi/4  # max difference in θ
-L = 5  # number of pieces in p.w.l approx. of sine/cosine 
+d1 = 0.2  # radius of reference foot circle
+d2 = 0.2  # radius of moving foot circle
+p1 = [0. 0.07]  # center of reference foot circle
+p2 = [0, -0.27]  # center of moving foot circle
+# delta_x_y_max = 0.1  # max stride norm in space
+# delta_θ_max = pi/4  # max difference in θ
+# relax = false  # if true, solve as continuous relaxation
 
 # Compute optimal path
 x1, y1, θ1, t1, stats1 = solve_steps(obstacles, N, f1, f2, goal, Q_g, Q_r, q_t, method="merged")
@@ -102,9 +108,14 @@ end
 
 # Plot footstep plan
 plot_steps(obstacles, x, y, θ)
+plot!(title="Footsteps")
+png("Optimal Path Seed $seed Num Obs $num_obs Merged Faces true Method merged")
 plot_steps(obstacles, x2, y2, θ2)
+plot!(title="Footsteps")
+png("Optimal Path Seed $seed Num Obs $num_obs Merged Faces true Method full")
 plot_steps(obstacles, x3, y3, θ3)
-png("Path Seed $seed Num Obs $num_obs")
+plot!(title="Footsteps")
+png("Optimal Path Seed $seed Num Obs $num_obs Merged Faces true Method bigM")
 
 
 # Plot intersections of circles
@@ -112,8 +123,8 @@ plot_circles(x, y, θ)
 plot_circles(x2, y2, θ2)
 plot_circles(x3, y3, θ3)
 
-
 ######################################################################################
+################################ Inspect Instances ###################################
 
 num_obs = 4;
 seed = 3;
@@ -248,16 +259,10 @@ png("$partition FEG of S_bc Seed $seed Num Obs $num_obs Merged Faces $merge_face
 # png("$partition FEG of S_bc Seed $seed Num Obs $num_obs Merged Faces $merge_faces No Axis")
 
 
-
+#######################################################################################
 ########################### Biclique Cover Validity Tests #############################
-seed_range = 1:100
-num_obs_range = 1:4
-partition = "CDT"
-merge_faces = true
-# fail_tuples = biclique_cover_validity_tests(seed_range, num_obs_range, faces = "all", partition=partition)
-fail_tuples = biclique_cover_validity_tests(seed_range, num_obs_range, faces = "free", with_plots=true, partition=partition)
 
-# Biclique validity tester function
+# Biclique cover validity tester function
 function biclique_cover_validity_tests(seed_range, num_obs_range; faces::String="free", with_plots::Bool=false,partition="CDT",merge_faces::Bool=true)
     # fails = 0
     tuples = []
@@ -319,30 +324,16 @@ function biclique_cover_validity_tests(seed_range, num_obs_range; faces::String=
     return tuples
 end
 
+seed_range = 1:100
+num_obs_range = 1:4
+partition = "CDT"
+merge_faces = true
+# fail_tuples = biclique_cover_validity_tests(seed_range, num_obs_range, faces = "all", partition=partition)
+fail_tuples = biclique_cover_validity_tests(seed_range, num_obs_range, faces = "free", with_plots=true, partition=partition)
+
+
+######################################################################################
 ############################ Biclique Cover Merging Stats ############################
-
-file_name = "Biclique Cover Merging Stats Partition $partition.txt"
-file_name_dt = "Biclique Cover Merging Stats Partition CDT.txt"
-file_name_hp = "Biclique Cover Merging Stats Partition HP.txt"
-percent_decreases_dt, tuples_dt, c_sizes_dt, mc_sizes_dt, num_free_faces_dt = biclique_cover_merger_stats(seed_range, num_obs_range, file_name=file_name_dt, partition="CDT")
-percent_decreases_hp, tuples_hp, c_sizes_hp, mc_sizes_hp, num_free_faces_hp = biclique_cover_merger_stats(seed_range, num_obs_range, file_name=file_name_hp, partition="HP")
-size_diff_cover = c_sizes_hp - c_sizes_dt
-size_diff_merged_cover = mc_sizes_hp - mc_sizes_dt
-size_diff_free_faces = num_free_faces_hp - num_free_faces_dt
-
-maximum(size_diff_free_faces) # 68
-minimum(size_diff_free_faces) # 0
-Statistics.mean(size_diff_free_faces) # 17.79
-count(t-> t > 0, size_diff_free_faces) # 373
-count(t-> t < 0, size_diff_free_faces) # 0
-count(t-> t == 0, size_diff_free_faces) # 27
-
-maximum(size_diff_merged_cover) # 16
-minimum(size_diff_merged_cover) # -1
-Statistics.mean(size_diff_merged_cover) # 4.975
-count(t-> t > 0, size_diff_merged_cover) # 353
-count(t-> t < 0, size_diff_merged_cover) # 9
-count(t-> t == 0, size_diff_merged_cover) # 38
 
 # Biclique cover merger function for stats
 function biclique_cover_merger_stats(seed_range, num_obs_range; file_name="Biclique Cover Merging Stats.txt", partition="CDT", merge_faces=true)
@@ -425,6 +416,30 @@ function biclique_cover_merger_stats(seed_range, num_obs_range; file_name="Bicli
     return percent_vec, tuples, cover_vec, merged_cover_vec, num_free_faces_vec
 end
 
+file_name = "Biclique Cover Merging Stats Partition $partition.txt"
+file_name_dt = "Biclique Cover Merging Stats Partition CDT.txt"
+file_name_hp = "Biclique Cover Merging Stats Partition HP.txt"
+percent_decreases_dt, tuples_dt, c_sizes_dt, mc_sizes_dt, num_free_faces_dt = biclique_cover_merger_stats(seed_range, num_obs_range, file_name=file_name_dt, partition="CDT")
+percent_decreases_hp, tuples_hp, c_sizes_hp, mc_sizes_hp, num_free_faces_hp = biclique_cover_merger_stats(seed_range, num_obs_range, file_name=file_name_hp, partition="HP")
+size_diff_cover = c_sizes_hp - c_sizes_dt
+size_diff_merged_cover = mc_sizes_hp - mc_sizes_dt
+size_diff_free_faces = num_free_faces_hp - num_free_faces_dt
+
+maximum(size_diff_free_faces) # 68
+minimum(size_diff_free_faces) # 0
+Statistics.mean(size_diff_free_faces) # 17.79
+count(t-> t > 0, size_diff_free_faces) # 373
+count(t-> t < 0, size_diff_free_faces) # 0
+count(t-> t == 0, size_diff_free_faces) # 27
+
+maximum(size_diff_merged_cover) # 16
+minimum(size_diff_merged_cover) # -1
+Statistics.mean(size_diff_merged_cover) # 4.975
+count(t-> t > 0, size_diff_merged_cover) # 353
+count(t-> t < 0, size_diff_merged_cover) # 9
+count(t-> t == 0, size_diff_merged_cover) # 38
+
+
 # TODO: Add number of points, ratio (percentage) of num_free_faces for HP vs DT
 # file_name = "Biclique Cover Merging and Free Faces Comparison.txt"
 # f = open(file_name, "w")
@@ -442,7 +457,9 @@ end
 
 # end
 
-############################ Solve time function ##############################
+
+######################################################################################
+################################# Solve Time Stats ###################################
 
 # method <- "merged" for the compact biclique cover, "full" for the original biclique cover, "bigM" for big-M constraints
 function solve_time_stats(seed_range, num_obs_range; file_name="Solve Time Stats.txt", method="merged", partition="CDT", merge_faces=true, relax=false)
@@ -467,9 +484,9 @@ function solve_time_stats(seed_range, num_obs_range; file_name="Solve Time Stats
     # p2 = [0, -0.27] <- center of moving foot circle
     # delta_x_y_max = 0.10  # max stride norm in space
     # delta_θ_max = pi/4  # max difference in θ
-    # L = 5  # number of pieces in p.w.l approx. of sine/cosine
+    # relax <- if true, solve as continuous relaxation
     
-    f = open(file_name, "a")
+    f = open(file_name, "a")   # file is created outside of function
     # write(f, "Seed\tNum_obs\tTime\n")
     write(f, "Seed\tNum_obs\tTerm_status\tObj_val\tSolve_time\tRel_gap\tSimplex_iterations\tNodes_explored\tNum_vertices\tBC_merged_size\tBC_full_size\tNum_free_faces\tNum_free_face_inequalities\n")
     times = zeros(length(seed_range) * length(num_obs_range))
@@ -523,7 +540,6 @@ function solve_time_stats(seed_range, num_obs_range; file_name="Solve Time Stats
 
 end
 
-############################# Solve Time Stats ###############################
 # Run seeds 1-5 with CDT for MIP only
 seed_start = 1
 seed_end = 5
@@ -568,154 +584,333 @@ for partition in partitions
 end
 
 
-################################## Data Analysis #####################################
-# Import CDT data into matrices
-import DelimitedFiles
+######################################################################################
+################################# Problem Size Stats #################################
+# Problem size before and after presolve (print model; see how these work: show_constraints_summary, constraints_string)
+# Size of disjunctive constraints
+
+function compute_problem_size(obstacles, N, f1, f2, g, Q_g, Q_r, q_t; method="merged", partition="CDT", merge_faces=true, d1=0.2, d2=0.2, p1=[0, 0.07], p2=[0, -0.27])
+    if partition == "CDT"
+        _, points, graph, _, free_faces = ClutteredEnvPathOpt.construct_graph_delaunay(obstacles, merge_faces=merge_faces)
+    else
+        _, points, graph, _, free_faces = ClutteredEnvPathOpt.construct_graph(obstacles)
+    end
+
+    skeleton = LabeledGraph(graph)
+
+    model = JuMP.Model(JuMP.optimizer_with_attributes(Gurobi.Optimizer, "MIPGap" => .01, "TimeLimit" => 300))
+
+    # Problem size counters
+    all_cont_variables = 0
+    all_bin_variables = 0
+    disjunctive_cont_variables = 0
+    disjunctive_bin_variables = 0
+    # all_ineq_constraints = 0
+    # all_eq_constraints = 0
+    disjunctive_ineq_constraints = 0
+    disjunctive_eq_constraints = 0
+
+    # model has scalar variables x, y, θ, binary variable t
+    JuMP.@variable(model, x[1:N])
+    JuMP.@variable(model, y[1:N])
+    JuMP.@variable(model, θ[1:N])
+    JuMP.@variable(model, t[1:N], Bin)
+    all_cont_variables += 3*N
+    all_bin_variables += N
+
+    # Objective
+    f = vec([[x[j], y[j], θ[j]] for j in 1:N])
+    # f_no_theta = vec([[x[j], y[j]] for j in 1:N])
+    JuMP.@objective(
+        model,
+        Min,
+        ((f[N] - g)' * Q_g * (f[N] - g)) + sum(q_t * t) + sum((f[j + 1] - f[j])' * Q_r * (f[j + 1] - f[j]) for j in 1:(N-1))
+    )
+
+    cover = Set{Pair{Set{Int64}, Set{Int64}}}()
+    merged_cover = Set{Pair{Set{Int64}, Set{Int64}}}()
+    num_free_face_ineq = 0
+
+    if method != "bigM"
+        cover = ClutteredEnvPathOpt.find_biclique_cover(skeleton, free_faces)
+        feg = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(free_faces))
+        merged_cover = ClutteredEnvPathOpt.biclique_merger(cover, feg)
+
+        (valid_cover, _, _, _) = ClutteredEnvPathOpt._is_valid_biclique_cover_diff(feg, cover)
+        (valid_cover_merged, _, _, _) = ClutteredEnvPathOpt._is_valid_biclique_cover_diff(feg, merged_cover)
+    end
+    
+    # Footstep location constraints
+    if method == "merged" && valid_cover_merged
+        J = LightGraphs.nv(skeleton.graph)
+        
+        JuMP.@variable(model, λ[1:N, 1:J] >= 0)
+        disjunctive_cont_variables += N * J
+
+        JuMP.@variable(model, z[1:N, 1:length(merged_cover)], Bin)
+        disjunctive_bin_variables += N * (length(merged_cover))
+        for i in 1:N
+            for (j,(A,B)) in enumerate(merged_cover)
+                JuMP.@constraint(model, sum(λ[i, v] for v in A) <= z[i, j])
+                JuMP.@constraint(model, sum(λ[i, v] for v in B) <= 1 - z[i, j])
+                disjunctive_ineq_constraints += 2
+            end
+            JuMP.@constraint(model, sum(λ[i,:]) == 1)
+            JuMP.@constraint(model, x[i] == sum(points[j].first * λ[i, j] for j in 1:J))
+            JuMP.@constraint(model, y[i] == sum(points[j].second * λ[i, j] for j in 1:J))
+            disjunctive_eq_constraints += 3
+        end
+    elseif method != "bigM" && valid_cover
+        J = LightGraphs.nv(skeleton.graph)
+
+        JuMP.@variable(model, λ[1:N, 1:J] >= 0)
+        disjunctive_cont_variables += N * J
+
+        JuMP.@variable(model, z[1:N, 1:length(cover)], Bin)
+        disjunctive_bin_variables += N * (length(cover))
+        for i in 1:N
+            for (j,(A,B)) in enumerate(cover)
+                JuMP.@constraint(model, sum(λ[i, v] for v in A) <= z[i, j])
+                JuMP.@constraint(model, sum(λ[i, v] for v in B) <= 1 - z[i, j])
+                disjunctive_ineq_constraints += 2
+            end
+            JuMP.@constraint(model, sum(λ[i,:]) == 1)
+            JuMP.@constraint(model, x[i] == sum(points[j].first * λ[i, j] for j in 1:J))
+            JuMP.@constraint(model, y[i] == sum(points[j].second * λ[i, j] for j in 1:J))
+            disjunctive_eq_constraints += 3
+        end
+    else
+        # Runs if method = "bigM", or if a valid biclique cover is not found
+        M, A, b, acc = ClutteredEnvPathOpt.get_M_A_b(points, free_faces)
+        num_free_face_ineq = length(M)
+        JuMP.@variable(model, z[1:N, 1:length(free_faces)], Bin)
+        disjunctive_bin_variables = N * length(free_faces)
+        for j in 1:N
+            for r in 1:length(free_faces)
+                ids = (acc[r]+1):(acc[r+1])
+                for i in ids
+                    JuMP.@constraint(model, A[i, :]' * [x[j]; y[j]] <= b[i] * z[j, r] + M[i] * (1 - z[j, r]))
+                    disjunctive_ineq_constraints += 1
+                end
+            end
+            JuMP.@constraint(model, sum(z[j, :]) == 1)
+            disjunctive_eq_constraints += 1
+        end
+    end
+
+    all_cont_variables += disjunctive_cont_variables
+    all_bin_variables += disjunctive_bin_variables
+    # all_ineq_constraints += disjunctive_ineq_constraints
+    # all_eq_constraints += disjunctive_eq_constraints
+
+    # Reachability
+    # Breakpoints need to be strategically chosen
+    s_break_pts = [0, 5pi/16, 11pi/16, 21pi/16, 27pi/16, 2pi]
+    c_break_pts = [0, 3pi/16, 13pi/16, 19pi/16, 29pi/16, 2pi]
+    s = [piecewiselinear(model, θ[j], s_break_pts, sin) for j in 1:N]
+    c = [piecewiselinear(model, θ[j], c_break_pts, cos) for j in 1:N]
+
+    # For footstep j, the cirles are created from the frame of reference of footstep j-1
+    # Use negative if in frame of reference of right foot (j = 1 is left foot)
+    # Position is with respect to θ = 0
+    for j in 2:N
+        if j % 2 == 1
+            # In frame of reference of right foot
+            JuMP.@constraint(
+                model,
+                [
+                    d1,
+                    x[j] - x[j - 1] - c[j-1] * (-p1[1]) + s[j-1] * (-p1[2]),
+                    y[j] - y[j - 1] - s[j-1] * (-p1[1]) - c[j-1] * (-p1[2])
+                ] in SecondOrderCone()
+            )
+
+            JuMP.@constraint(
+                model,
+                [
+                    d2,
+                    x[j] - x[j - 1] - c[j-1] * (-p2[1]) + s[j-1] * (-p2[2]),
+                    y[j] - y[j - 1] - s[j-1] * (-p2[1]) - c[j-1] * (-p2[2])
+                ] in SecondOrderCone()
+            )
+        else
+            # In frame of reference left foot
+            JuMP.@constraint(
+                model,
+                [
+                    d1,
+                    x[j] - x[j - 1] - c[j-1] * p1[1] + s[j-1] * p1[2],
+                    y[j] - y[j - 1] - s[j-1] * p1[1] - c[j-1] * p1[2]
+                ] in SecondOrderCone()
+            )
+
+            JuMP.@constraint(
+                model,
+                [
+                    d2,
+                    x[j] - x[j - 1] - c[j-1] * p2[1] + s[j-1] * p2[2],
+                    y[j] - y[j - 1] - s[j-1] * p2[1] - c[j-1] * p2[2]
+                ] in SecondOrderCone()
+            )
+        end
+    end
+
+    # Set T to punish extra steps
+    for j in 1:N
+        if j % 2 == 1
+            JuMP.@constraint(model, t[j] => {x[j] == f1[1]}) # use f1 and f2?
+            JuMP.@constraint(model, t[j] => {y[j] == f1[2]})
+            JuMP.@constraint(model, t[j] => {θ[j] == f1[3]})
+        else
+            JuMP.@constraint(model, t[j] => {x[j] == f2[1]})
+            JuMP.@constraint(model, t[j] => {y[j] == f2[2]})
+            JuMP.@constraint(model, t[j] => {θ[j] == f2[3]})
+        end
+    end
+
+    # Max step distance
+    # for j in 3:2:(N-1)
+    #     JuMP.@constraint(model, [delta_x_y_max; f_no_theta[j] - f_no_theta[j - 2]] in SecondOrderCone())
+    #     JuMP.@constraint(model, [delta_x_y_max; f_no_theta[j + 1] - f_no_theta[j - 1]] in SecondOrderCone())
+    # end
+
+    # Max theta difference for individual feet
+    # for j in 3:2:(N-1)
+    #     JuMP.@constraint(model, -delta_θ_max <= θ[j] - θ[j - 2] <= delta_θ_max)
+    #     JuMP.@constraint(model, -delta_θ_max <= θ[j + 1] - θ[j - 1] <= delta_θ_max)
+    # end
+
+    # Max θ difference between feet
+    for j in 2:N
+        JuMP.@constraint(model, -pi/8 <= θ[j] - θ[j-1] <= pi/8)
+    end
+
+    # Initial footstep positions
+    JuMP.@constraint(model, f[1] .== f1)
+    JuMP.@constraint(model, f[2] .== f2)
+
+    # Print model
+    # println("\n\nPrinting model.")
+    # print(model)
+    # println("\n\nDisplaying model.")
+    # display(model)
+    # println("\n\nWriting model to file.")
+    # write_to_file(model, "test.mof.json", format = MOI.FORMAT_MOF)
+    # Solve
+    # JuMP.optimize!(model)
+
+    if method == "merged" && valid_cover_merged
+        println("\n\nUsed merged cover.\n\n")
+    elseif method != "bigM" && valid_cover 
+        println("\n\nUsed full cover.\n\n")
+        method = "full"
+    else
+        println("\n\nUsed big-M constraints.\n\n")
+        method = "bigM"
+    end
+
+    stats = Dict("all_cont_variables" => all_cont_variables, "all_bin_variables" => all_bin_variables,
+                 "disjunctive_cont_variables" => disjunctive_cont_variables, "disjunctive_bin_variables" => disjunctive_bin_variables,
+                 "disjunctive_ineq_constraints" => disjunctive_ineq_constraints, "disjunctive_eq_constraints" => disjunctive_eq_constraints,
+                 "MBC_size" => length(merged_cover), "FBC_size" =>  length(cover), "num_free_faces" => length(free_faces),
+                 "num_free_face_ineq" =>num_free_face_ineq, "num_vertices" => LightGraphs.nv(skeleton.graph), "method" => method)
+                        # "all_ineq_constraints" => 1, "all_eq_constraints" => 1,
+
+    return stats
+end
+
+function problem_size_stats(seed_range, num_obs_range; file_name="Problem Size Stats.txt", method="merged", partition="CDT", merge_faces=true)
+
+    # Set parameters
+    N = 30  # number of steps
+    f1 = [0.0, 0.1, 0.0]  # initial footstep pose 1
+    f2 = [0.0, 0.0, 0.0]  # initial footstep pose 2
+    goal = [1, 1, 0]  # goal pose
+    Q_g = 10*Matrix{Float64}(I, 3, 3)  # weight between final footstep and goal pose
+    Q_r = [1 0 0; 0 1 0; 0 0 0] # Matrix{Float64}(I, 3, 3)  # weight between footsteps
+    q_t = -.05  # weight for trimming unused steps
+    # Optional named arguments
+    # d1 = 0.2 # radius of reference foot circle
+    # d2 = 0.2 # radius of moving foot circle
+    # p1 = [0, 0.07] # center of reference foot circle
+    # p2 = [0, -0.27] # center of moving foot circle
+    # delta_x_y_max = 0.10  # max stride norm in space
+    # delta_θ_max = pi/4  # max difference in θ
+    
+    f = open(file_name, "a")   # file is created outside of function
+    # write(f, "Seed\tNum_obs\tTime\n")
+    write(f, "Seed\tNum_obs\tDisjunctive_cont_var\tDisjunctive_bin_var\tDisjunctive_ineq_cons\tDisjunctive_eq_cons\tAll_cont_var\tAll_bin_var\tNum_vertices\tBC_merged_size\tBC_full_size\tNum_free_face_ineq\tNum_free_faces\n")
+    # some_success_indicator = zeros(length(seed_range) * length(num_obs_range))
+    # i = 1
+    for seed = seed_range
+        for num_obs = num_obs_range
+            # f = open(file_name, "a")
+            # write(f, "Seed = $seed, Num_Obs = $num_obs\n")
+            # flush(f)
+            # close(f)
+            # println("On test Seed = $seed, Num_Obs = $num_obs")
+
+            # Create obstacles
+            obstacles = ClutteredEnvPathOpt.gen_field(num_obs, seed = seed)
+
+            stats = compute_problem_size(obstacles, N, f1, f2, goal, Q_g, Q_r, q_t, method=method, partition=partition, merge_faces=merge_faces)
+
+            # if method_used == method
+            #     some_success_indicator[i] = r_solve_time # time
+            # else
+            #     some_success_indicator[i] = -1
+            # end
+            write(f, "$seed\t$num_obs\t$(stats["disjunctive_cont_variables"])\t$(stats["disjunctive_bin_variables"])\t$(stats["disjunctive_ineq_constraints"])\t$(stats["disjunctive_eq_constraints"])")
+            write(f, "\t$(stats["all_cont_variables"])\t$(stats["all_bin_variables"])\t$(stats["num_vertices"])\t$(stats["MBC_size"])\t$(stats["FBC_size"])\t$(stats["num_free_face_ineq"])\t$(stats["num_free_faces"])\n")
+            flush(f)
+
+            # i += 1
+        end
+    end
+
+    # write(f, "\nEND")
+    # flush(f)
+    close(f)
+end
 
 seed_start = 1
 seed_end = 50
-num_obs = 1
-
-# CDT, Merged Faces, Merged BC
-filename = "Solve Time Stats Seed Range $seed_start to $seed_end Num Obs $num_obs Method merged Partition CDT Merge Face true.txt"
-CDT_MF_MBC_all_data = DelimitedFiles.readdlm(filename, '\t')
-# CDT, Merged Faces, Full BC
-filename = "Solve Time Stats Seed Range $seed_start to $seed_end Num Obs $num_obs Method full Partition CDT Merge Face true.txt"
-CDT_MF_FBC_all_data = DelimitedFiles.readdlm(filename, '\t')
-# CDT, Merged Faces, BigM
-filename = "Solve Time Stats Seed Range $seed_start to $seed_end Num Obs $num_obs Method bigM Partition CDT Merge Face true.txt"
-CDT_MF_BigM_all_data = DelimitedFiles.readdlm(filename, '\t')
-# CDT, All Faces, Merged BC
-filename = "Solve Time Stats Seed Range $seed_start to $seed_end Num Obs $num_obs Method merged Partition CDT Merge Face false.txt"
-CDT_AF_MBC_all_data = DelimitedFiles.readdlm(filename, '\t')
-# CDT, All Faces, Full BC
-filename = "Solve Time Stats Seed Range $seed_start to $seed_end Num Obs $num_obs Method full Partition CDT Merge Face false.txt"
-CDT_AF_FBC_all_data = DelimitedFiles.readdlm(filename, '\t')
-# CDT, All Faces, BigM
-filename = "Solve Time Stats Seed Range $seed_start to $seed_end Num Obs $num_obs Method bigM Partition CDT Merge Face false.txt"
-CDT_AF_BigM_all_data = DelimitedFiles.readdlm(filename, '\t')
-
-header = Vector{String}(CDT_MF_MBC_all_data[3,:])
-# column indices: 1,2,3 (10,11,12) = seed, num_obs, solve_time (MBC_size, FBC_size, Num_Free_Faces)
-CDT_MF_MBC = CDT_MF_MBC_all_data[4:end,3]
-CDT_MF_FBC = CDT_MF_FBC_all_data[4:end,3]
-CDT_MF_BigM = CDT_MF_BigM_all_data[4:end,3]
-CDT_AF_MBC = CDT_AF_MBC_all_data[4:end,3]
-CDT_AF_FBC = CDT_AF_FBC_all_data[4:end,3]
-CDT_AF_BigM = CDT_AF_BigM_all_data[4:end,3]
-test_names = ["MF_MBC","MF_FBC","MF_BigM","AF_MBC","AF_FBC","AF_BigM"]
-test_matrix = hcat(CDT_MF_MBC, CDT_MF_FBC, CDT_MF_BigM, CDT_AF_MBC, CDT_AF_FBC, CDT_AF_BigM)
-
-# x1 = CDT_MF_MBC_all_data[4:end,8:10]
-# x2 = CDT_MF_FBC_all_data[4:end,8:10]
-# x3 = CDT_MF_BigM_all_data[4:end,8:10]
-# x4 = CDT_AF_MBC_all_data[4:end,8:10]
-# x5 = CDT_AF_FBC_all_data[4:end,8:10]
-# x6 = CDT_AF_BigM_all_data[4:end,8:10]
-
-winners = Vector{String}(undef,50)
-for i=1:50
-    index = argmin(test_matrix[i,:])
-    winners[i] = test_names[index]
-end
-final_matrix = hcat(test_matrix, winners)
-
-winner_count = zeros(Int,6)
-for (i,test) in enumerate(test_names)
-    winner_count[i] = count(w -> w == test, winners)
-end
-# For seed 1:50, num obs 1: [10, 10, 19, 3, 1, 7], meaning bigM fastest, full and merged BC were same, and merged faces usually faster
-# For seed 1:50, num obs 2: [10, 7, 24, 4, 0, 5], meaning bigM fastest, then merged BC, fullBC, and merged faces usually faster
-
-
-# Write summary of important data
-file_name = "Solve Time Stats Comparison CDT Seed Range $seed_start to $seed_end Num Obs $num_obs.txt"
-f = open(file_name, "w")    # write or append appropriately
-write(f, "Partition CDT, Seed Range = $seed_start:$seed_end, Num Obs = $num_obs\n")
-write(f,"Seed\tNum_Obs\t")
-for i = 1:(length(test_names))
-    write(f, "$(test_names[i])\t")
-end
-write(f, "Fastest Method\n")
-flush(f)
-
-for i = 1:size(test_matrix, 1)
-    write(f,"$i\t1\t")   # seed and num_obs
-    for j = 1:size(test_matrix, 2)
-        write(f, "$(test_matrix[i,j])\t")
-    end
-    write(f, "$(winners[i])\n")
-end
-flush(f)
-close(f)
-
-
-
-# To load new data summary into matrix
-file_name = "Solve Time Stats Comparison CDT Seed Range $seed_start to $seed_end Num Obs $num_obs.txt"
-data_summary = DelimitedFiles.readdlm(file_name, '\t')
-matrix_summary = data_summary[3:end,:]
-num_matrix_summary = Matrix{Float64}(matrix_summary[:,3:end-1])
-header_summary = Vector{String}(data_summary[2,:])
-winners = data_summary[3:end,end]
-
-winner_count = zeros(Int,6)
-for (i,test) in enumerate(test_names)
-    winner_count[i] = count(w -> w == test, winners)
-end
-
-# mergedBC vs bigM (1 vs 2) (Merged Faces both)
-MBC_wins = 0
-FBC_wins = 0
-BigM_wins = 0
-for i = 1:50
-    # Don't think this is exactly correct for counting
-    if num_matrix_summary[i,1] < num_matrix_summary[i,3]
-        MBC_wins += 1     
-    elseif num_matrix_summary[i,2] < num_matrix_summary[i,3]
-        FBC_wins += 1  
+seed_range = seed_start:seed_end
+num_obs = 4
+num_obs_range = num_obs:num_obs
+partitions = ["CDT", "HP"]
+# partitions = ["CDT"]
+merge_faces = [true, false]
+# merge_faces = [true]
+# merge_faces = [false]
+methods = ["merged", "full", "bigM"]
+# methods = ["merged"]
+# methods = ["full"]
+# methods = ["bigM"]
+for partition in partitions
+    if partition == "CDT"
+        for merge_face in merge_faces
+            for method in methods
+                file_name = "Problem Size Stats Seed Range $seed_start to $seed_end Num Obs $num_obs Method $method Partition $partition Merge Face $merge_face.txt"
+                f = open(file_name, "w")   # write or append appropriately
+                write(f, "Seed Range = $seed_range, Num Obs Range = $num_obs_range\nMethod = $method\tPartition = $partition\tMerge Face = $merge_face\n")
+                flush(f)
+                close(f)
+                stats = problem_size_stats(seed_range, num_obs_range, file_name=file_name, method=method, partition=partition, merge_faces=merge_face)
+            end
+        end
     else
-        BigM_wins +=1 
+        for method in methods
+            file_name = "Problem Size Stats Seed Range $seed_start to $seed_end Num Obs $num_obs Method $method Partition $partition.txt"
+            f = open(file_name, "w")   # write or append appropriately
+            write(f, "Seed Range = $seed_range, Num Obs Range = $num_obs_range\nMethod = $method\tPartition = $partition\n")
+            flush(f)
+            close(f)
+            stats = problem_size_stats(seed_range, num_obs_range, file_name=file_name, method=method, partition=partition)
+        end
     end
 end
-MBC_wins
-FBC_wins
-BigM_wins
-# Num Obs 1: 24 vs 5 vs 21
-# Num Obs 2:  14 vs 7 vs 29
 
-
-# # Previous data ------------------------------------------------------------------
-# import DelimitedFiles
-# data_merged = DelimitedFiles.readdlm("Solve Time Stats Method merged.txt", '\t')
-# matrix_merged = Matrix{Float64}(data_merged[4:end,:])
-# data_bigM = DelimitedFiles.readdlm("Solve Time Stats Method bigM.txt", '\t')
-# matrix_bigM = Matrix{Float64}(data_bigM[4:end,:])
-# header = Vector{String}(data_merged[3,:])
-
-# file_name = "Solve Stats Comparison.txt" #Seed Range = $seed_range, Num Obs Range = $num_obs_range.txt"
-# f = open(file_name, "w")    # write or append appropriately
-# write(f, "S_T_m\tS_T_b\tS_T_diff\tS_I_m\tS_I_b\tS_I_diff\tN_C_m\tN_C_b\tN_C_diff\n")
-# S_T_m = matrix_merged[:,3]
-# S_T_b = matrix_bigM[:,3]
-# S_T_diff = S_T_b .- S_T_m
-# S_I_m = matrix_merged[:,5]
-# S_I_b = matrix_bigM[:,5]
-# S_I_diff = S_I_b .- S_I_m
-# N_C_m = matrix_merged[:,6]
-# N_C_b = matrix_bigM[:,6]
-# N_C_diff = N_C_b .- N_C_m
-# for i = 1:length(S_T_m)
-#     write(f, "$(S_T_m[i])\t$(S_T_b[i])\t$(S_T_diff[i])\t")
-#     write(f, "$(S_I_m[i])\t$(S_I_b[i])\t$(S_I_diff[i])\t")
-#     write(f, "$(N_C_m[i])\t$(N_C_b[i])\t$(N_C_diff[i])\n")
-# end
-# flush(f)
-# close(f)
-
-# data_summary = DelimitedFiles.readdlm("Solve Stats Comparison.txt", '\t')
-# matrix_summary = Matrix{Float64}(data_summary[2:end,:])
-# header_summary = Vector{String}(data_summary[1,:])
 
 
 
