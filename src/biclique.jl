@@ -23,7 +23,6 @@ function find_biclique_cover(skeleton::LabeledGraph{T}, faces::Set{Vector{T}})::
         node = Set([A => B])
     else
         node = Set{Pair{Set{T}, Set{T}}}()
-        println("A or B are empty.\nSkeleton vertices are $(skeleton.labels)")
     end
 
     if !isempty(union(A,C))

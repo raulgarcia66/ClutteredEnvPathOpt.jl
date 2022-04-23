@@ -829,7 +829,7 @@ function construct_graph_delaunay(obs; merge_faces=true)
         LightGraphs.add_edge!(graph, triangles[2,j] => triangles[3,j])
     end
 
-    # Store free faces as vectors (utilizing holes, all triangles are free faces)
+    # Store free faces as vectors (utilizing holes ⟹ all triangles are free faces)
     free_faces = Vector{Int64}[]
     for j = 1:size(triangles,2)
         push!(free_faces, reverse(triangles[:,j]))
