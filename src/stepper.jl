@@ -6,6 +6,10 @@ using Pipe
 using Plots
 using JuMP, Gurobi, PiecewiseLinearOpt
 
+"""
+    get_M_A_b_easy(obstacles)
+Description.
+"""
 function get_M_A_b_easy(obstacles)
     Ms = []
     As = []
@@ -44,6 +48,10 @@ function get_M_A_b_easy(obstacles)
     return vcat(Ms...), vcat(As...), vcat(bs...), acc
 end
 
+"""
+    get_M_A_b(points, free_faces)
+Description.
+"""
 function get_M_A_b(points, free_faces)
     Ms = []
     As = []
@@ -119,6 +127,10 @@ function get_M_A_b(points, free_faces)
     #return Ms, As, bs, acc
 end
 
+"""
+    plot_steps(obstacles, x, y, θ)
+Description.
+"""
 function plot_steps(obstacles, x, y, θ)
     plot()
     ClutteredEnvPathOpt.plot_field(obstacles);
@@ -128,6 +140,10 @@ function plot_steps(obstacles, x, y, θ)
     # display(plot!(title="Footsteps"))
 end
 
+"""
+    plot_circles(x, y, theta; R1=0.20, R2=0.20, p1=[0, 0.07], p2=[0, -0.27])
+Description.
+"""
 function plot_circles(x, y, theta; R1=0.20, R2=0.20, p1=[0, 0.07], p2=[0, -0.27])
     angles = LinRange(0,2*pi, 100)
     #plot()
@@ -182,11 +198,11 @@ end
 # p2 = [0, -0.27] <- center of moving foot circle
 # delta_x_y_max = 0.1 <- max stride norm in space
 # delta_θ_max = pi/4 <- max difference in θ
-# L = 5 <- number of pieces of pwl sin/cos (scalar)
+# relax <- if true, solve as continuous relaxation
 """
-    solve_steps()
+    solve_steps(obstacles, N, f1, f2, g, Q_g, Q_r, q_t; method="merged", partition="CDT", merge_faces=true, d1=0.2, d2=0.2, p1=[0, 0.07], p2=[0, -0.27], relax=false)
 
-Adapted from Deits and Tedrake 2014.
+Compute optimal footstep path. Adapted from Deits and Tedrake 2014.
 """
 function solve_steps(obstacles, N, f1, f2, g, Q_g, Q_r, q_t; method="merged", partition="CDT", merge_faces=true, d1=0.2, d2=0.2, p1=[0, 0.07], p2=[0, -0.27], relax=false)
 
@@ -199,7 +215,8 @@ function solve_steps(obstacles, N, f1, f2, g, Q_g, Q_r, q_t; method="merged", pa
     skeleton = LabeledGraph(graph)
 
     # model = JuMP.Model(JuMP.optimizer_with_attributes(Gurobi.Optimizer))
-    # model = JuMP.Model(JuMP.optimizer_with_attributes(Gurobi.Optimizer, "Heuristics"=> 0, "Cuts"=> 0, "Precrush"=>1, "MIPGap" => .01, "TimeLimit" => 300))
+    # TODO: Anything else we need to test on?
+    # model = JuMP.Model(JuMP.optimizer_with_attributes(Gurobi.Optimizer, "Heuristics"=> 0, "Cuts"=> 0, "MIPGap" => .01, "TimeLimit" => 300))
     if relax
         model = JuMP.Model(Gurobi.Optimizer)
     else
@@ -270,9 +287,6 @@ function solve_steps(obstacles, N, f1, f2, g, Q_g, Q_r, q_t; method="merged", pa
             for r in 1:length(free_faces)
                 ids = (acc[r]+1):(acc[r+1])
                 for i in ids
-                    # JuMP.@constraint(model, A[r, :]' * [x[j], y[j]] <= b[r] * z[j, r] + M[r] * (1 - z[j, r]))
-                    # JuMP.@constraint(model, A[r, :]' * [x[j], y[j]] <= b[r] * z[j, r] + 1 * (1 - z[j, r]))
-                    # println("$i")
                     JuMP.@constraint(model, A[i, :]' * [x[j]; y[j]] <= b[i] * z[j, r] + M[i] * (1 - z[j, r]))
                 end
             end
