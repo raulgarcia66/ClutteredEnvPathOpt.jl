@@ -9,7 +9,8 @@
 *.fdb_latexmk
 *.fls
 *.synctex(busy)
-/Images Float Error
 *.txt
+*.csv
+/Images Float Error
 /Old Tests and Images
 /test/dataanalysis.jl
