@@ -50,7 +50,7 @@ end
 
 Given a LabeledGraph, plots its nodes and edges in the unit square.
 """
-function plot_edges(lg::LabeledGraph{T}, points::Vector{Pair{Rational{Int64},Rational{Int64}}}; plot_name::String="Edges", col::String="colorful", new_plot::Bool=true, vertices::Dict{T,T}=Dict{T,T}()) where {T}
+function plot_edges(lg::LabeledGraph{T}, points::Vector{Pair{Rational{Int64},Rational{Int64}}}; plot_name::String="Edges", col::String="colorful", new_plot::Bool=true, vertices::Dict{T,T}=Dict{T,T}(), with_labels=true) where {T}
     if new_plot
         Plots.plot()
     end
@@ -68,9 +68,73 @@ function plot_edges(lg::LabeledGraph{T}, points::Vector{Pair{Rational{Int64},Rat
     end
 
     # ClutteredEnvPathOpt.plot_intersections(obstacles, vertices=vertices)
-    ClutteredEnvPathOpt.plot_points(points, vertices=vertices)
+    ClutteredEnvPathOpt.plot_points(points, vertices=vertices, with_labels=with_labels)
 
     display(Plots.plot!(title=plot_name, xlims=(-0.05,1.05), ylims=(-0.05,1.05), legend=false))
+end
+
+"""
+    plot_biclique_cover(lg, points, cover; with_all)
+
+Given a LabeledGraph and a biclique cover, plot each biclique.
+"""
+function plot_biclique_cover(lg::LabeledGraph{T}, points::Vector{Pair{Rational{Int64},Rational{Int64}}}, cover::Set{Pair{Set{T}, Set{T}}}; with_all::Bool=false, name::String="Biclique") where {T}
+    e_bar = LightGraphs.edges(LightGraphs.complement(lg.graph))
+
+    # Vector of sets of pairs (edges)
+    cover_vec = collect(cover)
+    BC_edges = map(pair -> ClutteredEnvPathOpt._cartesian_product(pair.first, pair.second), cover_vec)
+    # all_BC_edges = reduce(union!, BC_edges, init=Set{Pair{T,T}}())
+    # temp_graph = LightGraphs.SimpleGraph(LightGraphs.nv(lg.graph))   # will contain BC edges
+    rev = ClutteredEnvPathOpt._reverse_labels(lg.labels)
+
+    # for edge in all_BC_edges
+    #     # edge.first/second will be our nodes, so we map them to the nodes they are in the graph
+    #     LightGraphs.add_edge!(temp_graph, lg.labels[edge.first], lg.labels[edge.second])
+    # end
+
+    colors = [:firebrick1, :dodgerblue, :limegreen]
+
+    # Plot biclique
+    for (j,biclique_edges) in enumerate(BC_edges)
+        plot(legend=false)
+        if with_all
+            temp_graph = LightGraphs.SimpleGraph(LightGraphs.nv(lg.graph))
+            for edge in biclique_edges
+                # edge.first/second will be our nodes, so we map them to the nodes they are in the graph
+                LightGraphs.add_edge!(temp_graph, lg.labels[edge.first], lg.labels[edge.second])
+            end
+
+            for edge in e_bar
+                if !(edge in LightGraphs.edges(temp_graph))
+                    Plots.plot!([points[rev[edge.src]].first, points[rev[edge.dst]].first], [points[rev[edge.src]].second, points[rev[edge.dst]].second], linewidth=2, color="grey60")#, linealpha=0.5)
+                    # display(Plots.plot!(title="Edge ($(rev[edge.src]), $(rev[edge.dst]))"))
+                end
+            end
+            # display(Plots.plot!(title="Conflict Graph - Biclique $j"))
+        end
+
+        for edge in biclique_edges
+            Plots.plot!([points[rev[edge.first]].first, points[rev[edge.second]].first], [points[rev[edge.first]].second, points[rev[edge.second]].second], linewidth=2, color=colors[(j % 3) + 1])
+            # display(Plots.plot!(title="Edge ($(rev[edge.first]), $(rev[edge.second]))"))
+        end
+
+        # See plot_points
+        x = map(point -> point.first, points)
+        y = map(point -> point.second, points)
+        for i = 1:length(points)
+            if i in cover_vec[j].first
+                Plots.scatter!([x[i]],[y[i]], color="red", markersize = 7) #, series_annotations=([Plots.text(string(i), :right, 8, "courier")]))
+            elseif i in cover_vec[j].second
+                Plots.scatter!([x[i]],[y[i]], color="blue", markersize = 7) #, series_annotations=([Plots.text(string(i), :right, 8, "courier")]))
+            else
+                Plots.scatter!([x[i]],[y[i]], color="grey35", markersize = 7) #, series_annotations=([Plots.text(string(i), :right, 8, "courier")]))
+            end
+        end
+
+        display(Plots.plot!(title="Biclique $j"))
+        savefig("$name $j.pdf")
+    end
 end
 
 """
@@ -181,9 +245,9 @@ end
 """
     plot_points(points; vertices)
 
-Plots and labels points given.
+Plots and labels points given. Optional argument to plot a subset of vertices.
 """
-function plot_points(points::Vector{Pair{Rational{Int64},Rational{Int64}}}; vertices::Dict{Int,Int}=Dict{Int,Int}())
+function plot_points(points::Vector{Pair{Rational{Int64},Rational{Int64}}}; vertices::Dict{Int,Int}=Dict{Int,Int}(), with_labels=true)
     
     Plots.plot!(legend=false)
 
@@ -194,13 +258,34 @@ function plot_points(points::Vector{Pair{Rational{Int64},Rational{Int64}}}; vert
         end
         x = map(point -> point.first, points_filtered)
         y = map(point -> point.second, points_filtered)
-        Plots.scatter!(x,y, color="red", series_annotations=([Plots.text(string(x), :right, 8, "courier") for x in keys(vertices)]))
+        if with_labels
+            Plots.scatter!(x,y, color="red", markersize=7, series_annotations=([Plots.text(string(x), :right, 10, "courier") for x in keys(vertices)]))
+        else
+            Plots.scatter!(x,y, color="red", markersize=7)
+        end
     else
         x = map(point -> point.first, points)
         y = map(point -> point.second, points)
-        Plots.scatter!(x,y, color="red", series_annotations=([Plots.text(string(x), :right, 8, "courier") for x in 1:length(points)]))
+        if with_labels
+            Plots.scatter!(x,y, color="red", markersize=7, series_annotations=([Plots.text(string(x), :right, 10, "courier") for x in 1:length(points)]))
+        else
+            Plots.scatter!(x,y, color="red", markersize=7)
+        end
     end
 
+end
+
+"""
+    plot_steps(obstacles, x, y, θ)
+Description.
+"""
+function plot_steps(obstacles, x, y, θ)
+    plot()
+    ClutteredEnvPathOpt.plot_field(obstacles);
+    scatter!(x[1:2:end], y[1:2:end], color="red", markersize=5, series_annotations=([Plots.text(string(x), :right, 8, "courier") for x in 1:2:length(x)]));
+    scatter!(x[2:2:end], y[2:2:end], color="blue", markersize=5, series_annotations=([Plots.text(string(x), :right, 8, "courier") for x in 2:2:length(x)]));
+    quiver!(x, y, quiver=(0.075 * cos.(θ), 0.075 * sin.(θ)))
+    # display(plot!(title="Footsteps"))
 end
 
 """
