@@ -128,19 +128,6 @@ function get_M_A_b(points, free_faces)
 end
 
 """
-    plot_steps(obstacles, x, y, θ)
-Description.
-"""
-function plot_steps(obstacles, x, y, θ)
-    plot()
-    ClutteredEnvPathOpt.plot_field(obstacles);
-    scatter!(x[1:2:end], y[1:2:end], color="red", series_annotations=([Plots.text(string(x), :right, 8, "courier") for x in 1:2:length(x)]));
-    scatter!(x[2:2:end], y[2:2:end], color="blue", series_annotations=([Plots.text(string(x), :right, 8, "courier") for x in 2:2:length(x)]));
-    quiver!(x, y, quiver=(0.075 * cos.(θ), 0.075 * sin.(θ)))
-    # display(plot!(title="Footsteps"))
-end
-
-"""
     plot_circles(x, y, theta; R1=0.20, R2=0.20, p1=[0, 0.07], p2=[0, -0.27])
 Description.
 """
