@@ -202,10 +202,7 @@ function solve_steps(obstacles, N, f1, f2, g, Q_g, Q_r, q_t; method="merged", pa
         _, points, graph, _, free_faces = ClutteredEnvPathOpt.construct_graph(obstacles)
     end
 
-    skeleton = LabeledGraph(graph)
-
     # model = JuMP.Model(JuMP.optimizer_with_attributes(Gurobi.Optimizer))
-    # TODO: Anything else we need to test on?
     # model = JuMP.Model(JuMP.optimizer_with_attributes(Gurobi.Optimizer, "Heuristics"=> 0, "Cuts"=> 0, "MIPGap" => .01, "TimeLimit" => 300))
     if relax
         model = JuMP.Model(Gurobi.Optimizer)
@@ -320,6 +317,7 @@ function solve_steps(obstacles, N, f1, f2, g, Q_g, Q_r, q_t; method="merged", pa
     num_free_face_ineq = 0
 
     if method != "bigM"
+        skeleton = LabeledGraph(graph)
         cover = ClutteredEnvPathOpt.find_biclique_cover(skeleton, free_faces)
         feg = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(free_faces))
         merged_cover = ClutteredEnvPathOpt.biclique_merger(cover, feg)
