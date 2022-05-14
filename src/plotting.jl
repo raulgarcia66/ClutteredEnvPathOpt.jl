@@ -277,7 +277,8 @@ end
 
 """
     plot_steps(obstacles, x, y, θ)
-Description.
+
+Plots footsteps of optimal path along with arrows indicating orientation.
 """
 function plot_steps(obstacles, x, y, θ)
     plot()
