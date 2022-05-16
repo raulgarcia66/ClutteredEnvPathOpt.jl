@@ -154,6 +154,7 @@ savefig("Poster Obstacles Seed $seed Num Obs $num_obs.pdf")
 
 # Plot faces
 ClutteredEnvPathOpt.plot_faces(free_faces, points, plot_name = "Free Faces")
+ClutteredEnvPathOpt.plot_faces(free_faces, points, plot_name = "Free Space Partition")
 # plot!(title="",axis=([], false))
 png("$partition Free Faces Seed $seed Num Obs $num_obs Merged Faces $merge_faces")
 # png("$partition Free Faces Seed $seed Num Obs $num_obs Merged Faces $merge_faces No Axis")
@@ -197,27 +198,6 @@ savefig("Poster $partition FEG of S Seed $seed Num Obs $num_obs Merged Faces $me
 # png("$partition FEG All Seed $seed Num Obs $num_obs")
 
 
-
-# # Duplicate tests
-# obstacles = ClutteredEnvPathOpt.gen_field(num_obs, seed = seed)
-# points, mapped, inside_quant = ClutteredEnvPathOpt.find_intersections(obstacles)
-# neighbors = ClutteredEnvPathOpt._find_neighbors(points, mapped)
-# points = ClutteredEnvPathOpt.find_points(obstacles)
-
-# dup, dup_ind = face_duplicates(obstacle_faces)
-# dup, dup_ind = face_duplicates(free_faces)
-# dup, dup_ind = face_duplicates(all_faces)
-# plot_intersections_indiv(points)
-# dup, dup_ind = point_duplicates(points)
-# dup, dup_ind = points_in_hs_duplicates(mapped)
-# dup, dup_ind = hs_duplicates(mapped)
-# points_in_mapped_ordered(obstacles, mapped)
-# plot_neighbors(obstacles, neighbors, points)
-# list_neighbors(neighbors, points)
-# suspect = suspect_neighbors(neighbors)
-
-
-
 # cover3 = ClutteredEnvPathOpt._find_biclique_cover_visual(skeleton, free_faces, points)
 # tree = ClutteredEnvPathOpt.find_biclique_cover_as_tree(skeleton, free_faces)
 
@@ -228,7 +208,6 @@ feg = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathO
 
 merged_cover = ClutteredEnvPathOpt.biclique_merger(cover, feg)
 (valid_cover, size_diff, missing_edges, missing_edges_lg) = ClutteredEnvPathOpt._is_valid_biclique_cover_diff(feg, merged_cover)
-
 
 ClutteredEnvPathOpt.plot_edges(missing_edges_lg, points, plot_name = "Missing Edges",vertices=missing_edges_lg.labels)
 png("$partitition Missing Edges Seed $seed Num Obs $num_obs Merged Faces $merge_faces")
@@ -498,12 +477,11 @@ function solve_time_stats(seed_range, num_obs_range; file_name="Solve Time Stats
     # d2 = 0.2 <- radius of moving foot circle
     # p1 = [0, 0.07] <- center of reference foot circle
     # p2 = [0, -0.27] <- center of moving foot circle
-    # delta_x_y_max = 0.10  # max stride norm in space
-    # delta_θ_max = pi/4  # max difference in θ
+    # delta_x_y_max = 0.10  # max stride norm in space (no longer used)
+    # delta_θ_max = pi/4  # max difference in θ (no longer used)
     # relax <- if true, solve as continuous relaxation
     
     f = open(file_name, "a")   # file is created outside of function
-    # write(f, "Seed\tNum_obs\tTime\n")
     write(f, "Seed\tNum_obs\tTerm_status\tObj_val\tSolve_time\tRel_gap\tSimplex_iterations\tNodes_explored\tNum_vertices\tBC_merged_size\tBC_full_size\tNum_free_faces\tNum_free_face_inequalities\n")
     times = zeros(length(seed_range) * length(num_obs_range))
     i = 1
@@ -571,13 +549,14 @@ methods = ["merged", "full", "bigM"]
 # methods = ["merged"]
 # methods = ["full"]
 # methods = ["bigM"]
-relax = true
+relax = false
 # times = Dict()
 for partition in partitions
     if partition == "CDT"
         for merge_face in merge_faces
             for method in methods
-                file_name = "Opt Val Relax $relax Solve Time Stats Seed Range $seed_start to $seed_end Num Obs $num_obs Method $method Partition $partition Merge Face $merge_face.txt"
+                # file_name = "Opt Val Relax $relax Solve Time Stats Seed Range $seed_start to $seed_end Num Obs $num_obs Method $method Partition $partition Merge Face $merge_face.txt"
+                file_name = "Opt Val Solve Time Stats Seed Range $seed_start to $seed_end Num Obs $num_obs Method $method Partition $partition Merge Face $merge_face.txt"
                 f = open(file_name, "w")   # write or append appropriately
                 write(f, "Seed Range = $seed_range, Num Obs Range = $num_obs_range\nMethod = $method\tPartition = $partition\tMerge Face = $merge_face\n")
                 flush(f)
@@ -588,7 +567,8 @@ for partition in partitions
         end
     else
         for method in methods
-            file_name = "Opt Val Relax $relax Solve Time Stats Seed Range $seed_start to $seed_end Num Obs $num_obs Method $method Partition $partition.txt"
+            # file_name = "Opt Val Relax $relax Solve Time Stats Seed Range $seed_start to $seed_end Num Obs $num_obs Method $method Partition $partition.txt"
+            file_name = "Opt Val Solve Time Stats Seed Range $seed_start to $seed_end Num Obs $num_obs Method $method Partition $partition.txt"
             f = open(file_name, "w")   # write or append appropriately
             write(f, "Seed Range = $seed_range, Num Obs Range = $num_obs_range\nMethod = $method\tPartition = $partition\n")
             flush(f)
@@ -771,7 +751,7 @@ function compute_problem_size(obstacles, N, f1, f2, g, Q_g, Q_r, q_t; method="me
         end
     end
 
-    # Set T to punish extra steps
+    # Set trimmed steps equal to initial position
     for j in 1:N
         if j % 2 == 1
             JuMP.@constraint(model, t[j] => {x[j] == f1[1]}) # use f1 and f2?
@@ -932,6 +912,26 @@ end
 
 #######################################################################################
 ################################ Debugging Functions ##################################
+
+
+# # Duplicate tests
+# obstacles = ClutteredEnvPathOpt.gen_field(num_obs, seed = seed)
+# points, mapped, inside_quant = ClutteredEnvPathOpt.find_intersections(obstacles)
+# neighbors = ClutteredEnvPathOpt._find_neighbors(points, mapped)
+# points = ClutteredEnvPathOpt.find_points(obstacles)
+
+# dup, dup_ind = face_duplicates(obstacle_faces)
+# dup, dup_ind = face_duplicates(free_faces)
+# dup, dup_ind = face_duplicates(all_faces)
+# plot_intersections_indiv(points)
+# dup, dup_ind = point_duplicates(points)
+# dup, dup_ind = points_in_hs_duplicates(mapped)
+# dup, dup_ind = hs_duplicates(mapped)
+# points_in_mapped_ordered(obstacles, mapped)
+# plot_neighbors(obstacles, neighbors, points)
+# list_neighbors(neighbors, points)
+# suspect = suspect_neighbors(neighbors)
+
 
 # Check if free_faces has any duplicates---------------------------------------------
 function face_duplicates(faces)
