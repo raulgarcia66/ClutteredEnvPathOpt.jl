@@ -186,8 +186,8 @@ end
 # d2 = 0.2 <- radius of moving foot circle
 # p1 = [0, 0.07] <- center of reference foot circle
 # p2 = [0, -0.27] <- center of moving foot circle
-# delta_x_y_max = 0.1 <- max stride norm in space
-# delta_θ_max = pi/4 <- max difference in θ
+# delta_x_y_max = 0.1 <- max stride norm in space (no longer used)
+# delta_θ_max = pi/4 <- max difference in θ (no longer used)
 # relax <- if true, solve as continuous relaxation
 """
     solve_steps(obstacles, N, f1, f2, g, Q_g, Q_r, q_t; method="merged", partition="CDT", merge_faces=true, d1=0.2, d2=0.2, p1=[0, 0.07], p2=[0, -0.27], relax=false)
