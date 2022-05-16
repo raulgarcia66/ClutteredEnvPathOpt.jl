@@ -623,17 +623,19 @@ function _find_feg_separator_lt_no_empty_visual(skeleton::LabeledGraph{T}, face_
     Plots.plot()
     Plots.scatter!(map(point -> point.first, points), map(point -> point.second, points))
 
+    # println("Set A: $A")
     for a in A
         Plots.scatter!([points[a].first], [points[a].second], color=:red)
     end
+    # println("Set B: $B")
     for b in B
-        Plots.scatter!([points[b].first], [points[b].second], color=:yellow)
+        Plots.scatter!([points[b].first], [points[b].second], color=:blue)
     end
 
     for edge in new_edges
         (x1,y1) = points[edge.first]
         (x2,y2) = points[edge.second]
-        Plots.plot!([x1, x2], [y1, y2], color=:green, linestyle=:dash)
+        Plots.plot!([x1, x2], [y1, y2], color=:limegreen)
     end
 
     display(Plots.plot!(legend=:false,xlims=(-.05,1.05),ylims=(-0.05,1.05), title="Biclique"))
@@ -654,17 +656,16 @@ function _find_biclique_cover_visual(skeleton::LabeledGraph{T}, faces::Set{Vecto
     end
 
     (C, A, B) = _find_feg_separator_lt_no_empty_visual(skeleton, face_pairs, points)
-    # println("Set A: $A\nSet B: $B\nSet C: $C")
 
     if !isempty(A) && !isempty(B)
         node = Set([A => B])
     else
         node = Set{Pair{Set{T}, Set{T}}}()
     end
+
     if !isempty(union(A,C))
         skeleton_ac, faces_ac = _find_skeleton_faces(union(A, C), skeleton, faces)
         if !isempty(faces_ac)
-            # println("\nSet A: $A\nSet B: $B\nSet C: $C\nA ∪ C")
             left = _find_biclique_cover_visual(skeleton_ac, faces_ac, points)
         else
             left = Set{Pair{Set{T}, Set{T}}}()
@@ -672,10 +673,10 @@ function _find_biclique_cover_visual(skeleton::LabeledGraph{T}, faces::Set{Vecto
     else
         left = Set{Pair{Set{T}, Set{T}}}()
     end
+
     if !isempty(union(B,C))
         skeleton_bc, faces_bc = _find_skeleton_faces(union(B, C), skeleton, faces)
         if !isempty(faces_bc)
-            # println("\nSet A: $A\nSet B: $B\nSet C: $C\nB ∪ C")
             right = _find_biclique_cover_visual(skeleton_bc, faces_bc, points)
         else
             right = Set{Pair{Set{T}, Set{T}}}()
