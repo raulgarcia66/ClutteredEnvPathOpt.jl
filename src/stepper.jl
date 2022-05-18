@@ -60,8 +60,6 @@ function get_M_A_b(points, free_faces)
     bs = []
     acc = [0] # try using reduce() instead
 
-    # _, points, _, _, free_faces = ClutteredEnvPathOpt.construct_graph(obstacles)
-
     # Solve over the unitcell
     u = Polyhedra.convexhull([0//1,0//1],[0//1,1//1],[1//1,0//1],[1//1,1//1])
     unitcell = Polyhedra.polyhedron(u)
@@ -80,7 +78,9 @@ function get_M_A_b(points, free_faces)
             A = hs.a'
             b = hs.β
 
-            sub_model = JuMP.Model(Gurobi.Optimizer)
+            # sub_model = JuMP.Model(Gurobi.Optimizer)
+            # JuMP.set_silent(sub_model)
+            sub_model = JuMP.Model(JuMP.optimizer_with_attributes(Gurobi.Optimizer, "OutputFlag" => 0))
             #sub_x = JuMP.@variable(sub_model, [1:2])
             JuMP.@variable(sub_model, sub_x[1:2])
             JuMP.@constraint(sub_model, sub_x in unitcell)
@@ -178,8 +178,8 @@ end
 # f1 <- initial left foot ([x, y, theta])
 # f2 <- initial right foot ([x, y, theta])
 # g <- goal pose
-# Q_g <- pose weights to goal (4x4 mat)
-# Q_r <- pose weights between steps (4x4 mat)
+# Q_g <- pose weights to goal (3x3 mat)
+# Q_r <- pose weights between steps (3x3 mat)
 # q_t <- weight on unused steps (scalar)
 # method <- "merged" for the compact biclique cover, "full" for the original biclique cover, "bigM" for big-M constraints
 # d1 = 0.2 <- radius of reference foot circle
@@ -203,11 +203,11 @@ function solve_steps(obstacles, N, f1, f2, g, Q_g, Q_r, q_t; method="merged", pa
     end
 
     # model = JuMP.Model(JuMP.optimizer_with_attributes(Gurobi.Optimizer))
-    # model = JuMP.Model(JuMP.optimizer_with_attributes(Gurobi.Optimizer, "Heuristics"=> 0, "Cuts"=> 0, "MIPGap" => .01, "TimeLimit" => 300))
     if relax
         model = JuMP.Model(Gurobi.Optimizer)
     else
-        model = JuMP.Model(JuMP.optimizer_with_attributes(Gurobi.Optimizer, "MIPGap" => .01, "TimeLimit" => 300))
+        model = JuMP.Model(JuMP.optimizer_with_attributes(Gurobi.Optimizer, "MIPGap" => .01, "TimeLimit" => 180))
+        # model = JuMP.Model(JuMP.optimizer_with_attributes(Gurobi.Optimizer, "Heuristics" => 0, "Cuts" => 0, "Presolve" => 0, "MIPGap" => .01, "TimeLimit" => 180))
     end
 
     # model has scalar variables x, y, θ, binary variable t
@@ -280,7 +280,7 @@ function solve_steps(obstacles, N, f1, f2, g, Q_g, Q_r, q_t; method="merged", pa
     # Set trimmed steps equal to initial position
     for j in 1:N
         if j % 2 == 1
-            JuMP.@constraint(model, t[j] => {x[j] == f1[1]}) # use f1 and f2?
+            JuMP.@constraint(model, t[j] => {x[j] == f1[1]})
             JuMP.@constraint(model, t[j] => {y[j] == f1[2]})
             JuMP.@constraint(model, t[j] => {θ[j] == f1[3]})
         else
@@ -376,18 +376,25 @@ function solve_steps(obstacles, N, f1, f2, g, Q_g, Q_r, q_t; method="merged", pa
     JuMP.optimize!(model)
 
     if method == "merged" && valid_cover_merged
-        println("\n\nUsed merged cover.\n\n")
+        println("\n\nUsed merged cover.\n")
     elseif method != "bigM" && valid_cover 
-        println("\n\nUsed full cover.\n\n")
+        println("\n\nUsed full cover.\n")
         method = "full"
     else
-        println("\n\nUsed big-M constraints.\n\n")
+        println("\n\nUsed big-M constraints.\n")
         method = "bigM"
     end
 
-    # TODO: CHECK IF MODEL HAS VALUES FIRST?
-    stats = (termination_status(model), objective_value(model), solve_time(model), relative_gap(model), simplex_iterations(model), 
-            node_count(model), LightGraphs.nv(skeleton.graph), length(merged_cover), length(cover), length(free_faces), num_free_face_ineq, method)
+    if termination_status(model) == MOI.OPTIMAL
+        println("Solution is optimal.\n")        
+    elseif termination_status(model) == MOI.TIME_LIMIT && has_values(model)
+        println("Solution is suboptimal due to a time limit, but a primal solution is available.\n")
+    else
+        error("The model was not solved correctly.\n")
+    end
+
+    stats = (termination_status(model), objective_value(model; result=1), solve_time(model), relative_gap(model), simplex_iterations(model), barrier_iterations(model),
+            node_count(model), LightGraphs.nv(graph), length(merged_cover), length(cover), length(free_faces), num_free_face_ineq, method)
 
     # TODO: SAVE PLOTS OF SOLUTIONS OF MIQCQP
     # MOVE THIS OUTSIDE FUNCTION?
@@ -410,5 +417,5 @@ function solve_steps(obstacles, N, f1, f2, g, Q_g, Q_r, q_t; method="merged", pa
     #     png("IMG_NAME")
     # end
 
-    return value.(x), value.(y), value.(θ), value.(t), stats
+    return value.(x; result=1), value.(y; result=1), value.(θ; result=1), value.(t; result=1), stats
 end
