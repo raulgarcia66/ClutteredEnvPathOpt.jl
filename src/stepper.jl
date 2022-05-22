@@ -173,6 +173,34 @@ function plot_circles(x, y, theta; R1=0.20, R2=0.20, p1=[0, 0.07], p2=[0, -0.27]
     # display(plot!(legend=false, xlims=(-0.1,1.1), ylims=(-0.1,1.1)))
 end
 
+"""
+    plot_PWL_sin()
+
+Description.
+"""
+function plot_PWL_sin(break_pts)
+    plot(0:0.1:2pi, sin.(0:0.1:2pi), lw=3, title="Piecewise Linear Sine Approximation")
+
+    for i = 2:length(break_pts)
+        plot!([break_pts[i-1]; break_pts[i]], [sin(break_pts[i-1]); sin(break_pts[i])], lw=3, color="black")
+    end
+    display(plot!(legend=false))
+end
+
+"""
+    plot_PWL_cos()
+
+Description.
+"""
+function plot_PWL_cos(break_pts)
+    plot(0:0.1:2pi, cos.(0:0.1:2pi), lw=3, title="Piecewise Linear Cosine Approximation")
+
+    for i = 2:length(break_pts)
+        plot!([break_pts[i-1]; break_pts[i]], [cos(break_pts[i-1]); cos(break_pts[i])], lw=2, color="black")
+    end
+    display(plot!(legend=false))
+end
+
 # obstacles <- obstacles (list of polyhedra)
 # N <- max number of steps (scalar)
 # f1 <- initial left foot ([x, y, theta])
@@ -206,7 +234,8 @@ function solve_steps(obstacles, N, f1, f2, g, Q_g, Q_r, q_t; method="merged", pa
     if relax
         model = JuMP.Model(Gurobi.Optimizer)
     else
-        model = JuMP.Model(JuMP.optimizer_with_attributes(Gurobi.Optimizer, "MIPGap" => .01, "TimeLimit" => 180))
+        # TODO: Add LogFile parameter to save log
+        model = JuMP.Model(JuMP.optimizer_with_attributes(Gurobi.Optimizer, "MIPGap" => .01))#, "TimeLimit" => 300))
         # model = JuMP.Model(JuMP.optimizer_with_attributes(Gurobi.Optimizer, "Heuristics" => 0, "Cuts" => 0, "Presolve" => 0, "MIPGap" => .01, "TimeLimit" => 180))
     end
 
@@ -226,9 +255,11 @@ function solve_steps(obstacles, N, f1, f2, g, Q_g, Q_r, q_t; method="merged", pa
     )
 
     # Reachability
-    # Breakpoints need to be strategically chosen
-    s_break_pts = [0, 5pi/16, 11pi/16, 21pi/16, 27pi/16, 2pi]
-    c_break_pts = [0, 3pi/16, 13pi/16, 19pi/16, 29pi/16, 2pi]
+    # Breakpoints need to be strategically chosen (fewer is better for problem size)
+    # s_break_pts = [0, 6pi/16, 10pi/16, 22pi/16, 26pi/16, 2pi]
+    # c_break_pts = [0, 3pi/16, 14pi/16, 18pi/16, 29pi/16, 2pi]
+    s_break_pts = 0:0.2:2pi  # TODO: Check if maximum strides all the time
+    c_break_pts = 0:0.2:2pi
     s = [piecewiselinear(model, θ[j], s_break_pts, sin) for j in 1:N]
     c = [piecewiselinear(model, θ[j], c_break_pts, cos) for j in 1:N]
 
