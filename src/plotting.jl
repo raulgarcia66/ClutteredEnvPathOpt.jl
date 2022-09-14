@@ -140,9 +140,20 @@ end
 """
     plot_field(field)
 
-Plots the obstacles to the existing active plot.
+Plots the obstacles to the existing active plot. Requires active plot.
 """
 function plot_field(field)
+    for i = 1:length(field)
+        Plots.plot!(field[i], xlims = (-0.05,1.05), ylim = (-0.05, 1.05))
+    end
+end
+
+"""
+    plot_field!(field)
+
+Plots the obstacles to the existing active plot. Requires active plot.
+"""
+function plot_field!(field)
     for i = 1:length(field)
         Plots.plot!(field[i], xlims = (-0.05,1.05), ylim = (-0.05, 1.05))
     end
@@ -152,7 +163,7 @@ end
     plot_lines(field)
 
 Plots the lines that make up the obstacles' halfspaces to the existing active
-plot.
+plot. Requires active plot.
 """
 function plot_lines(field)
     halfspaces = @pipe map(obstacle -> Polyhedra.hrep(obstacle).halfspaces, field) |> Iterators.flatten(_) |> collect(_)
@@ -211,7 +222,7 @@ halfspaces intersect to the existing active plot.
 function plot_intersections(field; vertices::Dict{T,T}=Dict{T,T}()) where {T}
     intersections, _, inside_quant = find_intersections(field)
 
-    # Remove points inside obstacles
+    # Remove points inside obstacles (located at end of vector)
     for _ = 1:inside_quant
         pop!(intersections)
     end
@@ -221,6 +232,8 @@ function plot_intersections(field; vertices::Dict{T,T}=Dict{T,T}()) where {T}
         for v in keys(vertices)
             push!(points_filtered, intersections[v])
         end
+        # TODO: Rewrite above as below
+        # points_filtered = map(v -> intersections[v], keys(vertices))
         x = map(point -> point.first, points_filtered)
         y = map(point -> point.second, points_filtered)
         Plots.scatter!(x,y, color="red", series_annotations=([Plots.text(string(x), :right, 8, "courier") for x in keys(vertices)]))
@@ -296,12 +309,37 @@ Generates a new obstacle course with n obstacles. If custom = true, obstacles wi
 created from an array containing the points for each obstacle. If save_image = true,
 the course will be plotted and saved to an image.
 """
-function plot_new(n::Int, name::String; custom::Bool=false, seed::Int=1, save_image::Bool=false, partition::String="CDT", merge_faces=true)
-    if custom
-        # obs = gen_field(num_obstacles::Int; custom::Bool=false, points_it::Set{Vector{T}}=Set{Vector{Rational}}(), seed::Int=1) where {T}
-    else
-        obs = gen_field(n, seed = seed)
+function plot_new(n::Int, name::String; seed::Int=1, save_image::Bool=false, partition::String="CDT", merge_faces=true)
+    obs = gen_field_random(n, seed = seed)
+
+    if save_image
+        Plots.plot()
+        plot_field(obs)
+        points = ClutteredEnvPathOpt.find_points(obs)
+        ClutteredEnvPathOpt.plot_points(points)
+        #plot_lines(obs)
+        #plot_borders()
+        #plot_intersections(obs)
+        Plots.png(name)
+        display(Plots.plot!(title="Field"))
     end
+
+    if partition == "CDT"
+        return construct_graph_delaunay(obs; merge_faces=merge_faces)
+    else
+        return construct_graph(obs)
+    end
+end
+
+"""
+    plot_new(n, name; custom, seed, save_image)
+
+Generates a new obstacle course with n obstacles. If custom = true, obstacles will be
+created from an array containing the points for each obstacle. If save_image = true,
+the course will be plotted and saved to an image.
+"""
+function plot_new(obstacles, name::String; save_image::Bool=false, partition::String="CDT", merge_faces=true)
+    obs = gen_field(obstacles)   # maybe just apply remove_overlaps directly
 
     if save_image
         Plots.plot()
