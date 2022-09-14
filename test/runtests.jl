@@ -12,15 +12,15 @@ using JuMP, Gurobi
     # Create obstacles
     num_obs = 3;
     seed = 10;
-    obstacles = ClutteredEnvPathOpt.gen_field(num_obs, seed = seed)
+    obstacles = ClutteredEnvPathOpt.gen_field_random(num_obs, seed = seed)
     plot();
     ClutteredEnvPathOpt.plot_field(obstacles)
     # points = ClutteredEnvPathOpt.find_points(obstacles)
     # ClutteredEnvPathOpt.plot_points(points)
     display(plot!())
     
-    # Set parameters
-    N = 30  # number of steps
+    # Set parameters (NEED UPDATING)
+    N = 20  # number of steps
     f1 = [0.0, 0.1, 0.0]  # initial footstep pose 1
     f2 = [0.0, 0.0, 0.0]  # initial footstep pose 2
     goal = [1.0, 1.0, 0.0]  # goal pose
@@ -55,7 +55,7 @@ using JuMP, Gurobi
     for seed in seed_range
         for num_obs in num_obs_range
             println("\nOn test Seed = $seed, Num_Obs = $num_obs")
-            obstacles = ClutteredEnvPathOpt.gen_field(num_obs, seed = seed)
+            obstacles = ClutteredEnvPathOpt.gen_field_random(num_obs, seed = seed)
             _,_,_,_,stats = solve_steps(obstacles, N, f1, f2, goal, Q_g, Q_r, q_t, method = "merged")
             _,_,_,_,stats2 = solve_steps(obstacles, N, f1, f2, goal, Q_g, Q_r, q_t, method="full")
             _,_,_,_,stats3 = solve_steps(obstacles, N, f1, f2, goal, Q_g, Q_r, q_t, method="bigM")              

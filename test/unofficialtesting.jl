@@ -14,9 +14,9 @@ using PiecewiseLinearOpt
 ########################################################################################
 ################################### solve_steps ########################################
 # Create obstacles
-num_obs = 3;
-seed = 17;
-obstacles = ClutteredEnvPathOpt.gen_field(num_obs, seed = seed)
+num_obs = 2;
+seed = 25;
+obstacles = ClutteredEnvPathOpt.gen_field_random(num_obs, seed = seed)
 plot();
 ClutteredEnvPathOpt.plot_field(obstacles)
 points = ClutteredEnvPathOpt.find_points(obstacles)
@@ -44,13 +44,13 @@ q_t = -.05  # weight for trimming unused steps
 
 # Compute optimal path
 x, y, θ, t, stats = solve_steps(obstacles, N, f1, f2, goal, Q_g, Q_r, q_t, method="merged")
-term_status, obj_val, r_solve_time, rel_gap, simplex_iters, barrier_iters, r_node_count, num_vertices, merged_size, full_size, num_free_faces, num_free_face_ineq, method_used = stats
+term_status, obj_val, solve_time, rel_gap, simplex_iters, barrier_iters, node_count, num_vertices, merged_size, full_size, num_free_faces, num_free_face_ineq, method_used = stats
 
 x2, y2, θ2, t2, stats2 = solve_steps(obstacles, N, f1, f2, goal, Q_g, Q_r, q_t, method="full")
-term_status2, obj_val2, r_solve_time2, rel_gap2, simplex_iters2, barrier_iters2, r_node_count2, num_vertices2, merged_size2, full_size2, num_free_faces2, num_free_face_ineq2, method_used2 = stats2
+term_status2, obj_val2, solve_time2, rel_gap2, simplex_iters2, barrier_iters2, r_node_count2, num_vertices2, merged_size2, full_size2, num_free_faces2, num_free_face_ineq2, method_used2 = stats2
 
 x3, y3, θ3, t3, stats3 = solve_steps(obstacles, N, f1, f2, goal, Q_g, Q_r, q_t, method="bigM")
-term_status3, obj_val3, r_solve_time3, rel_gap3, simplex_iters3, barrier_iters3, r_node_count3, num_vertices3, merged_size3, full_size3, num_free_faces3, num_free_face_ineq3, method_used3 = stats3
+term_status3, obj_val3, solve_time3, rel_gap3, simplex_iters3, barrier_iters3, node_count3, num_vertices3, merged_size3, full_size3, num_free_faces3, num_free_face_ineq3, method_used3 = stats3
 
 seed_range = 1:3
 num_obs_range = 1:4
@@ -58,7 +58,7 @@ time_diffs = []
 for seed in seed_range
     for num_obs in num_obs_range
         println("\nOn test Seed = $seed, Num_Obs = $num_obs")
-        obstacles = ClutteredEnvPathOpt.gen_field(num_obs, seed = seed)
+        obstacles = ClutteredEnvPathOpt.gen_field_random(num_obs, seed = seed)
         _,_,_,_,stats = solve_steps(obstacles, N, f1, f2, goal, Q_g, Q_r, q_t, method = "merged")
         _,_,_,_,stats2 = solve_steps(obstacles, N, f1, f2, goal, Q_g, Q_r, q_t, method="full")
         _,_,_,_,stats3 = solve_steps(obstacles, N, f1, f2, goal, Q_g, Q_r, q_t, method="bigM")              
@@ -478,7 +478,7 @@ function solve_time_stats(seed_range, num_obs_range; file_name="Solve Time Stats
     # p2 = [0, -0.27] <- center of moving foot circle
     # delta_x_y_max = 0.10  # max stride norm in space (no longer used)
     # delta_θ_max = pi/4  # max difference in θ (no longer used)
-    # relax <- if true, solve as continuous relaxation
+    # relax = false <- if true, solve as continuous relaxation
     
     f = open(file_name, "a")   # file is created outside of function
     write(f, "Seed\tNum_obs\tTerm_status\tObj_val\tSolve_time\tRel_gap\tSimplex_iterations\tBarrier_iterations\tNodes_explored")
@@ -494,7 +494,7 @@ function solve_time_stats(seed_range, num_obs_range; file_name="Solve Time Stats
             # println("On test Seed = $seed, Num_Obs = $num_obs")
 
             # Create obstacles
-            obstacles = ClutteredEnvPathOpt.gen_field(num_obs, seed = seed)
+            obstacles = ClutteredEnvPathOpt.gen_field_random(num_obs, seed = seed)
 
             x, y, θ, t, stats = solve_steps(obstacles, N, f1, f2, goal, Q_g, Q_r, q_t, method=method, partition=partition, merge_faces=merge_faces, relax=relax)
             term_status, obj_val, solve_time, rel_gap, simplex_iters, barrier_iters, node_count, num_vertices, merged_size, full_size, num_free_faces, num_free_face_ineq, method_used = stats
@@ -846,7 +846,7 @@ function problem_size_stats(seed_range, num_obs_range; file_name="Problem Size S
             # println("On test Seed = $seed, Num_Obs = $num_obs")
 
             # Create obstacles
-            obstacles = ClutteredEnvPathOpt.gen_field(num_obs, seed = seed)
+            obstacles = ClutteredEnvPathOpt.gen_field_random(num_obs, seed = seed)
 
             stats = compute_problem_size(obstacles, N, f1, f2, goal, Q_g, Q_r, q_t, method=method, partition=partition, merge_faces=merge_faces)
 
@@ -914,7 +914,7 @@ end
 
 
 # # Duplicate tests
-# obstacles = ClutteredEnvPathOpt.gen_field(num_obs, seed = seed)
+# obstacles = ClutteredEnvPathOpt.gen_field_random(num_obs, seed = seed)
 # points, mapped, inside_quant = ClutteredEnvPathOpt.find_intersections(obstacles)
 # neighbors = ClutteredEnvPathOpt._find_neighbors(points, mapped)
 # points = ClutteredEnvPathOpt.find_points(obstacles)
