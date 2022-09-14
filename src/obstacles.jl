@@ -12,41 +12,31 @@ import Triangulate
 
 Creates an obstacle from a given set of points in the unit square.
 """
-function gen_obstacle(max_side_len::Real)
-    # TODO: Make this function accept a list of points to take the convex hull
-    # Faces must be passed in counter-clockwise order
-    # Use rational points (convert if necessary). Rid redundant points and compute HRep.
-    # Assure obstacles have at least 4 extreme points for pairwise IB to work
+function gen_obstacle(vertices...)
+    # Points can be given in any order since they are ordered clockwise within the polyhedron generated
 
-    # Julia Notes
-    # # "varargs" or slurping up arguments
-    # function myAdd(x, y, z...) # the ... here means collect additional arguments into z
-    #     if isempty(z)
-    #         return x + y 
-    #     end
-    #     return x + myAdd(y, z...)
-    #     # note the function calls it self (recursion)
-    #     # z is a container; the ... is necessary so that its contents can be passed as arguments to myAdd
-    # end
-
-    # This might also be helpful
-    # v = Polyhedra.convexhull(map(i -> collect(points[i]), face)...)
-    
-    # Remove redundant points with 
-
-    point = rand(2)
-
-    v = Polyhedra.convexhull(point, map(x -> x > 1 ? 1 : x, point + max_side_len * rand(2)), map(x -> x > 1 ? 1 : x, point + max_side_len * rand(2)))
-
-    if Polyhedra.npoints(poly) < 4
-        # something
+    if length(vertices) < 4
+        error("Obstacles need to have at least 4 extreme points.")
+    elseif typeof(vertices[1][1]) !== Rational{Int64}
+        error("Obstacle vertices currently need to be of type Rational{Int64}.")
     end
-    
+
+    v = Polyhedra.convexhull(vertices...)
     poly = Polyhedra.polyhedron(v, Polyhedra.DefaultLibrary{Rational{Int64}}(GLPK.Optimizer))
     Polyhedra.removevredundancy!(poly)
+
+    if Polyhedra.npoints(poly) < 4
+        error("Obstacles need to have at least 4 extreme points. Currently at $(Polyhedra.npoints(poly))")
+        # Autofix: Can add a point between two points that is slightly shifted and not in the convex hull
+        # points = Polyhedra.points(poly)
+        # new_point = [ ; ]
+        # v = Polyhedra.convexhull(points, new_point)
+        # poly = Polyhedra.polyhedron(v, Polyhedra.DefaultLibrary{Rational{Int64}}(GLPK.Optimizer))
+        # Polyhedra.removevredundancy!(poly)
+    end
+    
     Polyhedra.hrep(poly)
     return poly
-
 end
 
 """
@@ -69,7 +59,7 @@ function gen_obstacle_four(points_per_dim::Int)
     v = Polyhedra.convexhull(top_left, top_right, bottom_left, bottom_right)
     poly = Polyhedra.polyhedron(v, Polyhedra.DefaultLibrary{Rational{Int64}}(GLPK.Optimizer))
     Polyhedra.removevredundancy!(poly)
-    # Loop below assures the polyhedron has 4 extreme points (3 can occur under certain combinations) for pairwise IB purposes
+    # Loop below assures the polyhedron has 4 extreme points (sometimes the 4th is a convex comb.) for pairwise IB purposes
     while Polyhedra.npoints(poly) < 4
         top_right = [ nums[x_index + 3 + rand(-1:1)] ; nums[y_index + 3 + rand(-1:1)] ]
         v = Polyhedra.convexhull(top_left, top_right, bottom_left, bottom_right)
@@ -82,25 +72,27 @@ function gen_obstacle_four(points_per_dim::Int)
 end
 
 """
-    gen_field(num_obstacles; custom, seed)
+    gen_field_random(num_obstacles; custom, seed)
 
 Creates an obstacle course, an array of obstacles in the unit square. If
 obstacles overlap, the convex hull of their combined extreme points will be taken
 instead.
 """
-function gen_field(num_obstacles::Int; custom::Bool=false, points_it::Set{Vector{T}}=Set{Vector{Rational}}(), seed::Int=1) where {T}
-    if custom
-        obstacles = []
-        for points in points_it
-            push!(obstacles, gen_obstacle(points))
-        end
-    else
-        Random.seed!(seed)
-        points_per_dim = 20
-        obstacles = map(_n -> gen_obstacle_four(points_per_dim), 1:num_obstacles)
-    end
+function gen_field_random(num_obstacles::Int; points_per_dim::Int = 20, seed::Int=1) where {T}
+    Random.seed!(seed)
+    obstacles = map(_n -> gen_obstacle_four(points_per_dim), 1:num_obstacles)
 
     return remove_overlaps(obstacles)
+end
+
+"""
+    gen_field(obstacles)
+
+Creates an obstacles course from a collection of obstacles by removing overlaps.
+"""
+function gen_field(obstacles)
+    # TODO: May just remove this function
+    remove_overlaps(obstacles)
 end
 
 """
@@ -342,24 +334,24 @@ function find_points(obs; with_faces::Bool=false)
             vertex_num += 1
             push!(vertices_in_ob, vertex_num)
         end
+        push!(obstacle_faces, vertices_in_ob)
 
-        # Push edges of obstacle boundary (assumes they're in order) 
+        # Push edges of obstacle boundary
+        # Vertices are returned clockwise when obtained via Polyhedra.points(ob)
         if with_faces
             for i = 1:(length(vertices_in_ob)-1)
                 push!(S, [vertices_in_ob[i] ; vertices_in_ob[i+1]])
             end
             push!(S, [vertices_in_ob[end] ; vertices_in_ob[1]])
         end
-
-        push!(obstacle_faces, vertices_in_ob)
     end
 
     points = [points; 0//1 => 0//1 ; 0//1 => 1//1; 1//1 => 1//1; 1//1 => 0//1]
     # TODO: Function relies on the points being unique
-    # unique!(points)
+    # unique!(points)  # careful with doing this; are there any dependencies on point order?
 
     if with_faces
-        # Add boundary segments
+        # Add unit cell boundary segments
         num_points = length(points)
         for i = (num_points-3):(num_points-1)
             push!(S, [i ; i+1])
@@ -751,7 +743,7 @@ the graph, a set of every face of obstacle space, and a set of every face of fre
 (Each face is a clockwise-ordered vector of vertices).
 """
 function construct_graph_delaunay(obs; merge_faces=true)
-
+    # Code below was moved to find_points function
     # S = []   # Store segments
     # obstacle_faces = []   # Store obstacle face vertices (should be ordered)
     # points = []   # Store points as Vector of Pairs
