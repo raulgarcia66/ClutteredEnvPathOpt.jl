@@ -155,8 +155,12 @@ function obs_from_file(seed, num_obs, file_name; display_plot=true, save_plot=fa
     return obstacles
 end
 
+# Seeds by Sep 14
 good_seeds = [100,99,98,97,96,95,94,93,92,89,86,83,80,78,77,75,73,70,69,68,67,66,64,62,58,57,56,55,54,53,51,50,48,47,46,45,43,42,39,37,36,35,34,33,32,30,26,25,24,23,22,20,18,17,16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1]
 seeds = vcat(Vector(101:120), good_seeds, [201,202])  # all seeds
+
+# Seeds by Sep 17, after choosing
+
 
 seed = 107
 num_obs = 1
@@ -389,6 +393,8 @@ end
 
 good_seeds = [100,99,98,97,96,95,94,93,92,89,86,83,80,78,77,75,73,70,69,68,67,66,64,62,58,57,56,55,54,53,51,50,48,47,46,45,43,42,39,37,36,35,34,33,32,30,26,25,24,23,22,20,18,17,16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1]
 seeds = vcat(Vector(101:120), good_seeds, [201,202])  # all seeds
+
+# TODO: Final seeds to test
 
 seed_range = seeds   # 1:100
 num_obs_range = 1:3
