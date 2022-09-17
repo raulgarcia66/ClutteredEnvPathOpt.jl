@@ -321,7 +321,7 @@ of the unit square. Returns the points, and possibly the obstacle face vertices 
 Function assumes obstacles have rational data.
 """
 function find_points(obs; with_faces::Bool=false)
-    S = Vector{Int64}[]   # Store segments
+    S = Vector{Int64}[]   # Store segments/edges of each obstacle
     obstacle_faces = Vector{Int64}[]   # Store obstacle face vertices (should be ordered)
     points = Pair{Rational{Int64},Rational{Int64}}[]   # Store points as Vector of Pairs
     vertex_num = 0
@@ -347,16 +347,109 @@ function find_points(obs; with_faces::Bool=false)
     end
 
     points = [points; 0//1 => 0//1 ; 0//1 => 1//1; 1//1 => 1//1; 1//1 => 0//1]
-    # TODO: Function relies on the points being unique
-    # unique!(points)  # careful with doing this; are there any dependencies on point order?
+    unique!(points)  # The duplicate points after the first appearance are removed. This should be fine as obstacle vertices will be unique with each other
 
     if with_faces
-        # Add unit cell boundary segments
-        num_points = length(points)
-        for i = (num_points-3):(num_points-1)
-            push!(S, [i ; i+1])
+        # The following only works when there are no obstacle points on the boundaries
+        # Push unit cell boundary segments
+        # num_points = length(points)
+        # for i = (num_points-3):(num_points-1)
+        #     push!(S, [i ; i+1])
+        # end
+        # push!(S, [num_points ; num_points-3])
+
+        points_on_left_bound = Int64[]
+        points_on_top_bound = Int64[]
+        points_on_right_bound = Int64[]
+        points_on_bottom_bound = Int64[]
+        coord_points_on_left_bound = Pair{Rational{Int}}[]
+        coord_points_on_top_bound = Pair{Rational{Int}}[]
+        coord_points_on_right_bound = Pair{Rational{Int}}[]
+        coord_points_on_bottom_bound = Pair{Rational{Int}}[]
+        for (j,point) in enumerate(points)
+            if point.first == 0//1
+                push!(points_on_left_bound, j)
+                push!(coord_points_on_left_bound, point)
+            elseif point.second == 1//1
+                push!(points_on_top_bound, j)
+                push!(coord_points_on_top_bound, point)
+            elseif point.first == 1//1
+                push!(points_on_right_bound, j)
+                push!(coord_points_on_right_bound, point)
+            elseif point.second == 0//1
+                push!(points_on_bottom_bound, j)
+                push!(coord_points_on_bottom_bound, point)
+            end
         end
-        push!(S, [num_points ; num_points-3])
+
+        points_on_left_bound = @pipe sortperm(coord_points_on_left_bound, by=(pt -> pt.second)) |> points_on_left_bound[_]
+        points_on_top_bound = @pipe sortperm(coord_points_on_top_bound, by=(pt -> pt.first)) |> points_on_top_bound[_]
+        points_on_right_bound = @pipe sortperm(coord_points_on_right_bound, by=(pt -> pt.second), rev=true) |> points_on_right_bound[_]
+        points_on_bottom_bound = @pipe sortperm(coord_points_on_bottom_bound, by=(pt -> pt.first), rev=true) |> points_on_bottom_bound[_]
+
+        # Left bound
+        for i in 1:(length(points_on_left_bound) - 1)
+            v_current = points_on_left_bound[i]
+            v_next = points_on_left_bound[i+1]
+            if !([v_current; v_next] in S) && !([v_next; v_current] in S)
+                push!(S, [v_current; v_next])
+            end
+        end
+        v_current = points_on_left_bound[end]
+        v_next = points_on_top_bound[1]
+        if !([v_current; v_next] in S) && !([v_next; v_current] in S)
+            push!(S, [v_current; v_next])
+        end
+
+        # Top bound
+        for i in 1:(length(points_on_top_bound) - 1)
+            v_current = points_on_top_bound[i]
+            v_next = points_on_top_bound[i+1]
+            if !([v_current; v_next] in S) && !([v_next; v_current] in S)
+                push!(S, [v_current; v_next])
+            end
+        end
+        v_current = points_on_top_bound[end]
+        v_next = points_on_right_bound[1]
+        if !([v_current; v_next] in S) && !([v_next; v_current] in S)
+            push!(S, [v_current; v_next])
+        end
+
+        # Right bound
+        for i in 1:(length(points_on_right_bound) - 1)
+            v_current = points_on_right_bound[i]
+            v_next = points_on_right_bound[i+1]
+            if !([v_current; v_next] in S) && !([v_next; v_current] in S)
+                push!(S, [v_current; v_next])
+            end
+        end
+        v_current = points_on_right_bound[end]
+        if !isempty(points_on_bottom_bound)
+            v_next = points_on_bottom_bound[1]
+        else
+            v_next = points_on_left_bound[1]
+        end
+        if !([v_current; v_next] in S) && !([v_next; v_current] in S)
+            push!(S, [v_current; v_next])
+        end
+
+        # Bottom bound
+        for i in 1:(length(points_on_bottom_bound) - 1)
+            v_current = points_on_bottom_bound[i]
+            v_next = points_on_bottom_bound[i+1]
+            if !([v_current; v_next] in S) && !([v_next; v_current] in S)
+                push!(S, [v_current; v_next])
+            end
+        end
+        if !isempty(points_on_bottom_bound)
+            v_current = points_on_bottom_bound[end]
+        else
+            v_current = points_on_right_bound[end]
+        end
+        v_next = points_on_left_bound[1]
+        if !([v_current; v_next] in S) && !([v_next; v_current] in S)
+            push!(S, [v_current; v_next])
+        end
 
         return points, obstacle_faces, S
     else 
@@ -743,38 +836,6 @@ the graph, a set of every face of obstacle space, and a set of every face of fre
 (Each face is a clockwise-ordered vector of vertices).
 """
 function construct_graph_delaunay(obs; merge_faces=true)
-    # Code below was moved to find_points function
-    # S = []   # Store segments
-    # obstacle_faces = []   # Store obstacle face vertices (should be ordered)
-    # points = []   # Store points as Vector of Pairs
-    # vertex_num = 0
-    # for ob in obs
-    #     vertices_in_ob = []
-    #     iter = Polyhedra.points(ob)
-    #     # Store x and y coordinates in points
-    #     for point in iter
-    #         push!(points, point[1] => point[2])
-    #         vertex_num += 1
-    #         push!(vertices_in_ob, vertex_num)
-    #     end
-    #     # Push edges of obstacle boundary (assumes they're in order) 
-    #     for i = 1:(length(vertices_in_ob)-1)
-    #         push!(S, [vertices_in_ob[i] ; vertices_in_ob[i+1]])
-    #     end
-    #     push!(S, [vertices_in_ob[end] ; vertices_in_ob[1]])
-
-    #     push!(obstacle_faces, vertices_in_ob)
-    # end
-
-    # points = [points; 0//1 => 0//1 ; 0//1 => 1//1; 1//1 => 1//1; 1//1 => 0//1]
-    # unique!(points)   # Code above relies on the points being unique
-
-    # # Add boundary segments
-    # num_points = length(points)
-    # for i = (num_points-3):(num_points-1)
-    #     push!(S, [i ; i+1])
-    # end
-    # push!(S, [num_points ; num_points-3])
 
     points, obstacle_faces, S = ClutteredEnvPathOpt.find_points(obs; with_faces=true)
 
@@ -814,6 +875,7 @@ function construct_graph_delaunay(obs; merge_faces=true)
 
     # Create graph
     graph = LightGraphs.SimpleGraph(length(points))
+
     # Add edges; Use output matrix of edges instead?
     for j = 1:size(triangles,2)
         LightGraphs.add_edge!(graph, triangles[1,j] => triangles[2,j])
@@ -854,10 +916,10 @@ function face_merger(faces::Vector{Vector{T}}, graph::W, points::Vector{Pair{Rat
                 face_i = Set(faces[i])
                 face_j = Set(faces[j])
                 if length(intersect(face_i, face_j)) == 2
-                    v_i = Polyhedra.convexhull(map(i -> collect(points[i]), faces[i])...)
-                    v_j = Polyhedra.convexhull(map(i -> collect(points[i]), faces[j])...)
+                    v_i = Polyhedra.convexhull(map(k -> collect(points[k]), faces[i])...)
+                    v_j = Polyhedra.convexhull(map(k -> collect(points[k]), faces[j])...)
                     new_face_vec = union(face_i, face_j)   # not really a vector
-                    v_new = Polyhedra.convexhull(map(i -> collect(points[i]), collect(new_face_vec))...)
+                    v_new = Polyhedra.convexhull(map(k -> collect(points[k]), collect(new_face_vec))...)
 
                     polygon_i = Polyhedra.polyhedron(
                         v_i,
