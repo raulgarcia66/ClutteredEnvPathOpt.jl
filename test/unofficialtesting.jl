@@ -163,8 +163,8 @@ ClutteredEnvPathOpt.plot_faces(obstacle_faces, points, plot_name = "Obstacle Fac
 # plot!(title="",axis=([], false))
 png("Obstacle Faces Seed $seed Num Obs $num_obs")
 
-ClutteredEnvPathOpt.plot_faces(obstacle_faces, points, plot_name = "All Faces", col = "red")
-ClutteredEnvPathOpt.plot_faces(free_faces, points, plot_name = "All Faces", new_plot = false)
+ClutteredEnvPathOpt.plot_faces(all_faces, points, plot_name = "All Faces", col = "red")
+ClutteredEnvPathOpt.plot_faces(all_faces, points, plot_name = "All Faces", new_plot = false)
 # plot!(title="",axis=([], false))
 png("$partition All Faces Seed $seed Num Obs $num_obs")
 
