@@ -210,6 +210,10 @@ function biclique_merger(cover::Set{Pair{Set{T}, Set{T}}}, feg::LabeledGraph{T})
     # Loop until we are unable to find any merges
     merge_found = true
     while merge_found
+        if length(cover) == 1
+            break
+        end
+        
         for i = 1:length(cover)
             for j = i+1:length(cover)
                 # TODO: Check if this is right
