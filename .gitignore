@@ -11,9 +11,11 @@
 *.synctex(busy)
 *.txt
 *.csv
+/test/dataanalysis.jl
+/test/dataanalysisoriginal.jl
+
 /Images Float Error
 /Old Tests and Images
-/test/dataanalysis.jl
 /Data Analysis Plots
 /Poster Images
 /Presentation Images
