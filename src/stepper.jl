@@ -427,26 +427,5 @@ function solve_steps(obstacles, N, f1, f2, g, Q_g, Q_r, q_t; method="merged", pa
     stats = (termination_status(model), objective_value(model; result=1), solve_time(model), relative_gap(model), simplex_iterations(model), barrier_iterations(model),
             node_count(model), LightGraphs.nv(graph), length(merged_cover), length(cover), length(free_faces), num_free_face_ineq, method)
 
-    # TODO: SAVE PLOTS OF SOLUTIONS OF MIQCQP
-    # MOVE THIS OUTSIDE FUNCTION?
-    # if !relax && has_values(model)
-    #     x = value.(x)
-    #     y = value.(y)
-    #     θ = value.(θ)
-    #     t = value.(t)
-    #     num_to_trim = length(filter(tj -> tj > 0.5, t[3:end]))
-    #     if num_to_trim % 2 == 0
-    #         x = vcat(x[1:2], x[num_to_trim + 3 : end]);
-    #         y = vcat(y[1:2], y[num_to_trim + 3 : end]);
-    #         θ = vcat(θ[1:2], θ[num_to_trim + 3 : end]);
-    #     else
-    #         x = vcat(x[1], x[num_to_trim + 3 : end]);
-    #         y = vcat(y[1], y[num_to_trim + 3 : end]);
-    #         θ = vcat(θ[1], θ[num_to_trim + 3 : end]);
-    #     end
-    #     plot_steps(obstacles, x, y, θ)
-    #     png("IMG_NAME")
-    # end
-
     return value.(x; result=1), value.(y; result=1), value.(θ; result=1), value.(t; result=1), stats
 end
