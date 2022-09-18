@@ -4,12 +4,12 @@ using Test
 using Pipe
 using Plots
 using JuMP
-# using Gurobi
+using Gurobi
 
 # import GLPK
 using LightGraphs
 import Polyhedra
-# using PiecewiseLinearOpt
+using PiecewiseLinearOpt
 
 ######################################################################################
 ########################### Save Obstacle Data from Random ###########################
@@ -323,7 +323,7 @@ function biclique_cover_validity_tests(seed_range, num_obs_range; faces::String=
 
             # New from file
             file_name = "./test/obstacle files/Seed $seed.txt"
-            obstacles = obs_from_file(seed, num_obs, file_name, display_plot=false)
+            obstacles = obs_from_file(seed, num_obs, file_name, display_plot=false)   # TODO: Add this function to obstacles.jl
             obstacles, points, g, obstacle_faces, free_faces = ClutteredEnvPathOpt.plot_new(obstacles, "Obstacles Seed $seed Num Obs $num_obs", partition=partition, merge_faces=merge_faces)
             skeleton = LabeledGraph(g)
             all_faces = Set{Vector{Int64}}(union(obstacle_faces, free_faces))
@@ -490,6 +490,8 @@ function biclique_cover_merger_stats(seed_range, num_obs_range; file_name="Bicli
     return percent_vec, tuples, cover_vec, merged_cover_vec, num_free_faces_vec
 end
 
+# TODO: Have not run this. Fix and add possible columns before running
+
 file_name = "Biclique Cover Merging Stats Partition $partition.txt"
 file_name_dt = "Biclique Cover Merging Stats Partition CDT.txt"
 file_name_hp = "Biclique Cover Merging Stats Partition HP.txt"
@@ -530,3 +532,479 @@ end
 # function size_stats()
 
 # end
+
+######################################################################################
+################################# Solve Time Stats ###################################
+
+# method <- "merged" for the compact biclique cover, "full" for the original biclique cover, "bigM" for big-M constraints
+function solve_time_stats(seed_range, num_obs_range; file_name="Solve Time Stats.txt", method="merged", partition="CDT", merge_faces=true, relax=false)
+    # file_name = "Solve Time Stats.txt" #Seed Range = $seed_range, Num Obs Range = $num_obs_range.txt"
+    # f = open(file_name, "a")
+    # write(f, "Method = $method, Seed Range = $seed_range, Num Obs Range = $num_obs_range\n")
+    # flush(f)
+    # close(f)
+
+    # Set parameters
+    N = 25  # number of steps   # prev runs were 30 and 20. Chose 25 because some obstacle courses are almost mazes
+    f1 = [0.0, 0.1, 0.0]  # initial footstep pose 1 ([x, y, theta])
+    f2 = [0.0, 0.0, 0.0]  # initial footstep pose 2 ([x, y, theta])
+    goal = [1, 1, 0]  # goal pose
+    Q_g = 10*Matrix{Float64}(I, 3, 3)  # weight between final footstep and goal pose
+    Q_r = Matrix{Float64}(I, 3, 3)  # weight between footsteps
+    q_t = -0.05  # weight for trimming unused steps
+    # Optional named arguments
+    # d1 = 0.2 <- radius of reference foot circle
+    # d2 = 0.2 <- radius of moving foot circle
+    # p1 = [0, 0.07] <- center of reference foot circle
+    # p2 = [0, -0.27] <- center of moving foot circle
+    # delta_x_y_max = 0.10  # max stride norm in space (no longer used)
+    # delta_θ_max = pi/4  # max difference in θ (no longer used)
+    # relax = false <- if true, solve as continuous relaxation
+    
+    f = open(file_name, "a")   # file is created outside of function
+    write(f, "Seed\tNum_obs\tNum_footsteps\tTerm_status\tObj_val\tSolve_time\tRel_gap\tSimplex_iterations\tBarrier_iterations\tNodes_explored")
+    write(f, "\tNum_vertices\tBC_merged_size\tBC_full_size\tNum_free_faces\tNum_free_face_inequalities\n")
+    times = zeros(length(seed_range) * length(num_obs_range))
+    i = 1
+    for seed = seed_range
+        for num_obs = num_obs_range
+            # f = open(file_name, "a")
+            # write(f, "Seed = $seed, Num_Obs = $num_obs\n")
+            # flush(f)
+            # close(f)
+            # println("On test Seed = $seed, Num_Obs = $num_obs")
+
+            # Create obstacles with Random
+            # obstacles = ClutteredEnvPathOpt.gen_field_random(num_obs, seed = seed)
+
+            # Create obstacles from files
+            obs_file_name = "./test/obstacle files/Seed $seed.txt"
+            obstacles = obs_from_file(seed, num_obs, obs_file_name, display_plot=false)   # TODO: Add this function to obstacles.jl
+            obstacles = ClutteredEnvPathOpt.gen_field(obstacles)   # maybe just apply remove_overlaps directly
+
+            x, y, θ, t, stats = solve_steps(obstacles, N, f1, f2, goal, Q_g, Q_r, q_t, method=method, partition=partition, merge_faces=merge_faces, relax=relax) # (x,y,θ,t,stats)
+            term_status, obj_val, solve_time, rel_gap, simplex_iters, barrier_iters, node_count, num_vertices, merged_size, full_size, num_free_faces, num_free_face_ineq, method_used = stats
+
+            if method_used == method
+                times[i] = solve_time   # time
+            else
+                times[i] = -1
+            end
+            write(f, "$seed\t$num_obs\t$N\t$(term_status)\t$obj_val\t$(times[i])\t$rel_gap\t$simplex_iters\t$barrier_iters\t$node_count")
+            write(f, "\t$num_vertices\t$merged_size\t$full_size\t$num_free_faces\t$num_free_face_ineq\n")
+            flush(f)
+
+            i += 1
+
+            # Trim excess steps
+            num_to_trim = length(filter(tj -> tj > 0.5, t[3:end]))
+            if num_to_trim % 2 == 0
+                x = vcat(x[1:2], x[num_to_trim + 3 : end]);
+                y = vcat(y[1:2], y[num_to_trim + 3 : end]);
+                θ = vcat(θ[1:2], θ[num_to_trim + 3 : end]);
+            else
+                x = vcat(x[1], x[num_to_trim + 3 : end]);
+                y = vcat(y[1], y[num_to_trim + 3 : end]);
+                θ = vcat(θ[1], θ[num_to_trim + 3 : end]);
+            end
+            plot_steps(obstacles, x, y, θ)
+            # plot_circles(x, y, θ, p1=p1, p2=p2)
+            png("./Experiments/Footstep Images/Footsteps Seed Range $seed_start to $seed_end Num Obs $num_obs Method $method Partition $partition Merge Face $merge_face")
+        end
+    end
+
+    # write(f, "\nEND")
+    # flush(f)
+    close(f)
+
+    return times
+
+end
+
+# 70 test cases selected
+star_4 = union(Set([3,4,6,8,12,15,16,20,22,23,24,25,34,36,42,46,47,54,64,66,70,73,75,
+                77,78,83,92,94,95,97,98,99,100]), Set(101:120))
+star_3 = Set([1,5,9,13,14,17,33,37,39,45,51,53,55,62,80,89,96])
+star_special = Set([201,202])
+# seeds = union(star_4, star_3)
+seeds = sort!( collect( union(star_4, star_3)))
+
+# Previous
+# seed_start = 1
+# seed_end = 50
+# seed_range = seed_start:seed_end
+seed_range = seeds
+seed_range = Set(1:3)
+num_obs = 1
+num_obs_range = num_obs:num_obs
+N = 25   # should match parameter in solve_time_stats()
+# partitions = ["CDT", "HP"]
+partitions = ["CDT"]
+# merge_faces = [true, false]
+merge_faces = [false]
+# merge_faces = [false]
+# methods = ["merged", "full", "bigM"]
+methods = ["merged"]
+# methods = ["full"]
+# methods = ["bigM"]
+relax = false
+for partition in partitions
+    if partition == "CDT"
+        for merge_face in merge_faces
+            for method in methods
+                # file_name = "./Experiments/Solve Times/Solve Time Stats Seed Range $seed_start to $seed_end Num Obs $num_obs Method $method Partition $partition Merge Face $merge_face.txt"
+                file_name = "./Experiments/Solve Times/Solve Time Stats Seed Range Temp Num Obs $num_obs Method $method Partition $partition Merge Face $merge_face.txt"
+                # file_name = "./Experiments/Solve Times Parameters Off/Solve Time Stats Seed Range $seed_start to $seed_end Num Obs $num_obs Method $method Partition $partition Merge Face $merge_face.txt"
+                # file_name = "./Experiments/Solve Times Relaxed/Relaxed Solve Time Stats Seed Range $seed_start to $seed_end Num Obs $num_obs Method $method Partition $partition Merge Face $merge_face.txt"
+                f = open(file_name, "w")   # write or append appropriately
+
+                # TODO: Need to remove seed_range
+                # write(f, "Seed Range = $seed_range, Num Obs Range = $num_obs_range, Num Footsteps=$N\nMethod = $method\tPartition = $partition\tMerge Face = $merge_face\n")
+                write(f, "Num Obs Range = $num_obs_range, Num Footsteps = $N\nMethod = $method, Partition = $partition, Merge Face = $merge_face\n")
+                flush(f)
+                close(f)
+                _ = solve_time_stats(seed_range, num_obs_range, file_name=file_name, method=method, partition=partition, merge_faces=merge_face, relax=relax)
+            end
+        end
+    else
+        for method in methods            
+            # file_name = "./Experiments/Solve Times/Solve Time Stats Seed Range $seed_start to $seed_end Num Obs $num_obs Method $method Partition $partition.txt"
+            file_name = "./Experiments/Solve Times/Solve Time Stats Seed Range Temp Num Obs $num_obs Method $method Partition $partition.txt"
+            # file_name = "./Experiments/Solve Times Parameters Off/Solve Time Stats Seed Range $seed_start to $seed_end Num Obs $num_obs Method $method Partition $partition.txt"
+            # file_name = "./Experiments/Solve Times Relaxed/Relaxed Solve Time Stats Seed Range $seed_start to $seed_end Num Obs $num_obs Method $method Partition $partition.txt"
+            f = open(file_name, "w")   # write or append appropriately
+            # write(f, "Seed Range = $seed_range, Num Obs Range = $num_obs_range, Num Footsteps=$N\nMethod = $method\tPartition = $partition\n")
+            write(f, "Num Obs Range = $num_obs_range, Num Footsteps = $N\nMethod = $method, Partition = $partition\n")
+            flush(f)
+            close(f)
+            _ = solve_time_stats(seed_range, num_obs_range, file_name=file_name, method=method, partition=partition, relax=relax)
+        end
+    end
+end
+
+
+######################################################################################
+################################# Problem Size Stats #################################
+# Problem size before and after presolve (print model; see how these work: show_constraints_summary, constraints_string)
+# Size of disjunctive constraints
+
+function compute_problem_size(obstacles, N, f1, f2, g, Q_g, Q_r, q_t; method="merged", partition="CDT", merge_faces=true, d1=0.2, d2=0.2, p1=[0, 0.07], p2=[0, -0.27])
+    if partition == "CDT"
+        _, points, graph, _, free_faces = ClutteredEnvPathOpt.construct_graph_delaunay(obstacles, merge_faces=merge_faces)
+    else
+        _, points, graph, _, free_faces = ClutteredEnvPathOpt.construct_graph(obstacles)
+    end
+
+    # model = JuMP.Model(JuMP.optimizer_with_attributes(Gurobi.Optimizer, "MIPGap" => .01, "TimeLimit" => 300))
+
+    # Problem size counters
+    all_cont_variables = 0
+    all_bin_variables = 0
+    disjunctive_cont_variables = 0
+    disjunctive_bin_variables = 0
+    # all_ineq_constraints = 0
+    # all_eq_constraints = 0
+    disjunctive_ineq_constraints = 0
+    disjunctive_eq_constraints = 0
+
+    # # model has scalar variables x, y, θ, binary variable t
+    # JuMP.@variable(model, x[1:N])
+    # JuMP.@variable(model, y[1:N])
+    # JuMP.@variable(model, θ[1:N])
+    # JuMP.@variable(model, t[1:N], Bin)
+    all_cont_variables += 3*N
+    all_bin_variables += N
+
+    # Objective
+    # f = vec([[x[j], y[j], θ[j]] for j in 1:N])
+    # f_no_theta = vec([[x[j], y[j]] for j in 1:N])
+    # JuMP.@objective(
+    #     model,
+    #     Min,
+    #     ((f[N] - g)' * Q_g * (f[N] - g)) + sum(q_t * t) + sum((f[j + 1] - f[j])' * Q_r * (f[j + 1] - f[j]) for j in 1:(N-1))
+    # )
+
+    cover = Set{Pair{Set{Int64}, Set{Int64}}}()
+    merged_cover = Set{Pair{Set{Int64}, Set{Int64}}}()
+    num_free_face_ineq = 0
+
+    if method != "bigM"
+        skeleton = LabeledGraph(graph)
+        cover = ClutteredEnvPathOpt.find_biclique_cover(skeleton, free_faces)
+        feg = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(free_faces))
+        merged_cover = ClutteredEnvPathOpt.biclique_merger(cover, feg)
+
+        (valid_cover, _, _, _) = ClutteredEnvPathOpt._is_valid_biclique_cover_diff(feg, cover)
+        (valid_cover_merged, _, _, _) = ClutteredEnvPathOpt._is_valid_biclique_cover_diff(feg, merged_cover)
+    end
+    
+    # Footstep location constraints
+    if method == "merged" && valid_cover_merged
+        J = LightGraphs.nv(skeleton.graph)
+        
+        # JuMP.@variable(model, λ[1:N, 1:J] >= 0)
+        disjunctive_cont_variables += N * J
+
+        # JuMP.@variable(model, z[1:N, 1:length(merged_cover)], Bin)
+        disjunctive_bin_variables += N * (length(merged_cover))
+        for i in 1:N
+            for (j,(A,B)) in enumerate(merged_cover)
+                # JuMP.@constraint(model, sum(λ[i, v] for v in A) <= z[i, j])
+                # JuMP.@constraint(model, sum(λ[i, v] for v in B) <= 1 - z[i, j])
+                disjunctive_ineq_constraints += 2
+            end
+            # JuMP.@constraint(model, sum(λ[i,:]) == 1)
+            # JuMP.@constraint(model, x[i] == sum(points[j].first * λ[i, j] for j in 1:J))
+            # JuMP.@constraint(model, y[i] == sum(points[j].second * λ[i, j] for j in 1:J))
+            disjunctive_eq_constraints += 3
+        end
+    elseif method != "bigM" && valid_cover
+        J = LightGraphs.nv(skeleton.graph)
+
+        # JuMP.@variable(model, λ[1:N, 1:J] >= 0)
+        disjunctive_cont_variables += N * J
+
+        # JuMP.@variable(model, z[1:N, 1:length(cover)], Bin)
+        disjunctive_bin_variables += N * (length(cover))
+        for i in 1:N
+            for (j,(A,B)) in enumerate(cover)
+                # JuMP.@constraint(model, sum(λ[i, v] for v in A) <= z[i, j])
+                # JuMP.@constraint(model, sum(λ[i, v] for v in B) <= 1 - z[i, j])
+                disjunctive_ineq_constraints += 2
+            end
+            # JuMP.@constraint(model, sum(λ[i,:]) == 1)
+            # JuMP.@constraint(model, x[i] == sum(points[j].first * λ[i, j] for j in 1:J))
+            # JuMP.@constraint(model, y[i] == sum(points[j].second * λ[i, j] for j in 1:J))
+            disjunctive_eq_constraints += 3
+        end
+    else
+        # Runs if method = "bigM", or if a valid biclique cover is not found
+        M, A, b, acc = ClutteredEnvPathOpt.get_M_A_b(points, free_faces)
+        num_free_face_ineq = length(M)
+        # JuMP.@variable(model, z[1:N, 1:length(free_faces)], Bin)
+        disjunctive_bin_variables = N * length(free_faces)
+        for j in 1:N
+            for r in 1:length(free_faces)
+                ids = (acc[r]+1):(acc[r+1])
+                for i in ids
+                    # JuMP.@constraint(model, A[i, :]' * [x[j]; y[j]] <= b[i] * z[j, r] + M[i] * (1 - z[j, r]))
+                    disjunctive_ineq_constraints += 1
+                end
+            end
+            # JuMP.@constraint(model, sum(z[j, :]) == 1)
+            disjunctive_eq_constraints += 1
+        end
+    end
+
+    all_cont_variables += disjunctive_cont_variables
+    all_bin_variables += disjunctive_bin_variables
+    # all_ineq_constraints += disjunctive_ineq_constraints
+    # all_eq_constraints += disjunctive_eq_constraints
+
+    # # Reachability
+    # # Breakpoints need to be strategically chosen
+    # s_break_pts = [0, 5pi/16, 11pi/16, 21pi/16, 27pi/16, 2pi]
+    # c_break_pts = [0, 3pi/16, 13pi/16, 19pi/16, 29pi/16, 2pi]
+    # s = [piecewiselinear(model, θ[j], s_break_pts, sin) for j in 1:N]
+    # c = [piecewiselinear(model, θ[j], c_break_pts, cos) for j in 1:N]
+
+    # For footstep j, the cirles are created from the frame of reference of footstep j-1
+    # Use negative if in frame of reference of right foot (j = 1 is left foot)
+    # Position is with respect to θ = 0
+    # for j in 2:N
+    #     if j % 2 == 1
+    #         # In frame of reference of right foot
+    #         JuMP.@constraint(
+    #             model,
+    #             [
+    #                 d1,
+    #                 x[j] - x[j - 1] - c[j-1] * (-p1[1]) + s[j-1] * (-p1[2]),
+    #                 y[j] - y[j - 1] - s[j-1] * (-p1[1]) - c[j-1] * (-p1[2])
+    #             ] in SecondOrderCone()
+    #         )
+
+    #         JuMP.@constraint(
+    #             model,
+    #             [
+    #                 d2,
+    #                 x[j] - x[j - 1] - c[j-1] * (-p2[1]) + s[j-1] * (-p2[2]),
+    #                 y[j] - y[j - 1] - s[j-1] * (-p2[1]) - c[j-1] * (-p2[2])
+    #             ] in SecondOrderCone()
+    #         )
+    #     else
+    #         # In frame of reference left foot
+    #         JuMP.@constraint(
+    #             model,
+    #             [
+    #                 d1,
+    #                 x[j] - x[j - 1] - c[j-1] * p1[1] + s[j-1] * p1[2],
+    #                 y[j] - y[j - 1] - s[j-1] * p1[1] - c[j-1] * p1[2]
+    #             ] in SecondOrderCone()
+    #         )
+
+    #         JuMP.@constraint(
+    #             model,
+    #             [
+    #                 d2,
+    #                 x[j] - x[j - 1] - c[j-1] * p2[1] + s[j-1] * p2[2],
+    #                 y[j] - y[j - 1] - s[j-1] * p2[1] - c[j-1] * p2[2]
+    #             ] in SecondOrderCone()
+    #         )
+    #     end
+    # end
+
+    # Set trimmed steps equal to initial position
+    # for j in 1:N
+    #     if j % 2 == 1
+    #         JuMP.@constraint(model, t[j] => {x[j] == f1[1]})
+    #         JuMP.@constraint(model, t[j] => {y[j] == f1[2]})
+    #         JuMP.@constraint(model, t[j] => {θ[j] == f1[3]})
+    #     else
+    #         JuMP.@constraint(model, t[j] => {x[j] == f2[1]})
+    #         JuMP.@constraint(model, t[j] => {y[j] == f2[2]})
+    #         JuMP.@constraint(model, t[j] => {θ[j] == f2[3]})
+    #     end
+    # end
+
+    # Max step distance
+    # for j in 3:2:(N-1)
+    #     JuMP.@constraint(model, [delta_x_y_max; f_no_theta[j] - f_no_theta[j - 2]] in SecondOrderCone())
+    #     JuMP.@constraint(model, [delta_x_y_max; f_no_theta[j + 1] - f_no_theta[j - 1]] in SecondOrderCone())
+    # end
+
+    # Max theta difference for individual feet
+    # for j in 3:2:(N-1)
+    #     JuMP.@constraint(model, -delta_θ_max <= θ[j] - θ[j - 2] <= delta_θ_max)
+    #     JuMP.@constraint(model, -delta_θ_max <= θ[j + 1] - θ[j - 1] <= delta_θ_max)
+    # end
+
+    # Max θ difference between feet
+    # for j in 2:N
+    #     JuMP.@constraint(model, -pi/8 <= θ[j] - θ[j-1] <= pi/8)
+    # end
+
+    # Initial footstep positions
+    # JuMP.@constraint(model, f[1] .== f1)
+    # JuMP.@constraint(model, f[2] .== f2)
+
+    # Print model
+    # println("\n\nPrinting model.")
+    # print(model)
+    # println("\n\nDisplaying model.")
+    # display(model)
+    # println("\n\nWriting model to file.")
+    # write_to_file(model, "test.mof.json", format = MOI.FORMAT_MOF)
+    # Solve
+    # JuMP.optimize!(model)
+
+    if method == "merged" && valid_cover_merged
+        println("\n\nUsed merged cover.\n\n")
+    elseif method != "bigM" && valid_cover 
+        println("\n\nUsed full cover.\n\n")
+        method = "full"
+    else
+        println("\n\nUsed big-M constraints.\n\n")
+        method = "bigM"
+    end
+
+    stats = Dict("all_cont_variables" => all_cont_variables, "all_bin_variables" => all_bin_variables,
+                 "disjunctive_cont_variables" => disjunctive_cont_variables, "disjunctive_bin_variables" => disjunctive_bin_variables,
+                 "disjunctive_ineq_constraints" => disjunctive_ineq_constraints, "disjunctive_eq_constraints" => disjunctive_eq_constraints,
+                 "MBC_size" => length(merged_cover), "FBC_size" =>  length(cover), "num_free_faces" => length(free_faces),
+                 "num_free_face_ineq" =>num_free_face_ineq, "num_vertices" => LightGraphs.nv(graph), "method" => method)
+                        # "all_ineq_constraints" => 1, "all_eq_constraints" => 1,
+
+    return stats
+end
+
+function problem_size_stats(seed_range, num_obs_range; file_name="Problem Size Stats.txt", method="merged", partition="CDT", merge_faces=true)
+
+    # Set parameters
+    N = 20  # number of steps
+    f1 = [0.0, 0.1, 0.0]  # initial footstep pose 1
+    f2 = [0.0, 0.0, 0.0]  # initial footstep pose 2
+    goal = [1, 1, 0]  # goal pose
+    Q_g = 10*Matrix{Float64}(I, 3, 3)  # weight between final footstep and goal pose
+    Q_r = Matrix{Float64}(I, 3, 3)  # weight between footsteps
+    q_t = -.05  # weight for trimming unused steps
+    # Optional named arguments
+    # d1 = 0.2 # radius of reference foot circle
+    # d2 = 0.2 # radius of moving foot circle
+    # p1 = [0, 0.07] # center of reference foot circle
+    # p2 = [0, -0.27] # center of moving foot circle
+    # delta_x_y_max = 0.10  # max stride norm in space
+    # delta_θ_max = pi/4  # max difference in θ
+    
+    f = open(file_name, "a")   # file is created outside of function
+    # write(f, "Seed\tNum_obs\tTime\n")
+    write(f, "Seed\tNum_obs\tDisjunctive_cont_var\tDisjunctive_bin_var\tDisjunctive_ineq_cons\tDisjunctive_eq_cons\tAll_cont_var\tAll_bin_var\tNum_vertices\tBC_merged_size\tBC_full_size\tNum_free_face_ineq\tNum_free_faces\n")
+    # some_success_indicator = zeros(length(seed_range) * length(num_obs_range))
+    # i = 1
+    for seed = seed_range
+        for num_obs = num_obs_range
+            # f = open(file_name, "a")
+            # write(f, "Seed = $seed, Num_Obs = $num_obs\n")
+            # flush(f)
+            # close(f)
+            # println("On test Seed = $seed, Num_Obs = $num_obs")
+
+            # Create obstacles
+            obstacles = ClutteredEnvPathOpt.gen_field_random(num_obs, seed = seed)
+
+            stats = compute_problem_size(obstacles, N, f1, f2, goal, Q_g, Q_r, q_t, method=method, partition=partition, merge_faces=merge_faces)
+
+            # if method_used == method
+            #     some_success_indicator[i] = r_solve_time # time
+            # else
+            #     some_success_indicator[i] = -1
+            # end
+            write(f, "$seed\t$num_obs\t$(stats["disjunctive_cont_variables"])\t$(stats["disjunctive_bin_variables"])\t$(stats["disjunctive_ineq_constraints"])\t$(stats["disjunctive_eq_constraints"])")
+            write(f, "\t$(stats["all_cont_variables"])\t$(stats["all_bin_variables"])\t$(stats["num_vertices"])\t$(stats["MBC_size"])\t$(stats["FBC_size"])\t$(stats["num_free_face_ineq"])\t$(stats["num_free_faces"])\n")
+            flush(f)
+
+            # i += 1
+        end
+    end
+
+    # write(f, "\nEND")
+    # flush(f)
+    close(f)
+end
+
+seed_start = 1
+seed_end = 50
+seed_range = seed_start:seed_end
+num_obs = 1
+num_obs_range = num_obs:num_obs
+# partitions = ["CDT", "HP"]
+partitions = ["CDT"]
+# merge_faces = [true, false]
+merge_faces = [true]
+# merge_faces = [false]
+methods = ["merged", "full", "bigM"]
+# methods = ["merged"]
+# methods = ["full"]
+# methods = ["bigM"]
+for partition in partitions
+    if partition == "CDT"
+        for merge_face in merge_faces
+            for method in methods
+                file_name = "./Experiments/Problem Sizes/Problem Size Stats Seed Range $seed_start to $seed_end Num Obs $num_obs Method $method Partition $partition Merge Face $merge_face.txt"
+                f = open(file_name, "w")   # write or append appropriately
+                write(f, "Seed Range = $seed_range, Num Obs Range = $num_obs_range\nMethod = $method\tPartition = $partition\tMerge Face = $merge_face\n")
+                flush(f)
+                close(f)
+                stats = problem_size_stats(seed_range, num_obs_range, file_name=file_name, method=method, partition=partition, merge_faces=merge_face)
+            end
+        end
+    else
+        for method in methods
+            file_name = "./Experiments/Problem Sizes/Problem Size Stats Seed Range $seed_start to $seed_end Num Obs $num_obs Method $method Partition $partition.txt"
+            f = open(file_name, "w")   # write or append appropriately
+            write(f, "Seed Range = $seed_range, Num Obs Range = $num_obs_range\nMethod = $method\tPartition = $partition\n")
+            flush(f)
+            close(f)
+            stats = problem_size_stats(seed_range, num_obs_range, file_name=file_name, method=method, partition=partition)
+        end
+    end
+end
