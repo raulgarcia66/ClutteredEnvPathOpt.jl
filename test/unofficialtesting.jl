@@ -178,13 +178,20 @@ ClutteredEnvPathOpt.plot_edges(skeleton, points, plot_name = "Skeleton", col="bl
 png("$partition Skeleton Seed $seed Num Obs $num_obs Merged Faces $merge_faces")
 # png("$partition Skeleton Seed $seed Num Obs $num_obs Merged Faces $merge_faces No Axis")
 
-feg_S = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(free_faces))
-ClutteredEnvPathOpt.plot_edges(feg_S, points, plot_name = "Finite Element Graph of S",col="black", vertices=feg_S.labels)
-ClutteredEnvPathOpt.plot_edges(feg_S, points, plot_name = "G_S",col="black", vertices=feg_S.labels, with_labels=false)
+feg = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(free_faces))
+ClutteredEnvPathOpt.plot_edges(feg, points, plot_name = "Finite Element Graph of S",col="black", vertices=feg_S.labels)
+ClutteredEnvPathOpt.plot_edges(feg, points, plot_name = "G_S",col="black", vertices=feg_S.labels, with_labels=false)
 # plot!(title="",axis=([], false))
 png("$partition FEG of S Seed $seed Num Obs $num_obs Merged Faces $merge_faces")
 # png("$partition FEG of S Seed $seed Num Obs $num_obs Merged Faces $merge_faces No Axis")
 savefig("Poster $partition FEG of S Seed $seed Num Obs $num_obs Merged Faces $merge_faces.pdf")
+
+# Plot conflict graph
+conflict = LightGraphs.complement(feg.graph)
+conflict_lg = LabeledGraph(conflict, feg.labels)
+ClutteredEnvPathOpt.plot_edges(conflict_lg, points, plot_name = "Conflict Graph", col="black", with_labels=false)
+png("$partition Conflict Graph Seed $seed Num Obs $num_obs Merged Faces $merge_faces")
+savefig("Poster $partition Conflict Graph Seed $seed Num Obs $num_obs Merged Faces $merge_faces.pdf")
 
 # feg_obs = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(obstacle_faces))
 # ClutteredEnvPathOpt.plot_edges(feg_obs, points, plot_name = "Finite Element Graph Obstacle Faces")
@@ -213,12 +220,6 @@ png("$partitition Missing Edges Seed $seed Num Obs $num_obs Merged Faces $merge_
 
 # Plot biclique
 ClutteredEnvPathOpt.plot_biclique_cover(feg, points, merged_cover; with_all=true, name="Poster Biclique")
-
-# Plot conflict graph
-conflict = LightGraphs.complement(feg.graph)
-conflict_lg = LabeledGraph(conflict, feg.labels)
-ClutteredEnvPathOpt.plot_edges(conflict_lg, points, plot_name = "Conflict Graph", col="black", with_labels=false)
-savefig("Poster $partition Conflict Graph Seed $seed Num Obs $num_obs Merged Faces $merge_faces.pdf")
 
 
 
