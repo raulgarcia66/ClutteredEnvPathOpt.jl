@@ -19,10 +19,10 @@ removed_seeds = Set([19,21,63,65,90,91])   # were originally in good_seeds
 # Up-to-date notes
 # 3 and 4 can see effect of placement of an obstacle (that's not in the shortest path)
 # 3 and 8 can see effect of size of an obstacle (that's not in the shortest path)
-# TO DO: 25 see effect of changing a pentagon to a square
-# DONE: 22->97 left obstacle looks good for placing on boundary
+# 25 and 99 see effect of changing a pentagon to a square
 # 22 and 97 can see effect of the same obstacle being on boundary vs not on boundary
 # 22 abd 95 can see effect of removing a wide angle vertex with wide angle
+# 9 and 13 complement each other
 # good_seeds that became another seed: 
     # 19->104,21->109 and 21->110,63->108,65->106; 90->201,91->202
 
@@ -62,10 +62,10 @@ Set([107,111,115,116,117,119])
 all_seeds = vcat(Vector(101:120), good_seeds_vec, [201,202])
 
 # Want to use star_4 and star_3
-star_4 = union(Set([3,4,6,8,11,12,15,16,20,22,23,24,25,34,36,42,46,47,54,64,66,70,73,75,
+star_4 = union(Set([3,4,6,8,12,15,16,20,22,23,24,25,34,36,42,46,47,54,64,66,70,73,75,
                 77,78,83,92,94,95,97,98,99,100]), Set(101:120))
-star_3 = Set([1,5,7,9,10,13,14,17,18,33,37,39,45,51,53,55,62,69,80,89,93,96])
-star_2 = Set([2,30,35,48,56,57,58,67,68,86])
+star_3 = Set([1,5,9,13,14,17,33,37,39,45,51,53,55,62,80,89,96])
+star_2 = Set([2,7,10,11,18,30,35,48,56,57,58,67,68,69,86,93])
 star_1 = Set([26,32,43,50])
 star_special = Set([201,202])
 
@@ -81,6 +81,7 @@ Set(all_seeds_2) == all_seeds
 
 num_obs = 3
 seeds = sort!( collect( union(star_4, star_3)))
+seeds = [118]
 
 for seed in seeds
     file_name = "./test/obstacle files/Seed $seed.txt"
