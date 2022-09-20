@@ -5,6 +5,87 @@
 using ClutteredEnvPathOpt
 using Plots
 
+######################################################################################
+########################### Save Obstacle Data from Random ###########################
+## THIS IS DONE
+
+# one_obs_seeds = Set([24,30,33,42])
+# two_obs_seeds = Set([4,6,8,12,14,15,19,20,21,22,25,28,34,36,37,39,41,46,47,49,51,53,63,64,65,72,73,75,76,77,79,81,82,83,84,85,87,88,90,91,94,98,99])
+# three_obs_seeds = setdiff( setdiff( Set(1:100), two_obs_seeds), one_obs_seeds)
+
+# # Original seeds before renaming some meh to good (updated in "Obstacle Selection.jl")
+# good_seeds = Set([100,98,96,94,93,92,90,89,86,83,80,78,77,75,73,70,69,68,67,66,65,64,63,62,58,57,56,55,54,53,51,50,48,47,46,45,43,42,39,37,36,35,34,33,32,30,26,25,24,23,22,21,20,19,18,17,16,15,14,13,12,11,10,9,7,6,5,4,2,1])
+# meh_seeds = Set([99,97,95,91,88,87,84,82,76,72,71,60,59,52,49,44,41,38,28,27,8,3])
+# bad_seeds = Set([85,81,79,74,61,40,31,29])
+
+# good_three_obs_seeds = intersect(three_obs_seeds, good_seeds)
+# good_two_obs_seeds = intersect(two_obs_seeds, good_seeds)
+# good_one_obs_seeds = intersect(one_obs_seeds, good_seeds)
+
+# num_obs = 3
+# merge_faces = false;
+# partition = "CDT";
+# # seeds = setdiff(good_two_obs_seeds, Set([33, 21, 63, 65, 90, 19,4,46,34]))
+# for seed in seeds
+#     # seed = 5;
+#     obstacles, points, g, obstacle_faces, free_faces = ClutteredEnvPathOpt.plot_new(num_obs, "Obstacles Seed $seed Num Obs $num_obs", seed=seed, partition=partition, merge_faces=merge_faces)
+#     # Line below is for when you already have a collection of obstacles
+#     # obstacles, points, g, obstacle_faces, free_faces = ClutteredEnvPathOpt.plot_new(obstacles, "Obstacles Seed $seed Num Obs $num_obs", partition=partition, merge_faces=merge_faces)
+#     # skeleton = LabeledGraph(g)
+#     # all_faces = Set{Vector{Int64}}(union(obstacle_faces, free_faces))
+#     plot(title="Obstacles Seed $seed");
+#     ClutteredEnvPathOpt.plot_field(obstacles)
+#     # png("./test/obstacle files/Seed $seed")
+#     x = [i//21 for i = 0:21]
+#     for j = 0:21
+#         y = [j//21 for i = 0:21]
+#         scatter!(x,y)
+#     end
+#     display(plot!())
+#     # TODO: Save a plot of the grid and some plots of obstacles on top of the grid
+
+#     # # Code for saving points to files
+#     # file_name = "./test/obstacle files/Seed $seed.txt"
+#     # f = open(file_name, "w")   # write or append appropriately
+#     # for ob in obstacles
+#     #     pts = Polyhedra.points(ob)
+#     #     for pt in pts
+#     #         # println("$(pt[1]), $(pt[2])")
+#     #         write(f, "$(pt[1]), $(pt[2])\n")
+#     #     end
+#     #     write(f, "END\n")
+#     #     flush(f)
+#     #     # close(f)
+#     # end
+#     # # flush(f)
+#     # close(f)
+# end
+
+
+# # Manually save obstacle data to files
+# seed = 103
+# v = Polyhedra.convexhull([4//7,2//7], [3//7, 1//3], [3//7, 11//21], [10//21, 2//3], [4//7, 5//7])
+# poly = Polyhedra.polyhedron(v, Polyhedra.DefaultLibrary{Rational{Int64}}(GLPK.Optimizer))
+# plot(title="Obstacles Seed $seed")
+# ClutteredEnvPathOpt.plot_field([obstacles[1], obstacles[2], poly])
+# display(plot!())
+# png("./test/obstacle files/Seed $seed")
+
+# file_name = "./test/obstacle files/Seed $seed.txt"
+# f = open(file_name, "w")   # write or append appropriately
+# for ob in obstacles
+#     pts = Polyhedra.points(ob)
+#     for pt in pts
+#         # println("$(pt[1]), $(pt[2])")
+#         write(f, "$(pt[1]), $(pt[2])\n")
+#     end
+#     write(f, "END\n")
+#     flush(f)
+#     # close(f)
+# end
+# # flush(f)
+# close(f)
+
 # Original list from Random
 # one_obs_seeds = Set([24,30,33,42])
 # two_obs_seeds = Set([4,6,8,12,14,15,19,20,21,22,25,28,34,36,37,39,41,46,47,49,51,53,63,64,65,72,73,75,76,77,79,81,82,83,84,85,87,88,90,91,94,98,99])
@@ -40,17 +121,17 @@ Set(1:100) == union(good_seeds, meh_seeds, bad_seeds, removed_seeds)
 union(Set([16,77,97,115,116,118,119,120]), Set(101:111))
 
 # Seeds with wide angles
-Set([15,22,26,30,39,51,53,56,64,95,108   ])  # Remember that resulting polytopes must still have 4+ vertices
+Set([15,22,26,30,39,51,53,56,64,95,108])  # Remember that resulting polytopes must still have 4+ vertices
 
 # Seeds good for seeing how small close obtacles compare vs their convex hull
 # Maybe do 5 to 10 cases of the above to compare (name them in the 200 range)
-Set([12,13,15,20,22,35,66,73,83,93,94,96   ])  # 22,35,66,93,96 combine two obs;
+Set([12,13,15,20,22,35,66,73,83,93,94,96])  # 22,35,66,93,96 combine two obs;
 
 # Seeds with lots of vertices (or one obstacle with 6+)
-Set([6,16,24,30,33,36,46,51,64,73,75   ])   #  73, 75
+Set([6,16,24,30,33,36,46,51,64,73,75])   #  73, 75
 
 # Seeds with small obstacles
-Set([22,95,97,112,113,114,115,117   ])
+Set([22,95,97,112,113,114,115,117])
 
 # Huge obstacles or convex hull cases
 Set([201,202])
@@ -61,7 +142,7 @@ Set([107,111,115,116,117,119])
 # From top
 all_seeds = vcat(Vector(101:120), good_seeds_vec, [201,202])
 
-# Want to use star_4 and star_3
+# This is the final set of seeds. We will use star_4 and star_3. 
 star_4 = union(Set([3,4,6,8,12,15,16,20,22,23,24,25,34,36,42,46,47,54,64,66,70,73,75,
                 77,78,83,92,94,95,97,98,99,100]), Set(101:120))
 star_3 = Set([1,5,9,13,14,17,33,37,39,45,51,53,55,62,80,89,96])
