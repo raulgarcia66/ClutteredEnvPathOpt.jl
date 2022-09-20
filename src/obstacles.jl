@@ -40,6 +40,62 @@ function gen_obstacle(vertices...)
 end
 
 """
+    gen_obstacle_from_file()
+
+Description.
+"""
+function gen_obstacle_from_file(seed, num_obs, file_name; display_plot=true, save_plot=false)
+    obstacles = []
+    obs_counter = 0
+
+    points = Vector{Rational{Int}}[]
+    for line in eachline(file_name)
+        if line != "END"
+            pt = split(line, ",")
+            # println("$(pt[1]), $(pt[2])")
+            pts_rational = map(coord -> parse.(Int, split(coord, "//")) , pt)  # TODO: add '/' as well?
+            # println("$(typeof(pts_rational))")
+            # println("$(Rational(pts_rational[1][1], pts_rational[1][2]))")
+            # println("$(typeof([Rational(pts_rational[1][1], pts_rational[1][2]) ; Rational(pts_rational[2][1], pts_rational[2][2])]))")
+            push!(points, [Rational(pts_rational[1][1], pts_rational[1][2]) ; Rational(pts_rational[2][1], pts_rational[2][2])])
+        else
+            # v = Polyhedra.convexhull(points...)
+            # poly = Polyhedra.polyhedron(v, Polyhedra.DefaultLibrary{Rational{Int64}}(GLPK.Optimizer))
+            poly = ClutteredEnvPathOpt.gen_obstacle(points...)
+            # display(poly)
+            push!(obstacles, poly)
+
+            obs_counter += 1
+            points = Vector{Rational{Int}}[]
+            if obs_counter == num_obs
+                break
+            end
+        end
+    end
+
+    if !isempty(points)
+        poly = ClutteredEnvPathOpt.gen_obstacle(points...)
+        push!(obstacles, poly)
+        obs_counter += 1
+        points = Vector{Rational{Int}}[]
+    end
+
+    obstacles = ClutteredEnvPathOpt.gen_field(obstacles)   # maybe just apply remove_overlaps directly
+    # Hardcoded
+    if display_plot
+        plot(title="Obstacles Seed $seed")
+        ClutteredEnvPathOpt.plot_field(obstacles)   # requires an active plot (believe I have plot_field!, so need to edit plot_field)
+        display(plot!())
+        if save_plot
+            # png("./test/obstacle files/Seed $seed")
+            png("$(filename[1:end-3])")
+        end
+    end
+
+    return obstacles
+end
+
+"""
     gen_obstacle_four(point_per_dim)
 
 Creates an obstacle with four extreme points from a grid of points in the unit square.
