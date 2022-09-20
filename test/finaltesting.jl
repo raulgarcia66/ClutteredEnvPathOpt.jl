@@ -12,87 +12,6 @@ import Polyhedra
 using PiecewiseLinearOpt
 
 ######################################################################################
-########################### Save Obstacle Data from Random ###########################
-## THIS IS DONE
-
-# one_obs_seeds = Set([24,30,33,42])
-# two_obs_seeds = Set([4,6,8,12,14,15,19,20,21,22,25,28,34,36,37,39,41,46,47,49,51,53,63,64,65,72,73,75,76,77,79,81,82,83,84,85,87,88,90,91,94,98,99])
-# three_obs_seeds = setdiff( setdiff( Set(1:100), two_obs_seeds), one_obs_seeds)
-
-# # Original seeds before renaming some meh to good (updated in "Obstacle Selection.jl")
-# good_seeds = Set([100,98,96,94,93,92,90,89,86,83,80,78,77,75,73,70,69,68,67,66,65,64,63,62,58,57,56,55,54,53,51,50,48,47,46,45,43,42,39,37,36,35,34,33,32,30,26,25,24,23,22,21,20,19,18,17,16,15,14,13,12,11,10,9,7,6,5,4,2,1])
-# meh_seeds = Set([99,97,95,91,88,87,84,82,76,72,71,60,59,52,49,44,41,38,28,27,8,3])
-# bad_seeds = Set([85,81,79,74,61,40,31,29])
-
-# good_three_obs_seeds = intersect(three_obs_seeds, good_seeds)
-# good_two_obs_seeds = intersect(two_obs_seeds, good_seeds)
-# good_one_obs_seeds = intersect(one_obs_seeds, good_seeds)
-
-# num_obs = 3
-# merge_faces = false;
-# partition = "CDT";
-# # seeds = setdiff(good_two_obs_seeds, Set([33, 21, 63, 65, 90, 19,4,46,34]))
-# for seed in seeds
-#     # seed = 5;
-#     obstacles, points, g, obstacle_faces, free_faces = ClutteredEnvPathOpt.plot_new(num_obs, "Obstacles Seed $seed Num Obs $num_obs", seed=seed, partition=partition, merge_faces=merge_faces)
-#     # Line below is for when you already have a collection of obstacles
-#     # obstacles, points, g, obstacle_faces, free_faces = ClutteredEnvPathOpt.plot_new(obstacles, "Obstacles Seed $seed Num Obs $num_obs", partition=partition, merge_faces=merge_faces)
-#     # skeleton = LabeledGraph(g)
-#     # all_faces = Set{Vector{Int64}}(union(obstacle_faces, free_faces))
-#     plot(title="Obstacles Seed $seed");
-#     ClutteredEnvPathOpt.plot_field(obstacles)
-#     # png("./test/obstacle files/Seed $seed")
-#     x = [i//21 for i = 0:21]
-#     for j = 0:21
-#         y = [j//21 for i = 0:21]
-#         scatter!(x,y)
-#     end
-#     display(plot!())
-#     # TODO: Save a plot of the grid and some plots of obstacles on top of the grid
-
-#     # # Code for saving points to files
-#     # file_name = "./test/obstacle files/Seed $seed.txt"
-#     # f = open(file_name, "w")   # write or append appropriately
-#     # for ob in obstacles
-#     #     pts = Polyhedra.points(ob)
-#     #     for pt in pts
-#     #         # println("$(pt[1]), $(pt[2])")
-#     #         write(f, "$(pt[1]), $(pt[2])\n")
-#     #     end
-#     #     write(f, "END\n")
-#     #     flush(f)
-#     #     # close(f)
-#     # end
-#     # # flush(f)
-#     # close(f)
-# end
-
-
-# # Manually save obstacle data to files
-# seed = 103
-# v = Polyhedra.convexhull([4//7,2//7], [3//7, 1//3], [3//7, 11//21], [10//21, 2//3], [4//7, 5//7])
-# poly = Polyhedra.polyhedron(v, Polyhedra.DefaultLibrary{Rational{Int64}}(GLPK.Optimizer))
-# plot(title="Obstacles Seed $seed")
-# ClutteredEnvPathOpt.plot_field([obstacles[1], obstacles[2], poly])
-# display(plot!())
-# png("./test/obstacle files/Seed $seed")
-
-# file_name = "./test/obstacle files/Seed $seed.txt"
-# f = open(file_name, "w")   # write or append appropriately
-# for ob in obstacles
-#     pts = Polyhedra.points(ob)
-#     for pt in pts
-#         # println("$(pt[1]), $(pt[2])")
-#         write(f, "$(pt[1]), $(pt[2])\n")
-#     end
-#     write(f, "END\n")
-#     flush(f)
-#     # close(f)
-# end
-# # flush(f)
-# close(f)
-
-######################################################################################
 ################################ Inspect Instances ###################################
 
 ## Create from Random package
@@ -103,64 +22,12 @@ using PiecewiseLinearOpt
 # obstacles, points, g, obstacle_faces, free_faces = ClutteredEnvPathOpt.plot_new(num_obs, "Obstacles Seed $seed Num Obs $num_obs", seed=seed, partition=partition, merge_faces=merge_faces)
 
 ## Load from files
-
-function obs_from_file(seed, num_obs, file_name; display_plot=true, save_plot=false)
-    obstacles = []
-    obs_counter = 0
-
-    points = Vector{Rational{Int}}[]
-    for line in eachline(file_name)
-        if line != "END"
-            pt = split(line, ",")
-            # println("$(pt[1]), $(pt[2])")
-            pts_rational = map(coord -> parse.(Int, split(coord, "//")) , pt)  # add '/' as well?
-            # println("$(typeof(pts_rational))")
-            # println("$(Rational(pts_rational[1][1], pts_rational[1][2]))")
-            # println("$(typeof([Rational(pts_rational[1][1], pts_rational[1][2]) ; Rational(pts_rational[2][1], pts_rational[2][2])]))")
-            push!(points, [Rational(pts_rational[1][1], pts_rational[1][2]) ; Rational(pts_rational[2][1], pts_rational[2][2])])
-        else
-            # v = Polyhedra.convexhull(points...)
-            # poly = Polyhedra.polyhedron(v, Polyhedra.DefaultLibrary{Rational{Int64}}(GLPK.Optimizer))
-            poly = ClutteredEnvPathOpt.gen_obstacle(points...)
-            # display(poly)
-            push!(obstacles, poly)
-
-            obs_counter += 1
-            points = Vector{Rational{Int}}[]
-            if obs_counter == num_obs
-                break
-            end
-        end
-    end
-
-    if !isempty(points)
-        poly = ClutteredEnvPathOpt.gen_obstacle(points...)
-        push!(obstacles, poly)
-        obs_counter += 1
-        points = Vector{Rational{Int}}[]
-    end
-
-    obstacles = ClutteredEnvPathOpt.gen_field(obstacles)   # maybe just apply remove_overlaps directly
-    # Hardcoded
-    if display_plot
-        plot(title="Obstacles Seed $seed")
-        ClutteredEnvPathOpt.plot_field(obstacles)   # requires an active plot (believe I have plot_field!, so need to edit plot_field)
-        display(plot!())
-        if save_plot
-            # png("./test/obstacle files/Seed $seed")
-            png("$(filename[1:end-3])")
-        end
-    end
-
-    return obstacles
-end
-
-# Seeds by Sep 14
+# Seeds by Sep 14 (not final)
 good_seeds = [100,99,98,97,96,95,94,93,92,89,86,83,80,78,77,75,73,70,69,68,67,66,64,62,58,57,56,55,54,53,51,50,48,47,46,45,43,42,39,37,36,35,34,33,32,30,26,25,24,23,22,20,18,17,16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1]
 seeds = vcat(Vector(101:120), good_seeds, [201,202])  # all seeds
 
 # Seeds by Sep 17, after choosing
-
+# See star_4 and star_3 below in solve_time_stats
 
 seed = 107
 num_obs = 1
@@ -168,7 +35,7 @@ file_name = "./test/obstacle files/Seed $seed.txt"
 
 merge_faces = true;
 partition = "CDT";
-obstacles = obs_from_file(seed, num_obs, file_name)
+obstacles = gen_obstacle_from_file(seed, num_obs, file_name)
 obstacles, points, g, obstacle_faces, free_faces = ClutteredEnvPathOpt.plot_new(obstacles, "Obstacles Seed $seed Num Obs $num_obs", partition=partition, merge_faces=merge_faces)
 skeleton = LabeledGraph(g)
 all_faces = Set{Vector{Int64}}(union(obstacle_faces, free_faces))
@@ -323,7 +190,7 @@ function biclique_cover_validity_tests(seed_range, num_obs_range; faces::String=
 
             # New from file
             file_name = "./test/obstacle files/Seed $seed.txt"
-            obstacles = obs_from_file(seed, num_obs, file_name, display_plot=false)   # TODO: Add this function to obstacles.jl
+            obstacles = gen_obstacle_from_file(seed, num_obs, file_name, display_plot=false)   # TODO: Add this function to obstacles.jl
             obstacles, points, g, obstacle_faces, free_faces = ClutteredEnvPathOpt.plot_new(obstacles, "Obstacles Seed $seed Num Obs $num_obs", partition=partition, merge_faces=merge_faces)
             skeleton = LabeledGraph(g)
             all_faces = Set{Vector{Int64}}(union(obstacle_faces, free_faces))
@@ -537,7 +404,7 @@ end
 ################################# Solve Time Stats ###################################
 
 # method <- "merged" for the compact biclique cover, "full" for the original biclique cover, "bigM" for big-M constraints
-function solve_time_stats(seed_range, num_obs_range; file_name="Solve Time Stats.txt", method="merged", partition="CDT", merge_faces=true, relax=false)
+function solve_time_stats(seed_range, num_obs_range; file_name="Solve Time Stats.txt", method="merged", partition="CDT", merge_faces=true, relax=false, logfiles=false)
     # file_name = "Solve Time Stats.txt" #Seed Range = $seed_range, Num Obs Range = $num_obs_range.txt"
     # f = open(file_name, "a")
     # write(f, "Method = $method, Seed Range = $seed_range, Num Obs Range = $num_obs_range\n")
@@ -562,7 +429,7 @@ function solve_time_stats(seed_range, num_obs_range; file_name="Solve Time Stats
     # relax = false <- if true, solve as continuous relaxation
     
     f = open(file_name, "a")   # file is created outside of function
-    write(f, "Seed\tNum_obs\tNum_footsteps\tTerm_status\tObj_val\tSolve_time\tRel_gap\tSimplex_iterations\tBarrier_iterations\tNodes_explored")
+    write(f, "Seed\tNum_obs\tNum_footsteps\tFootsteps_used\tTerm_status\tObj_val\tSolve_time\tRel_gap\tSimplex_iterations\tBarrier_iterations\tNodes_explored")
     write(f, "\tNum_vertices\tBC_merged_size\tBC_full_size\tNum_free_faces\tNum_free_face_inequalities\n")
     times = zeros(length(seed_range) * length(num_obs_range))
     i = 1
@@ -572,17 +439,22 @@ function solve_time_stats(seed_range, num_obs_range; file_name="Solve Time Stats
             # write(f, "Seed = $seed, Num_Obs = $num_obs\n")
             # flush(f)
             # close(f)
-            # println("On test Seed = $seed, Num_Obs = $num_obs")
+            println("On test Seed = $seed, Num_Obs = $num_obs, Method = $method, Partition = $partition, Merge Face $merge_faces\n")
 
             # Create obstacles with Random
             # obstacles = ClutteredEnvPathOpt.gen_field_random(num_obs, seed = seed)
 
             # Create obstacles from files
             obs_file_name = "./test/obstacle files/Seed $seed.txt"
-            obstacles = obs_from_file(seed, num_obs, obs_file_name, display_plot=false)   # TODO: Add this function to obstacles.jl
-            obstacles = ClutteredEnvPathOpt.gen_field(obstacles)   # maybe just apply remove_overlaps directly
+            obstacles = gen_obstacle_from_file(seed, num_obs, obs_file_name, display_plot=false)   # TODO: Add this function to obstacles.jl
+            # obstacles = ClutteredEnvPathOpt.gen_field(obstacles)   # maybe just apply remove_overlaps directly
 
-            x, y, θ, t, stats = solve_steps(obstacles, N, f1, f2, goal, Q_g, Q_r, q_t, method=method, partition=partition, merge_faces=merge_faces, relax=relax) # (x,y,θ,t,stats)
+            if logfiles
+                LogFile = "./Experiments/Log Files/Seed $seed Num Obs $num_obs Method $method Partition $partition Merge Face $merge_faces.txt"
+            end
+
+            x, y, θ, t, stats = solve_steps(obstacles, N, f1, f2, goal, Q_g, Q_r, q_t, 
+                                method=method, partition=partition, merge_faces=merge_faces, relax=relax, LogFile=LogFile) # (x,y,θ,t,stats)
             term_status, obj_val, solve_time, rel_gap, simplex_iters, barrier_iters, node_count, num_vertices, merged_size, full_size, num_free_faces, num_free_face_ineq, method_used = stats
 
             if method_used == method
@@ -590,14 +462,17 @@ function solve_time_stats(seed_range, num_obs_range; file_name="Solve Time Stats
             else
                 times[i] = -1
             end
-            write(f, "$seed\t$num_obs\t$N\t$(term_status)\t$obj_val\t$(times[i])\t$rel_gap\t$simplex_iters\t$barrier_iters\t$node_count")
+            num_to_trim = length(filter(tj -> tj > 0.5, t[3:end]))
+            footsteps_used = (num_to_trim % 2 == 0) ? N - num_to_trim : N - num_to_trim - 1
+
+            write(f, "$seed\t$num_obs\t$N\t$footsteps_used\t$(term_status)\t$obj_val\t$(times[i])\t$rel_gap\t$simplex_iters\t$barrier_iters\t$node_count")
             write(f, "\t$num_vertices\t$merged_size\t$full_size\t$num_free_faces\t$num_free_face_ineq\n")
             flush(f)
 
             i += 1
 
             # Trim excess steps
-            num_to_trim = length(filter(tj -> tj > 0.5, t[3:end]))
+            # num_to_trim = length(filter(tj -> tj > 0.5, t[3:end]))
             if num_to_trim % 2 == 0
                 x = vcat(x[1:2], x[num_to_trim + 3 : end]);
                 y = vcat(y[1:2], y[num_to_trim + 3 : end]);
@@ -608,8 +483,14 @@ function solve_time_stats(seed_range, num_obs_range; file_name="Solve Time Stats
                 θ = vcat(θ[1], θ[num_to_trim + 3 : end]);
             end
             plot_steps(obstacles, x, y, θ)
+            if term_status == MOI.OPTIMAL
+                plot!(title="Optimal Solution Seed $seed")
+            elseif term_status == MOI.TIME_LIMIT
+                plot!(title="Nonoptimal Solution Seed $seed")
+            end
+            display(plot!())
             # plot_circles(x, y, θ, p1=p1, p2=p2)
-            png("./Experiments/Footstep Images/Footsteps Seed Range $seed_start to $seed_end Num Obs $num_obs Method $method Partition $partition Merge Face $merge_face")
+            png("./Experiments/Footstep Images/Footsteps Seed $seed Num Obs $num_obs Method $method Partition $partition Merge Face $merge_faces")
         end
     end
 
@@ -627,14 +508,14 @@ star_4 = union(Set([3,4,6,8,12,15,16,20,22,23,24,25,34,36,42,46,47,54,64,66,70,7
 star_3 = Set([1,5,9,13,14,17,33,37,39,45,51,53,55,62,80,89,96])
 star_special = Set([201,202])
 # seeds = union(star_4, star_3)
-seeds = sort!( collect( union(star_4, star_3)))
+seeds = sort( collect( union(star_4, star_3)))
 
 # Previous
 # seed_start = 1
 # seed_end = 50
 # seed_range = seed_start:seed_end
 seed_range = seeds
-seed_range = Set(1:3)
+# seed_range = sort(collect(Set([119,111,115,104])))
 num_obs = 1
 num_obs_range = num_obs:num_obs
 N = 25   # should match parameter in solve_time_stats()
@@ -653,7 +534,7 @@ for partition in partitions
         for merge_face in merge_faces
             for method in methods
                 # file_name = "./Experiments/Solve Times/Solve Time Stats Seed Range $seed_start to $seed_end Num Obs $num_obs Method $method Partition $partition Merge Face $merge_face.txt"
-                file_name = "./Experiments/Solve Times/Solve Time Stats Seed Range Temp Num Obs $num_obs Method $method Partition $partition Merge Face $merge_face.txt"
+                file_name = "./Experiments/Solve Times/Solve Time Stats Seed Range All Num Obs $num_obs Method $method Partition $partition Merge Face $merge_face.txt"
                 # file_name = "./Experiments/Solve Times Parameters Off/Solve Time Stats Seed Range $seed_start to $seed_end Num Obs $num_obs Method $method Partition $partition Merge Face $merge_face.txt"
                 # file_name = "./Experiments/Solve Times Relaxed/Relaxed Solve Time Stats Seed Range $seed_start to $seed_end Num Obs $num_obs Method $method Partition $partition Merge Face $merge_face.txt"
                 f = open(file_name, "w")   # write or append appropriately
@@ -663,13 +544,13 @@ for partition in partitions
                 write(f, "Num Obs Range = $num_obs_range, Num Footsteps = $N\nMethod = $method, Partition = $partition, Merge Face = $merge_face\n")
                 flush(f)
                 close(f)
-                _ = solve_time_stats(seed_range, num_obs_range, file_name=file_name, method=method, partition=partition, merge_faces=merge_face, relax=relax)
+                _ = solve_time_stats(seed_range, num_obs_range, file_name=file_name, method=method, partition=partition, merge_faces=merge_face, relax=relax, logfiles=true)
             end
         end
     else
         for method in methods            
             # file_name = "./Experiments/Solve Times/Solve Time Stats Seed Range $seed_start to $seed_end Num Obs $num_obs Method $method Partition $partition.txt"
-            file_name = "./Experiments/Solve Times/Solve Time Stats Seed Range Temp Num Obs $num_obs Method $method Partition $partition.txt"
+            file_name = "./Experiments/Solve Times/Solve Time Stats Seed Range All Num Obs $num_obs Method $method Partition $partition.txt"
             # file_name = "./Experiments/Solve Times Parameters Off/Solve Time Stats Seed Range $seed_start to $seed_end Num Obs $num_obs Method $method Partition $partition.txt"
             # file_name = "./Experiments/Solve Times Relaxed/Relaxed Solve Time Stats Seed Range $seed_start to $seed_end Num Obs $num_obs Method $method Partition $partition.txt"
             f = open(file_name, "w")   # write or append appropriately
@@ -681,6 +562,28 @@ for partition in partitions
         end
     end
 end
+
+# Experiments run: seeds, num_obs, partition, merge_faces, methods
+# star_seeds, 1, CDT, false, merged
+# star_seeds, 1, CDT, false, full
+# star_seeds, 1, CDT, false, bigM
+# star_seeds, 1, CDT, true, merged
+# star_seeds, 1, CDT, true, full
+# star_seeds, 1, CDT, true, bigM
+
+# star_seeds, 2, CDT, false, merged
+# star_seeds, 2, CDT, false, full
+# star_seeds, 2, CDT, false, bigM
+# star_seeds, 2, CDT, true, merged
+# star_seeds, 2, CDT, true, full
+# star_seeds, 2, CDT, true, bigM
+
+# star_seeds, 3, CDT, false, merged
+# star_seeds, 3, CDT, false, full
+# star_seeds, 3, CDT, false, bigM
+# star_seeds, 3, CDT, true, merged
+# star_seeds, 3, CDT, true, full
+# star_seeds, 3, CDT, true, bigM
 
 
 ######################################################################################
