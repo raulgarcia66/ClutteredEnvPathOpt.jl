@@ -222,7 +222,10 @@ end
 
 Compute optimal footstep path. Adapted from Deits and Tedrake 2014.
 """
-function solve_steps(obstacles, N, f1, f2, g, Q_g, Q_r, q_t; method="merged", partition="CDT", merge_faces=true, d1=0.2, d2=0.2, p1=[0, 0.07], p2=[0, -0.27], relax=false)
+function solve_steps(obstacles, N, f1, f2, g, Q_g, Q_r, q_t; 
+    method="merged", partition="CDT", merge_faces=true, relax=false,
+    MIPGap=0.05, TimeLimit=180, LogFile="",
+    d1=0.2, d2=0.2, p1=[0, 0.07], p2=[0, -0.27])
 
     if partition == "CDT"
         _, points, graph, _, free_faces = ClutteredEnvPathOpt.construct_graph_delaunay(obstacles, merge_faces=merge_faces)
@@ -232,11 +235,14 @@ function solve_steps(obstacles, N, f1, f2, g, Q_g, Q_r, q_t; method="merged", pa
 
     # model = JuMP.Model(JuMP.optimizer_with_attributes(Gurobi.Optimizer))
     if relax
-        model = JuMP.Model(Gurobi.Optimizer)
+        # model = JuMP.Model(Gurobi.Optimizer)
+        model = JuMP.Model(JuMP.optimizer_with_attributes(Gurobi.Optimizer, "LogFile" => LogFile))
     else
         # TODO: Add LogFile parameter to save log
-        model = JuMP.Model(JuMP.optimizer_with_attributes(Gurobi.Optimizer, "MIPGap" => .01))#, "TimeLimit" => 300))
-        # model = JuMP.Model(JuMP.optimizer_with_attributes(Gurobi.Optimizer, "Heuristics" => 0, "Cuts" => 0, "Presolve" => 0, "MIPGap" => .01, "TimeLimit" => 180))
+        # TODO: Set MIPGap to large value. Sub optimal solutions still look good
+        # model = JuMP.Model(JuMP.optimizer_with_attributes(Gurobi.Optimizer,"MIPGap"=>MIPGap,"TimeLimit"=>TimeLimit,"LogFile"=>LogFile))
+        model = JuMP.Model(JuMP.optimizer_with_attributes(Gurobi.Optimizer,"MIPGap"=>MIPGap,"TimeLimit"=>TimeLimit,"LogFile"=>LogFile,"LogToConsole"=>0))
+        # model = JuMP.Model(JuMP.optimizer_with_attributes(Gurobi.Optimizer,"Heuristics"=>0,"Cuts"=>0,"Presolve"=>0,"MIPGap"=>.01,"TimeLimit"=>180))
     end
 
     # model has scalar variables x, y, θ, binary variable t
@@ -256,10 +262,10 @@ function solve_steps(obstacles, N, f1, f2, g, Q_g, Q_r, q_t; method="merged", pa
 
     # Reachability
     # Breakpoints need to be strategically chosen (fewer is better for problem size)
-    # s_break_pts = [0, 6pi/16, 10pi/16, 22pi/16, 26pi/16, 2pi]
-    # c_break_pts = [0, 3pi/16, 14pi/16, 18pi/16, 29pi/16, 2pi]
-    s_break_pts = 0:0.2:2pi  # TODO: Check if maximum strides all the time
-    c_break_pts = 0:0.2:2pi
+    s_break_pts = [0, 6pi/16, 10pi/16, 22pi/16, 26pi/16, 2pi]
+    c_break_pts = [0, 3pi/16, 14pi/16, 18pi/16, 29pi/16, 2pi]
+    # s_break_pts = 0:0.2:2pi  # TODO: Check if maximum strides all the time
+    # c_break_pts = 0:0.2:2pi
     s = [piecewiselinear(model, θ[j], s_break_pts, sin) for j in 1:N]
     c = [piecewiselinear(model, θ[j], c_break_pts, cos) for j in 1:N]
 
