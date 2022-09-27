@@ -393,8 +393,7 @@ function find_points(obs; with_faces::Bool=false)
             push!(vertices_in_ob, vertex_num)
 
             # if (point[1] => point[2]) in [0//1 => 0//1 ; 0//1 => 1//1; 1//1 => 1//1; 1//1 => 0//1]
-            #     # HERE: Need to figure if the corner point belongs to a free face. Check if two points that make a right
-            #     # angle with it are also in the obstalce. If one isn't, then free face adjacent
+            # TODO: Describe what's going on here
             if (point[1] => point[2]) == (0//1 => 0//1)
                 if Polyhedra.in([point[1] + 1//42 ; point[2]], ob) && Polyhedra.in([point[2] ; point[2] + 1//42], ob)
                     push!(obs_pts_in_corner, vertex_num)
@@ -454,13 +453,6 @@ function find_points(obs; with_faces::Bool=false)
     end
 
     if with_faces
-        # The following only works when there are no obstacle points on the boundaries
-        # Push unit cell boundary segments
-        # num_points = length(points)
-        # for i = (num_points-3):(num_points-1)
-        #     push!(S, [i ; i+1])
-        # end
-        # push!(S, [num_points ; num_points-3])
 
         points_on_left_bound = Int[]
         points_on_top_bound = Int[]
