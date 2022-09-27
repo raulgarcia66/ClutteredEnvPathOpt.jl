@@ -9,7 +9,7 @@ import GLPK
 
 Given a set of vectors corresponding to faces of a planar graph, plots the faces in the unit square.
 """
-function plot_faces(faces::Set{Vector{T}}, points::Vector{Pair{Rational{Int64},Rational{Int64}}}; plot_name::String="Faces", col::String="green3", new_plot::Bool=true, individually::Bool=false) where {T}
+function plot_faces(faces::Set{Vector{T}}, points::Vector{Pair{Rational{Int}}}; plot_name::String="Faces", col::String="green3", new_plot::Bool=true, individually::Bool=false) where {T}
     if new_plot && !individually
         Plots.plot()
     end
@@ -50,7 +50,7 @@ end
 
 Given a LabeledGraph, plots its nodes and edges in the unit square.
 """
-function plot_edges(lg::LabeledGraph{T}, points::Vector{Pair{Rational{Int64},Rational{Int64}}}; plot_name::String="Edges", col::String="colorful", new_plot::Bool=true, vertices::Dict{T,T}=Dict{T,T}(), with_labels=true) where {T}
+function plot_edges(lg::LabeledGraph{T}, points::Vector{Pair{Rational{Int}}}; plot_name::String="Edges", col::String="colorful", new_plot::Bool=true, vertices::Dict{T,T}=Dict{T,T}(), with_labels=true) where {T}
     if new_plot
         Plots.plot()
     end
@@ -146,6 +146,7 @@ end
 Plots the obstacles to the existing active plot. Requires active plot.
 """
 function plot_field(field)
+    # TODO: Add plot initializer. Need to update every where plot_field is used with plot_field!
     for i = 1:length(field)
         Plots.plot!(field[i], xlims = (-0.05,1.05), ylim = (-0.05, 1.05))
     end
@@ -263,7 +264,7 @@ end
 
 Plots and labels points given. Optional argument to plot a subset of vertices.
 """
-function plot_points(points::Vector{Pair{Rational{Int64},Rational{Int64}}}; vertices::Dict{Int,Int}=Dict{Int,Int}(), with_labels=true)
+function plot_points(points::Vector{Pair{Rational{Int}}}; vertices::Dict{Int,Int}=Dict{Int,Int}(), with_labels=true)
     
     Plots.plot!(legend=false)
 
@@ -302,6 +303,7 @@ function plot_steps(obstacles, x, y, θ)
     scatter!(x[1:2:end], y[1:2:end], color="red", markersize=5, series_annotations=([Plots.text(string(x), :right, 8, "courier") for x in 1:2:length(x)]));
     scatter!(x[2:2:end], y[2:2:end], color="blue", markersize=5, series_annotations=([Plots.text(string(x), :right, 8, "courier") for x in 2:2:length(x)]));
     quiver!(x, y, quiver=(0.075 * cos.(θ), 0.075 * sin.(θ)))
+    # plot!(title="Footsteps")
     # display(plot!(title="Footsteps"))
 end
 
