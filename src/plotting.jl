@@ -78,7 +78,7 @@ end
 
 Given a LabeledGraph and a biclique cover, plot each biclique.
 """
-function plot_biclique_cover(lg::LabeledGraph{T}, points::Vector{Pair{Rational{Int64},Rational{Int64}}}, cover::Set{Pair{Set{T}, Set{T}}}; with_all::Bool=false, name::String="Biclique") where {T}
+function plot_biclique_cover(lg::LabeledGraph{T}, points::Vector{Pair{Rational{Int}}}, cover::Set{Pair{Set{T}, Set{T}}}; with_all::Bool=false, name::String="Biclique", save_plots::Bool=false) where {T}
     e_bar = LightGraphs.edges(LightGraphs.complement(lg.graph))
 
     # Vector of sets of pairs (edges)
@@ -133,7 +133,10 @@ function plot_biclique_cover(lg::LabeledGraph{T}, points::Vector{Pair{Rational{I
         end
 
         display(Plots.plot!(title="Biclique $j"))
-        savefig("$name $j.pdf")
+        if save_plots
+            # savefig("$name $j.pdf")
+            png("$name $j.pdf")
+        end
     end
 end
 
