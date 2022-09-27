@@ -29,11 +29,11 @@ seeds = vcat(Vector(101:120), good_seeds, [201,202])  # all seeds
 # Seeds by Sep 17, after choosing
 # See star_4 and star_3 below in solve_time_stats
 
-seed = 107
-num_obs = 1
+seed = 203  # TODO: Seed 119. Need to rid boundary corner points if they are points of an obstacle
+num_obs = 7
 file_name = "./test/obstacle files/Seed $seed.txt"
 
-merge_faces = true;
+merge_faces = false;
 partition = "CDT";
 obstacles = gen_obstacle_from_file(seed, num_obs, file_name)
 obstacles, points, g, obstacle_faces, free_faces = ClutteredEnvPathOpt.plot_new(obstacles, "Obstacles Seed $seed Num Obs $num_obs", partition=partition, merge_faces=merge_faces)
@@ -49,8 +49,8 @@ ClutteredEnvPathOpt.plot_points(points, vertices=skeleton.labels)
 ClutteredEnvPathOpt.plot_faces(free_faces, points, plot_name = "Free Faces")
 ClutteredEnvPathOpt.plot_faces(obstacle_faces, points, plot_name = "Obstacle Faces", col = "dodgerblue")
 ClutteredEnvPathOpt.plot_edges(skeleton, points, plot_name = "Skeleton", col="black", vertices=skeleton.labels)
-feg_S = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(free_faces))
-ClutteredEnvPathOpt.plot_edges(feg_S, points, plot_name = "Finite Element Graph of S", col="black", vertices=feg_S.labels)
+feg = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(free_faces))
+ClutteredEnvPathOpt.plot_edges(feg, points, plot_name = "Finite Element Graph of S", col="black", vertices=feg.labels)
 
 
 # Plot obstacles
@@ -98,8 +98,8 @@ png("$partition Skeleton Seed $seed Num Obs $num_obs Merged Faces $merge_faces")
 # png("$partition Skeleton Seed $seed Num Obs $num_obs Merged Faces $merge_faces No Axis")
 
 feg = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(free_faces))
-ClutteredEnvPathOpt.plot_edges(feg, points, plot_name = "Finite Element Graph of S",col="black", vertices=feg_S.labels)
-ClutteredEnvPathOpt.plot_edges(feg, points, plot_name = "G_S",col="black", vertices=feg_S.labels, with_labels=false)
+ClutteredEnvPathOpt.plot_edges(feg, points, plot_name = "Finite Element Graph of S",col="black", vertices=feg.labels)
+ClutteredEnvPathOpt.plot_edges(feg, points, plot_name = "G_S",col="black", vertices=feg.labels, with_labels=false)
 # plot!(title="",axis=([], false))
 png("$partition FEG of S Seed $seed Num Obs $num_obs Merged Faces $merge_faces")
 # png("$partition FEG of S Seed $seed Num Obs $num_obs Merged Faces $merge_faces No Axis")
@@ -138,7 +138,7 @@ ClutteredEnvPathOpt.plot_edges(missing_edges_lg, points, plot_name = "Missing Ed
 png("$partitition Missing Edges Seed $seed Num Obs $num_obs Merged Faces $merge_faces")
 
 # Plot biclique
-ClutteredEnvPathOpt.plot_biclique_cover(feg, points, merged_cover; with_all=true, name="Poster Biclique")
+ClutteredEnvPathOpt.plot_biclique_cover(feg, points, merged_cover; with_all=true, name="Partition $partition Merge Faces $merge_faces Biclique", save_plots=true)
 
 
 
@@ -261,13 +261,12 @@ end
 good_seeds = [100,99,98,97,96,95,94,93,92,89,86,83,80,78,77,75,73,70,69,68,67,66,64,62,58,57,56,55,54,53,51,50,48,47,46,45,43,42,39,37,36,35,34,33,32,30,26,25,24,23,22,20,18,17,16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1]
 seeds = vcat(Vector(101:120), good_seeds, [201,202])  # all seeds
 
-# TODO: Final seeds to test
-
-seed_range = seeds   # 1:100
+seed_range = seeds 
+seed_range = vcat(Vector(111:120), [201,202,203])
 num_obs_range = 1:3
 partition = "CDT"
-merge_faces = false
-merge_BC = false
+merge_faces = true
+merge_BC = true
 # fail_tuples = biclique_cover_validity_tests(seed_range, num_obs_range, faces = "all", partition=partition)
 fail_tuples = biclique_cover_validity_tests(seed_range, num_obs_range, faces = "free", with_plots=true, partition=partition, merge_faces=merge_faces, merge_BC=merge_BC)
 # Note that whether the full cover or merged cover is checked is hardcoded in the function
@@ -515,15 +514,15 @@ seeds = sort( collect( union(star_4, star_3)))
 # seed_end = 50
 # seed_range = seed_start:seed_end
 seed_range = seeds
-# seed_range = sort(collect(Set([119,111,115,104])))
+# seed_range = sort(collect(Set([6,8])))
 num_obs = 1
 num_obs_range = num_obs:num_obs
 N = 25   # should match parameter in solve_time_stats()
 # partitions = ["CDT", "HP"]
 partitions = ["CDT"]
 # merge_faces = [true, false]
-merge_faces = [false]
 # merge_faces = [false]
+merge_faces = [true]
 # methods = ["merged", "full", "bigM"]
 methods = ["merged"]
 # methods = ["full"]
@@ -563,27 +562,29 @@ for partition in partitions
     end
 end
 
+# TODO: Toy around with parameters to see if it helps the robot walk straight (seed 119 is good)
+
 # Experiments run: seeds, num_obs, partition, merge_faces, methods
-# star_seeds, 1, CDT, false, merged
-# star_seeds, 1, CDT, false, full
-# star_seeds, 1, CDT, false, bigM
-# star_seeds, 1, CDT, true, merged
-# star_seeds, 1, CDT, true, full
-# star_seeds, 1, CDT, true, bigM
+# DONE: star_seeds, 1, CDT, false, merged
+# DONE: star_seeds, 1, CDT, false, full
+# DONE: star_seeds, 1, CDT, false, bigM
+# REDO: star_seeds, 1, CDT, true, merged (need to rerun after fixing issue)
+# REDO: star_seeds, 1, CDT, true, full (need to rerun after addressing issue)
+# REDO: star_seeds, 1, CDT, true, bigM (need to rerun after addressing issue)
 
 # star_seeds, 2, CDT, false, merged
 # star_seeds, 2, CDT, false, full
 # star_seeds, 2, CDT, false, bigM
-# star_seeds, 2, CDT, true, merged
-# star_seeds, 2, CDT, true, full
-# star_seeds, 2, CDT, true, bigM
+# HOLD ON: star_seeds, 2, CDT, true, merged
+# HOLD ON: star_seeds, 2, CDT, true, full
+# HOLD ON: star_seeds, 2, CDT, true, bigM
 
 # star_seeds, 3, CDT, false, merged
 # star_seeds, 3, CDT, false, full
 # star_seeds, 3, CDT, false, bigM
-# star_seeds, 3, CDT, true, merged
-# star_seeds, 3, CDT, true, full
-# star_seeds, 3, CDT, true, bigM
+# HOLD ON: star_seeds, 3, CDT, true, merged
+# HOLD ON: star_seeds, 3, CDT, true, full
+# HOLD ON: star_seeds, 3, CDT, true, bigM
 
 
 ######################################################################################
