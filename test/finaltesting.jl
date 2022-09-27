@@ -911,3 +911,111 @@ for partition in partitions
         end
     end
 end
+
+######################################################################################
+######################################################################################
+
+
+seed = 5
+# seed_range = [5,17,39,46,51,62,66,70,78]
+num_obs = 1
+# num_obs_range = num_obs:num_obs
+N = 25   # should match parameter in solve_time_stats()
+partition = "CDT"
+# merge_faces = false
+merge_faces = true
+method = "merged"
+# method = "full"
+# method = "bigM"
+relax = false
+
+N = 25  # number of steps   # prev runs were 30 and 20. Chose 25 because some obstacle courses are almost mazes
+f1 = [0.0, 0.1, 0.0]  # initial footstep pose 1 ([x, y, theta])
+f2 = [0.0, 0.0, 0.0]  # initial footstep pose 2 ([x, y, theta])
+goal = [1, 1, 0]  # goal pose
+Q_g = 10*Matrix{Float64}(I, 3, 3)  # weight between final footstep and goal pose
+Q_r = Matrix{Float64}(I, 3, 3)  # weight between footsteps
+q_t = -0.05  # weight for trimming unused steps
+# Optional named arguments
+# d1 = 0.2 <- radius of reference foot circle
+# d2 = 0.2 <- radius of moving foot circle
+# p1 = [0, 0.07] <- center of reference foot circle
+# p2 = [0, -0.27] <- center of moving foot circle
+# delta_x_y_max = 0.10  # max stride norm in space (no longer used)
+# delta_θ_max = pi/4  # max difference in θ (no longer used)
+# relax = false <- if true, solve as continuous relaxation
+
+# f = open(file_name, "a")   # file is created outside of function
+# write(f, "Seed\tNum_obs\tNum_footsteps\tFootsteps_used\tTerm_status\tObj_val\tSolve_time\tRel_gap\tSimplex_iterations\tBarrier_iterations\tNodes_explored")
+# write(f, "\tNum_vertices\tBC_merged_size\tBC_full_size\tNum_free_faces\tNum_free_face_inequalities\n")
+# times = zeros(length(seed_range) * length(num_obs_range))
+# i = 1
+
+# FOR LOOPS START HERE
+# f = open(file_name, "a")
+# write(f, "Seed = $seed, Num_Obs = $num_obs\n")
+# flush(f)
+# close(f)
+println("On test Seed = $seed, Num_Obs = $num_obs, Method = $method, Partition = $partition, Merge Face $merge_faces\n")
+
+# Create obstacles with Random
+# obstacles = ClutteredEnvPathOpt.gen_field_random(num_obs, seed = seed)
+
+# Create obstacles from files
+obs_file_name = "./test/obstacle files/Seed $seed.txt"
+obstacles = gen_obstacle_from_file(seed, num_obs, obs_file_name, display_plot=false)   # TODO: Add this function to obstacles.jl
+# obstacles = ClutteredEnvPathOpt.gen_field(obstacles)   # maybe just apply remove_overlaps directly
+
+logfiles = false
+if logfiles
+    LogFile = "./Experiments/Log Files/Seed $seed Num Obs $num_obs Method $method Partition $partition Merge Face $merge_faces.txt"
+else
+    LogFile = ""
+end
+
+x, y, θ, t, z, stats = solve_steps(obstacles, N, f1, f2, goal, Q_g, Q_r, q_t, 
+                    method=method, partition=partition, merge_faces=merge_faces, relax=relax, LogFile=LogFile) # (x,y,θ,t,stats)
+term_status, obj_val, solve_time, rel_gap, simplex_iters, barrier_iters, node_count, num_vertices, merged_size, full_size, num_free_faces, num_free_face_ineq, method_used = stats
+
+z[22,1] # 1, rid B
+z[22,2] # 1, rid B
+z[22,3] # 0, rid A
+z[22,4] # 0, rid A
+# BC is (Set[7,3], Set[1]), (Set[8], Set[2]), (Set[5], Set[4,7,2,3]), (Set[4], Set[6,7,2])
+# We rid Set[1] ∪ Set[2] ∪ Set[5] ∪ Set[4] and are left with Set[3,6,7,8]
+# Set[3,6,8] and Set[6,7,8] are minimally infeasible sets of size 3
+
+# if method_used == method
+#     times[i] = solve_time   # time
+# else
+#     times[i] = -1
+# end
+num_to_trim = length(filter(tj -> tj > 0.5, t[3:end]))
+footsteps_used = (num_to_trim % 2 == 0) ? N - num_to_trim : N - num_to_trim - 1
+
+# write(f, "$seed\t$num_obs\t$N\t$footsteps_used\t$(term_status)\t$obj_val\t$(times[i])\t$rel_gap\t$simplex_iters\t$barrier_iters\t$node_count")
+# write(f, "\t$num_vertices\t$merged_size\t$full_size\t$num_free_faces\t$num_free_face_ineq\n")
+# flush(f)
+
+# i += 1
+
+# Trim excess steps
+# num_to_trim = length(filter(tj -> tj > 0.5, t[3:end]))
+if num_to_trim % 2 == 0
+    x = vcat(x[1:2], x[num_to_trim + 3 : end]);
+    y = vcat(y[1:2], y[num_to_trim + 3 : end]);
+    θ = vcat(θ[1:2], θ[num_to_trim + 3 : end]);
+else
+    x = vcat(x[1], x[num_to_trim + 3 : end]);
+    y = vcat(y[1], y[num_to_trim + 3 : end]);
+    θ = vcat(θ[1], θ[num_to_trim + 3 : end]);
+end
+plot_steps(obstacles, x, y, θ)
+if term_status == MOI.OPTIMAL
+    plot!(title="Optimal Solution Seed $seed")
+elseif term_status == MOI.TIME_LIMIT
+    plot!(title="Nonoptimal Solution Seed $seed")
+end
+display(plot!())
+# plot_circles(x, y, θ, p1=p1, p2=p2)
+# png("./Experiments/Footstep Images/Footsteps Seed $seed Num Obs $num_obs Method $method Partition $partition Merge Face $merge_faces")
