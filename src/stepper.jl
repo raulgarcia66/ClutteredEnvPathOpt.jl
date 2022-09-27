@@ -433,5 +433,5 @@ function solve_steps(obstacles, N, f1, f2, g, Q_g, Q_r, q_t;
     stats = (termination_status(model), objective_value(model; result=1), solve_time(model), relative_gap(model), simplex_iterations(model), barrier_iterations(model),
             node_count(model), LightGraphs.nv(graph), length(merged_cover), length(cover), length(free_faces), num_free_face_ineq, method)
 
-    return value.(x; result=1), value.(y; result=1), value.(θ; result=1), value.(t; result=1), stats
+    return value.(x; result=1), value.(y; result=1), value.(θ; result=1), value.(t; result=1), value.(z; result=1), stats
 end

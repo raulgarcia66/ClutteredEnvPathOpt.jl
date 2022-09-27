@@ -17,8 +17,8 @@ function gen_obstacle(vertices...)
 
     if length(vertices) < 4
         error("Obstacles need to have at least 4 extreme points.")
-    elseif typeof(vertices[1][1]) !== Rational{Int64}
-        error("Obstacle vertices currently need to be of type Rational{Int64}.")
+    elseif typeof(vertices[1][1]) !== Rational{Int}
+        error("Obstacle vertices currently need to be of type Rational{Int}.")
     end
 
     v = Polyhedra.convexhull(vertices...)
@@ -219,7 +219,7 @@ mapping each halfspace to the points of intersection that lie on it, sorted. Poi
 in the interior of obstacles are stored at the end of the array.
 """
 function find_intersections(obstacles)
-    res = Pair{Rational{Int64},Rational{Int64}}[]
+    res = Pair{Rational{Int}}[]
     
     halfspaces = @pipe map(obstacle -> Polyhedra.hrep(obstacle).halfspaces, obstacles) |> Iterators.flatten(_) |> collect(_)
     unique!(halfspaces)
@@ -247,9 +247,9 @@ function find_intersections(obstacles)
         end
     end
 
-    points = fill(Pair{Rational{Int64},Rational{Int64}}[], length(lines))    # For storing the points on each halfspace
+    points = fill(Pair{Rational{Int}}[], length(lines))    # For storing the points on each halfspace
     for i = 1:length(lines)
-        points[i] = Pair{Rational{Int64},Rational{Int64}}[]
+        points[i] = Pair{Rational{Int}}[]
     end
 
     # Function for determining if a point should be considered a duplicate of another. If so, the index
@@ -377,20 +377,71 @@ of the unit square. Returns the points, and possibly the obstacle face vertices 
 Function assumes obstacles have rational data.
 """
 function find_points(obs; with_faces::Bool=false)
-    S = Vector{Int64}[]   # Store segments/edges of each obstacle
-    obstacle_faces = Vector{Int64}[]   # Store obstacle face vertices (should be ordered)
-    points = Pair{Rational{Int64},Rational{Int64}}[]   # Store points as Vector of Pairs
+    S = Vector{Int}[]   # Store segments/edges of each obstacle
+    obstacle_faces = Vector{Int}[]   # Store obstacle face vertices (should be ordered)
+    points = Pair{Rational{Int}}[]   # Store points as Vector of Pairs
+    obs_pts_in_corner = Int[]
+
     vertex_num = 0
     for ob in obs
-        vertices_in_ob = Int64[]
+        vertices_in_ob = Int[]
         iter = Polyhedra.points(ob)
         # Store x and y coordinates in points
         for point in iter
             push!(points, point[1] => point[2])
             vertex_num += 1
             push!(vertices_in_ob, vertex_num)
+
+            # if (point[1] => point[2]) in [0//1 => 0//1 ; 0//1 => 1//1; 1//1 => 1//1; 1//1 => 0//1]
+            #     # HERE: Need to figure if the corner point belongs to a free face. Check if two points that make a right
+            #     # angle with it are also in the obstalce. If one isn't, then free face adjacent
+            if (point[1] => point[2]) == (0//1 => 0//1)
+                if Polyhedra.in([point[1] + 1//42 ; point[2]], ob) && Polyhedra.in([point[2] ; point[2] + 1//42], ob)
+                    push!(obs_pts_in_corner, vertex_num)
+                end
+            elseif (point[1] => point[2]) == (0//1 => 1//1)
+                if Polyhedra.in([point[1] + 1//42 ; point[2]], ob) && Polyhedra.in([point[1] ; point[2] - 1//42], ob)
+                    push!(obs_pts_in_corner, vertex_num)
+                end
+            elseif (point[1] => point[2]) == (1//1 => 1//1)
+                if Polyhedra.in([point[1] - 1//42 ; point[2]], ob) && Polyhedra.in([point[1] ; point[2] - 1//42], ob)
+                    push!(obs_pts_in_corner, vertex_num)
+                end
+            elseif (point[1] => point[2]) == (1//1 => 0//1)
+                if Polyhedra.in([point[1] - 1//42 ; point[2]], ob) && Polyhedra.in([point[1] ; point[2] + 1//42], ob)
+                    push!(obs_pts_in_corner, vertex_num)
+                end
+            end
         end
         push!(obstacle_faces, vertices_in_ob)
+    end
+
+    points = [points; 0//1 => 0//1 ; 0//1 => 1//1; 1//1 => 1//1; 1//1 => 0//1]
+    unique!(points)  # The duplicate points after the first appearance are removed. This should be fine as obstacle vertices will be unique with each other
+
+    end_vertices = Set([j for j = (length(points) - length(obs_pts_in_corner) + 1):length(points)])
+    vertices_needing_swap = setdiff(Set(obs_pts_in_corner), end_vertices)
+    eligible_swap_vertices = setdiff(end_vertices, Set(obs_pts_in_corner))
+    swap_pairs = Dict{Int,Int}()
+    for (i,j) in zip(vertices_needing_swap, eligible_swap_vertices)
+        swap_pairs[i] = j
+        points_i = points[i]
+        points[i] = points[j]
+        points[j] = points_i
+    end
+    
+    for vertices_in_ob in obstacle_faces
+        for (i,j) in swap_pairs
+            ind_i = findfirst(v -> v == i, vertices_in_ob)
+            ind_j = findfirst(v -> v == j, vertices_in_ob)
+
+            if ind_i !== nothing
+                vertices_in_ob[ind_i] = j
+            end
+            if ind_j !== nothing
+                vertices_in_ob[ind_j] = i
+            end
+        end
 
         # Push edges of obstacle boundary
         # Vertices are returned clockwise when obtained via Polyhedra.points(ob)
@@ -402,9 +453,6 @@ function find_points(obs; with_faces::Bool=false)
         end
     end
 
-    points = [points; 0//1 => 0//1 ; 0//1 => 1//1; 1//1 => 1//1; 1//1 => 0//1]
-    unique!(points)  # The duplicate points after the first appearance are removed. This should be fine as obstacle vertices will be unique with each other
-
     if with_faces
         # The following only works when there are no obstacle points on the boundaries
         # Push unit cell boundary segments
@@ -414,10 +462,10 @@ function find_points(obs; with_faces::Bool=false)
         # end
         # push!(S, [num_points ; num_points-3])
 
-        points_on_left_bound = Int64[]
-        points_on_top_bound = Int64[]
-        points_on_right_bound = Int64[]
-        points_on_bottom_bound = Int64[]
+        points_on_left_bound = Int[]
+        points_on_top_bound = Int[]
+        points_on_right_bound = Int[]
+        points_on_bottom_bound = Int[]
         coord_points_on_left_bound = Pair{Rational{Int}}[]
         coord_points_on_top_bound = Pair{Rational{Int}}[]
         coord_points_on_right_bound = Pair{Rational{Int}}[]
@@ -507,9 +555,11 @@ function find_points(obs; with_faces::Bool=false)
             push!(S, [v_current; v_next])
         end
 
-        return points, obstacle_faces, S
-    else 
-        return points
+        return points, obstacle_faces, S, length(vertices_needing_swap)
+    else
+        # return points
+        # return @pipe filter(v -> !(v in obs_pts_in_corner), 1:length(points)) |> points[_]   # remove obstacle points that are also unit cell corner points
+        return points[1:end-length(vertices_needing_swap)]
     end
 
 end
@@ -833,12 +883,12 @@ end
 Given a list of points and an association of halfspace lines to points that lie
 on the line, return an array where res[i] <- the neighbors of node i.
 """
-function _find_neighbors(points::Vector{Pair{Rational{Int64},Rational{Int64}}}, mapped::Vector{Vector{Pair{Rational{Int64},Rational{Int64}}}})::Vector{Vector{Int64}}
+function _find_neighbors(points::Vector{Pair{Rational{Int}}}, mapped::Vector{Vector{Pair{Rational{Int}}}})::Vector{Vector{Int}}
     # This function should only be used in construct_graph(), before "inside" points are removed
     neighbors = Dict()
 
     for point in points
-        neighbors[point] = Pair{Rational{Int64},Rational{Int64}}[]
+        neighbors[point] = Pair{Rational{Int}}[]
 
         for colinear in mapped
             if in(point, colinear)
@@ -856,7 +906,7 @@ function _find_neighbors(points::Vector{Pair{Rational{Int64},Rational{Int64}}}, 
     end
 
     # Res will contain the neighbors by their node label
-    res = fill(Int64[], length(points))
+    res = fill(Int[], length(points))
     for i in 1:length(res)
         res[i] = map(point -> findfirst(p -> p == point, points), neighbors[points[i]])
     end
@@ -893,7 +943,10 @@ the graph, a set of every face of obstacle space, and a set of every face of fre
 """
 function construct_graph_delaunay(obs; merge_faces=true)
 
-    points, obstacle_faces, S = ClutteredEnvPathOpt.find_points(obs; with_faces=true)
+    # points are x => pairs; obtacles faces are ordered vertices; S is a vector of edges
+    # TODO: This will likely change once problem is fixed
+    # obs_pts_in_corner are obstacle vertices that are unit cell corner points (need to be removed)
+    points, obstacle_faces, S, num_pts_to_drop = ClutteredEnvPathOpt.find_points(obs; with_faces=true)
 
     # Initialize triangulate structure
     triin = Triangulate.TriangulateIO()
@@ -930,6 +983,10 @@ function construct_graph_delaunay(obs; merge_faces=true)
     # edges = Matrix{Int64}(triout.edgelist)   # matrix with 2 rows
 
     # Create graph
+    # TODO: Before points can be removed, need them to be at end of "points" vector so that removing them
+    # does not affect the other vertex labels
+    # points  = @pipe filter(v -> !(v in obs_pts_in_corner), 1:length(points)) |> points[_]
+    points = points[1:end-num_pts_to_drop]
     graph = LightGraphs.SimpleGraph(length(points))
 
     # Add edges; Use output matrix of edges instead?
@@ -940,7 +997,7 @@ function construct_graph_delaunay(obs; merge_faces=true)
     end
 
     # Store free faces as vectors (utilizing holes ⟹ all triangles are free faces)
-    free_faces = Vector{Int64}[]
+    free_faces = Vector{Int}[]
     for j = 1:size(triangles,2)
         push!(free_faces, reverse(triangles[:,j]))
     end
@@ -959,7 +1016,7 @@ end
 Given a set of vectors corresponding to faces, this function merges faces together when possible
 to decrease the number of faces and edges in the skeleton graph. 
 """
-function face_merger(faces::Vector{Vector{T}}, graph::W, points::Vector{Pair{Rational{Int64},Rational{Int64}}}) where {T, W <: LightGraphs.AbstractGraph}
+function face_merger(faces::Vector{Vector{T}}, graph::W, points::Vector{Pair{Rational{Int}}}) where {T, W <: LightGraphs.AbstractGraph}
     edges_to_remove = Tuple{T,T}[]
     
     merge_found = true
