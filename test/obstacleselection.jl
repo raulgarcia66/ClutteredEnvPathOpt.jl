@@ -162,7 +162,7 @@ Set(all_seeds_2) == all_seeds
 
 num_obs = 3
 seeds = sort!( collect( union(star_4, star_3)))
-seeds = [118]
+seeds = [203]
 
 for seed in seeds
     file_name = "./test/obstacle files/Seed $seed.txt"
