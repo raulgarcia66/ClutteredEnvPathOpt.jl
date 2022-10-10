@@ -975,10 +975,7 @@ function construct_graph_delaunay(obs; merge_faces=true)
     # edges = Matrix{Int64}(triout.edgelist)   # matrix with 2 rows
 
     # Create graph
-    # TODO: Before points can be removed, need them to be at end of "points" vector so that removing them
-    # does not affect the other vertex labels
-    # points  = @pipe filter(v -> !(v in obs_pts_in_corner), 1:length(points)) |> points[_]
-    points = points[1:end-num_pts_to_drop]
+    points = points[1:end-num_pts_to_drop]   # first remove non-free-face points
     graph = LightGraphs.SimpleGraph(length(points))
 
     # Add edges; Use output matrix of edges instead?
