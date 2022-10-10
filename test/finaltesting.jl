@@ -29,8 +29,8 @@ seeds = vcat(Vector(101:120), good_seeds, [201,202])  # all seeds
 # Seeds by Sep 17, after choosing
 # See star_4 and star_3 below in solve_time_stats
 
-seed = 203  # TODO: Seed 119. Need to rid boundary corner points if they are points of an obstacle
-num_obs = 7
+seed = 203
+num_obs = 9
 file_name = "./test/obstacle files/Seed $seed.txt"
 
 merge_faces = false;
@@ -259,16 +259,15 @@ function biclique_cover_validity_tests(seed_range, num_obs_range; faces::String=
 end
 
 good_seeds = [100,99,98,97,96,95,94,93,92,89,86,83,80,78,77,75,73,70,69,68,67,66,64,62,58,57,56,55,54,53,51,50,48,47,46,45,43,42,39,37,36,35,34,33,32,30,26,25,24,23,22,20,18,17,16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1]
-seeds = vcat(Vector(101:120), good_seeds, [201,202])  # all seeds
+seeds = vcat(Vector(101:120), good_seeds, [201,202,203])  # all seeds
 
 seed_range = seeds 
-seed_range = vcat(Vector(111:120), [201,202,203])
 num_obs_range = 1:3
 partition = "CDT"
-merge_faces = true
-merge_BC = true
+merge_faces = false
+merge_BC = false
 # fail_tuples = biclique_cover_validity_tests(seed_range, num_obs_range, faces = "all", partition=partition)
-fail_tuples = biclique_cover_validity_tests(seed_range, num_obs_range, faces = "free", with_plots=true, partition=partition, merge_faces=merge_faces, merge_BC=merge_BC)
+fail_tuples = biclique_cover_validity_tests(seed_range, num_obs_range, faces="free", with_plots=true, partition=partition, merge_faces=merge_faces, merge_BC=merge_BC)
 # Note that whether the full cover or merged cover is checked is hardcoded in the function
 
 
@@ -412,24 +411,30 @@ function solve_time_stats(seed_range, num_obs_range; file_name="Solve Time Stats
 
     # Set parameters
     N = 25  # number of steps   # prev runs were 30 and 20. Chose 25 because some obstacle courses are almost mazes
-    f1 = [0.0, 0.1, 0.0]  # initial footstep pose 1 ([x, y, theta])
+    f1 = [0.0, 0.08, 0.0]  # initial footstep pose 1 ([x, y, theta])
     f2 = [0.0, 0.0, 0.0]  # initial footstep pose 2 ([x, y, theta])
-    goal = [1, 1, 0]  # goal pose
-    Q_g = 10*Matrix{Float64}(I, 3, 3)  # weight between final footstep and goal pose
-    Q_r = Matrix{Float64}(I, 3, 3)  # weight between footsteps
+    goal = [1.0, 1.0, 0.0]  # goal pose
+    Q_g = [20.0 0.0 0.0; 0.0 20.0 0.0; 0.0 0.0 1.0]  # weight between final footstep and goal pose
+    Q_r = [1.0 0.0 0.0; 0.0 1.0 0.0; 0.0 0.0 0.1]  # weight between footsteps
     q_t = -0.05  # weight for trimming unused steps
     # Optional named arguments
-    # d1 = 0.2 <- radius of reference foot circle
-    # d2 = 0.2 <- radius of moving foot circle
-    # p1 = [0, 0.07] <- center of reference foot circle
-    # p2 = [0, -0.27] <- center of moving foot circle
+    d1 = 0.1  # radius of reference foot circle
+    d2 = 0.1  # radius of moving foot circle
+    p1 = [0, 0.0]  # center of reference foot circle
+    p2 = [0, -0.14]  # center of moving foot circle
     # delta_x_y_max = 0.10  # max stride norm in space (no longer used)
     # delta_θ_max = pi/4  # max difference in θ (no longer used)
-    # relax = false <- if true, solve as continuous relaxation
+    # relax = false  # if true, solve as continuous relaxation
+    # MIPGap = 0.05  # 0.01 is 1 percent
+    TimeLimit = 300  # change to 120
+    # LogFile = ""  # empty string to not save
     
     f = open(file_name, "a")   # file is created outside of function
+    write(f, "N = $N\nf1 = $f1\nf2 = $f2\ngoal = $goal\nQ_g = $Q_g\nQ_r = $Q_r\nq_t = $q_t\n")
+    write(f, "d1 = $d1\nd2 = $d2\np1 = $p1\np2 = $p2\nTimeLimit = $TimeLimit\n")
     write(f, "Seed\tNum_obs\tNum_footsteps\tFootsteps_used\tTerm_status\tObj_val\tSolve_time\tRel_gap\tSimplex_iterations\tBarrier_iterations\tNodes_explored")
-    write(f, "\tNum_vertices\tBC_merged_size\tBC_full_size\tNum_free_faces\tNum_free_face_inequalities\n")
+    write(f, "\tNum_vertices\tBC_merged_size\tBC_full_size\tNum_free_faces\tNum_free_face_inequalities\tLast_f_cost\tBetween_f_cost\tTrim_cost\n")
+    flush(f)
     times = zeros(length(seed_range) * length(num_obs_range))
     i = 1
     for seed = seed_range
@@ -450,11 +455,17 @@ function solve_time_stats(seed_range, num_obs_range; file_name="Solve Time Stats
 
             if logfiles
                 LogFile = "./Experiments/Log Files/Seed $seed Num Obs $num_obs Method $method Partition $partition Merge Face $merge_faces.txt"
+            else
+                LogFile = ""
             end
 
-            x, y, θ, t, stats = solve_steps(obstacles, N, f1, f2, goal, Q_g, Q_r, q_t, 
-                                method=method, partition=partition, merge_faces=merge_faces, relax=relax, LogFile=LogFile) # (x,y,θ,t,stats)
+            x, y, θ, t, z, stats = solve_steps(obstacles, N, f1, f2, goal, Q_g, Q_r, q_t, p1=p1, p2=p2, d1=d1, d2=d2, TimeLimit=TimeLimit,
+                                method=method, partition=partition, merge_faces=merge_faces, relax=relax, LogFile=LogFile) # (x,y,θ,t,z,stats)
             term_status, obj_val, solve_time, rel_gap, simplex_iters, barrier_iters, node_count, num_vertices, merged_size, full_size, num_free_faces, num_free_face_ineq, method_used = stats
+            
+            last_f_cost = (([x[N]; y[N]; θ[N]] - goal)' * Q_g * ([x[N]; y[N]; θ[N]] - goal))
+            between_f_cost = sum(([x[j+1]; y[j+1]; θ[j+1]] - [x[j]; y[j]; θ[j]])' * Q_r * ([x[j+1]; y[j+1]; θ[j+1]] - [x[j]; y[j]; θ[j]]) for j in 1:(N-1))
+            trim_cost = sum(q_t * t)
 
             if method_used == method
                 times[i] = solve_time   # time
@@ -465,13 +476,12 @@ function solve_time_stats(seed_range, num_obs_range; file_name="Solve Time Stats
             footsteps_used = (num_to_trim % 2 == 0) ? N - num_to_trim : N - num_to_trim - 1
 
             write(f, "$seed\t$num_obs\t$N\t$footsteps_used\t$(term_status)\t$obj_val\t$(times[i])\t$rel_gap\t$simplex_iters\t$barrier_iters\t$node_count")
-            write(f, "\t$num_vertices\t$merged_size\t$full_size\t$num_free_faces\t$num_free_face_ineq\n")
+            write(f, "\t$num_vertices\t$merged_size\t$full_size\t$num_free_faces\t$num_free_face_ineq\t$last_f_cost\t$between_f_cost\t$trim_cost\n")
             flush(f)
 
             i += 1
 
             # Trim excess steps
-            # num_to_trim = length(filter(tj -> tj > 0.5, t[3:end]))
             if num_to_trim % 2 == 0
                 x = vcat(x[1:2], x[num_to_trim + 3 : end]);
                 y = vcat(y[1:2], y[num_to_trim + 3 : end]);
@@ -488,13 +498,11 @@ function solve_time_stats(seed_range, num_obs_range; file_name="Solve Time Stats
                 plot!(title="Nonoptimal Solution Seed $seed")
             end
             display(plot!())
-            # plot_circles(x, y, θ, p1=p1, p2=p2)
             png("./Experiments/Footstep Images/Footsteps Seed $seed Num Obs $num_obs Method $method Partition $partition Merge Face $merge_faces")
+            # plot_circles(x, y, θ, p1=p1, p2=p2, d1=d1, d2=d2)  # displays a plot for each footstep
         end
     end
 
-    # write(f, "\nEND")
-    # flush(f)
     close(f)
 
     return times
@@ -505,7 +513,7 @@ end
 star_4 = union(Set([3,4,6,8,12,15,16,20,22,23,24,25,34,36,42,46,47,54,64,66,70,73,75,
                 77,78,83,92,94,95,97,98,99,100]), Set(101:120))
 star_3 = Set([1,5,9,13,14,17,33,37,39,45,51,53,55,62,80,89,96])
-star_special = Set([201,202])
+star_special = Set([201,202,203])
 # seeds = union(star_4, star_3)
 seeds = sort( collect( union(star_4, star_3)))
 
@@ -513,20 +521,20 @@ seeds = sort( collect( union(star_4, star_3)))
 # seed_start = 1
 # seed_end = 50
 # seed_range = seed_start:seed_end
+# seed_range = sort(collect(Set([94,98])))
 seed_range = seeds
-# seed_range = sort(collect(Set([6,8])))
 num_obs = 1
 num_obs_range = num_obs:num_obs
-N = 25   # should match parameter in solve_time_stats()
+# N = 25   # #IMPORTANT: needs to match parameter in solve_time_stats()
 # partitions = ["CDT", "HP"]
 partitions = ["CDT"]
 # merge_faces = [true, false]
-# merge_faces = [false]
-merge_faces = [true]
+merge_faces = [false]
+# merge_faces = [true]
 # methods = ["merged", "full", "bigM"]
-methods = ["merged"]
+# methods = ["merged"]
 # methods = ["full"]
-# methods = ["bigM"]
+methods = ["bigM"]
 relax = false
 for partition in partitions
     if partition == "CDT"
@@ -540,7 +548,7 @@ for partition in partitions
 
                 # TODO: Need to remove seed_range
                 # write(f, "Seed Range = $seed_range, Num Obs Range = $num_obs_range, Num Footsteps=$N\nMethod = $method\tPartition = $partition\tMerge Face = $merge_face\n")
-                write(f, "Num Obs Range = $num_obs_range, Num Footsteps = $N\nMethod = $method, Partition = $partition, Merge Face = $merge_face\n")
+                write(f, "Num Obs Range = $num_obs_range, Method = $method, Partition = $partition, Merge Face = $merge_face\n")
                 flush(f)
                 close(f)
                 _ = solve_time_stats(seed_range, num_obs_range, file_name=file_name, method=method, partition=partition, merge_faces=merge_face, relax=relax, logfiles=true)
@@ -554,7 +562,7 @@ for partition in partitions
             # file_name = "./Experiments/Solve Times Relaxed/Relaxed Solve Time Stats Seed Range $seed_start to $seed_end Num Obs $num_obs Method $method Partition $partition.txt"
             f = open(file_name, "w")   # write or append appropriately
             # write(f, "Seed Range = $seed_range, Num Obs Range = $num_obs_range, Num Footsteps=$N\nMethod = $method\tPartition = $partition\n")
-            write(f, "Num Obs Range = $num_obs_range, Num Footsteps = $N\nMethod = $method, Partition = $partition\n")
+            write(f, "Num Obs Range = $num_obs_range, Method = $method, Partition = $partition\n")
             flush(f)
             close(f)
             _ = solve_time_stats(seed_range, num_obs_range, file_name=file_name, method=method, partition=partition, relax=relax)
@@ -562,30 +570,188 @@ for partition in partitions
     end
 end
 
-# TODO: Toy around with parameters to see if it helps the robot walk straight (seed 119 is good)
 
 # Experiments run: seeds, num_obs, partition, merge_faces, methods
 # DONE: star_seeds, 1, CDT, false, merged
-# DONE: star_seeds, 1, CDT, false, full
-# DONE: star_seeds, 1, CDT, false, bigM
-# REDO: star_seeds, 1, CDT, true, merged (need to rerun after fixing issue)
-# REDO: star_seeds, 1, CDT, true, full (need to rerun after addressing issue)
-# REDO: star_seeds, 1, CDT, true, bigM (need to rerun after addressing issue)
+# HOLD ON: star_seeds, 1, CDT, false, full
+# star_seeds, 1, CDT, false, bigM
+# DON'T: star_seeds, 1, CDT, true, merged (need to rerun after fixing issue)
+# DON'T: star_seeds, 1, CDT, true, full (need to rerun after addressing issue)
+# DON'T: star_seeds, 1, CDT, true, bigM (need to rerun after addressing issue)
 
 # star_seeds, 2, CDT, false, merged
-# star_seeds, 2, CDT, false, full
+# HOLD ON: star_seeds, 2, CDT, false, full
 # star_seeds, 2, CDT, false, bigM
-# HOLD ON: star_seeds, 2, CDT, true, merged
-# HOLD ON: star_seeds, 2, CDT, true, full
-# HOLD ON: star_seeds, 2, CDT, true, bigM
+# DON'T: star_seeds, 2, CDT, true, merged
+# DON'T: star_seeds, 2, CDT, true, full
+# DON'T: star_seeds, 2, CDT, true, bigM
 
 # star_seeds, 3, CDT, false, merged
-# star_seeds, 3, CDT, false, full
+# HOLD ON: star_seeds, 3, CDT, false, full
 # star_seeds, 3, CDT, false, bigM
-# HOLD ON: star_seeds, 3, CDT, true, merged
-# HOLD ON: star_seeds, 3, CDT, true, full
-# HOLD ON: star_seeds, 3, CDT, true, bigM
+# DON'T: star_seeds, 3, CDT, true, merged
+# DON'T:: star_seeds, 3, CDT, true, full
+# DON'T: star_seeds, 3, CDT, true, bigM
 
+######################################################################################
+################################# Parameter Tuning ###################################
+
+# method <- "merged" for the compact biclique cover, "full" for the original biclique cover, "bigM" for big-M constraints
+function param_tuning(seed_range, num_obs_range; file_name="Solve Time Stats.txt", method="merged", partition="CDT", merge_faces=true, relax=false, logfiles=false)
+    
+    # TODO: Make sure to update parameters
+    # Set parameters
+    N = 25  # number of steps   # prev runs were 30 and 20. Chose 25 because some obstacle courses are almost mazes
+    f1 = [0.0, 0.08, 0.0]  # initial footstep pose 1 ([x, y, theta])
+    f2 = [0.0, 0.0, 0.0]  # initial footstep pose 2 ([x, y, theta])
+    goal = [1.0, 1.0, 0.0]  # goal pose
+    Q_g = [20.0 0.0 0.0; 0.0 20.0 0.0; 0.0 0.0 1.0]  # weight between final footstep and goal pose
+    Q_r = [1.0 0.0 0.0; 0.0 1.0 0.0; 0.0 0.0 0.1]  # weight between footsteps
+    q_t = -0.05  # weight for trimming unused steps
+    # Optional named arguments
+    d1 = 0.10  # radius of reference foot circle
+    d2 = 0.10  # radius of moving foot circle
+    p1 = [0, 0.0]  # center of reference foot circle
+    p2 = [0, -0.14]  # center of moving foot circle
+    # delta_x_y_max = 0.10  # max stride norm in space (no longer used)
+    # delta_θ_max = pi/4  # max difference in θ (no longer used)
+    # relax = false  # if true, solve as continuous relaxation
+    # MIPGap = 0.05  # 0.01 is 1 percent
+    TimeLimit = 300
+    # LogFile = ""  # empty string to not save
+    param_set = 11
+    f = open("./test/Circles/Parameters per test.txt", "a")
+    write(f, "Set $param_set\nN = $N\nf1 = $f1\nf2 = $f2\ngoal = $goal\nQ_g = $Q_g\nQ_r = $Q_r\nq_t = $q_t\n")
+    write(f, "d1 = $d1\nd2 = $d2\np1 = $p1\np2 = $p2\nTimeLimit = $TimeLimit\n")
+    write(f, "\nComments: \n\n#########################################################################################\n\n")
+    close(f)
+
+    ###########################################################################################
+
+    f = open(file_name, "a")   # file is created outside of function
+    write(f, "Seed\tNum_obs\tNum_footsteps\tFootsteps_used\tTerm_status\tRel_gap\tObj_val\tSolve_time\t")
+    write(f, "Last_footstep_cost\tBetween_footstep_cost\tTrim_cost\n")
+    times = zeros(length(seed_range) * length(num_obs_range))
+    i = 1
+    for seed = seed_range
+        for num_obs = num_obs_range
+            # f = open(file_name, "a")
+            # write(f, "Seed = $seed, Num_Obs = $num_obs\n")
+            # flush(f)
+            # close(f)
+            println("On test Seed = $seed, Num_Obs = $num_obs, Method = $method, Partition = $partition, Merge Face $merge_faces\n")
+
+            # Create obstacles with Random
+            # obstacles = ClutteredEnvPathOpt.gen_field_random(num_obs, seed = seed)
+
+            # Create obstacles from files
+            obs_file_name = "./test/obstacle files/Seed $seed.txt"
+            obstacles = gen_obstacle_from_file(seed, num_obs, obs_file_name, display_plot=false)   # TODO: Add this function to obstacles.jl
+            # obstacles = ClutteredEnvPathOpt.gen_field(obstacles)   # maybe just apply remove_overlaps directly
+
+            if logfiles
+                LogFile = "./Experiments/Log Files/Shorter Seed $seed Num Obs $num_obs Method $method Partition $partition Merge Face $merge_faces.txt"
+            else
+                LogFile = ""
+            end
+
+            x, y, θ, t, z, stats = solve_steps(obstacles, N, f1, f2, goal, Q_g, Q_r, q_t, p1=p1, p2=p2, d1=d1, d2=d2, TimeLimit=TimeLimit,
+                                method=method, partition=partition, merge_faces=merge_faces, relax=relax, LogFile=LogFile) # (x,y,θ,t,z,stats)
+            term_status, obj_val, solve_time, rel_gap, simplex_iters, barrier_iters, node_count, num_vertices, merged_size, full_size, num_free_faces, num_free_face_ineq, method_used = stats
+            last_f_cost = (([x[N]; y[N]; θ[N]] - goal)' * Q_g * ([x[N]; y[N]; θ[N]] - goal))
+            between_f_cost = sum(([x[j+1]; y[j+1]; θ[j+1]] - [x[j]; y[j]; θ[j]])' * Q_r * ([x[j+1]; y[j+1]; θ[j+1]] - [x[j]; y[j]; θ[j]]) for j in 1:(N-1))
+            trim_cost = sum(q_t * t)
+            solve_time = round(solve_time, digits=2)
+
+            if method_used == method
+                times[i] = solve_time   # time
+            else
+                times[i] = -1
+            end
+            num_to_trim = length(filter(tj -> tj > 0.5, t[3:end]))
+            footsteps_used = (num_to_trim % 2 == 0) ? N - num_to_trim : N - num_to_trim - 1
+
+            write(f, "$seed\t$num_obs\t$N\t$footsteps_used\t$(term_status)\t$rel_gap\t$obj_val\t$(times[i])\t")
+            write(f, "$last_f_cost\t$between_f_cost\t$trim_cost\n")
+            flush(f)
+
+            i += 1
+
+            # Trim excess steps
+            if num_to_trim % 2 == 0
+                x = vcat(x[1:2], x[num_to_trim + 3 : end]);
+                y = vcat(y[1:2], y[num_to_trim + 3 : end]);
+                θ = vcat(θ[1:2], θ[num_to_trim + 3 : end]);
+            else
+                x = vcat(x[1], x[num_to_trim + 3 : end]);
+                y = vcat(y[1], y[num_to_trim + 3 : end]);
+                θ = vcat(θ[1], θ[num_to_trim + 3 : end]);
+            end
+            plot_steps(obstacles, x, y, θ)
+            if term_status == MOI.OPTIMAL
+                plot!(title="Optimal Solution Seed $seed")
+            elseif term_status == MOI.TIME_LIMIT
+                plot!(title="Nonoptimal Solution Seed $seed")
+            end
+            display(plot!())
+            png("./test/Parameter Tuning Solutions/Seed $seed Parameter Set $param_set")
+            # png("./Experiments/Footstep Images/Shorter Footsteps Seed $seed Num Obs $num_obs Method $method Partition $partition Merge Face $merge_faces")
+            # plot_circles(x, y, θ, p1=p1, p2=p2, d1=d1, d2=d2)  # displays a plot for each footstep
+        end
+    end
+
+    close(f)
+
+    return times
+
+end
+
+# seed_range = sort(collect(Set([94,98,99,111,118,202])))  # dropped 119, 107
+seed_range = sort(collect(Set([99,111,118,202]))) 
+# seed_range = seeds
+num_obs = 3
+num_obs_range = num_obs:num_obs
+# partitions = ["CDT", "HP"]
+partitions = ["CDT"]
+# merge_faces = [true, false]
+merge_faces = [false]
+# merge_faces = [true]
+# methods = ["merged", "full", "bigM"]
+methods = ["merged"]
+# methods = ["full"]
+# methods = ["bigM"]
+# N = 25   # IMPORTANT: needs to match parameter in param_tuning()
+param_set = 11 # IMPORTANT: needs to match parameter in param_tuning()
+for partition in partitions
+    if partition == "CDT"
+        for merge_face in merge_faces
+            for method in methods
+                # file_name = "./Experiments/Solve Times/Solve Time Stats Seed Range $seed_start to $seed_end Num Obs $num_obs Method $method Partition $partition Merge Face $merge_face.txt"
+                # file_name = "./Experiments/Solve Times/Solve Time Stats Seed Range All Num Obs $num_obs Method $method Partition $partition Merge Face $merge_face.txt"
+                file_name = "./test/Parameter Tuning Solutions/Solve Stats Set $param_set.txt"
+                # f = open(file_name, "w")   # write or append appropriately
+
+                # # TODO: Need to remove seed_range
+                # # write(f, "Seed Range = $seed_range, Num Obs Range = $num_obs_range, Num Footsteps=$N\nMethod = $method\tPartition = $partition\tMerge Face = $merge_face\n")
+                # write(f, "Num Obs Range = $num_obs_range, Num Footsteps = $N\nMethod = $method, Partition = $partition, Merge Face = $merge_face\n")
+                # flush(f)
+                # close(f)
+                _ = param_tuning(seed_range, num_obs_range, file_name=file_name, method=method, partition=partition, merge_faces=merge_face)
+            end
+        end
+    else
+        for method in methods            
+            # file_name = "./Experiments/Solve Times/Solve Time Stats Seed Range $seed_start to $seed_end Num Obs $num_obs Method $method Partition $partition.txt"
+            file_name = "./Experiments/Solve Times/Solve Time Stats Seed Range All Num Obs $num_obs Method $method Partition $partition.txt"
+            f = open(file_name, "w")   # write or append appropriately
+            # write(f, "Seed Range = $seed_range, Num Obs Range = $num_obs_range, Num Footsteps=$N\nMethod = $method\tPartition = $partition\n")
+            write(f, "Num Obs Range = $num_obs_range, Num Footsteps = $N\nMethod = $method, Partition = $partition\n")
+            flush(f)
+            close(f)
+            _ = param_tuning(seed_range, num_obs_range, file_name=file_name, method=method, partition=partition, relax=relax)
+        end
+    end
+end
 
 ######################################################################################
 ################################# Problem Size Stats #################################
@@ -1020,3 +1186,11 @@ end
 display(plot!())
 # plot_circles(x, y, θ, p1=p1, p2=p2)
 # png("./Experiments/Footstep Images/Footsteps Seed $seed Num Obs $num_obs Method $method Partition $partition Merge Face $merge_faces")
+
+# Analyze circle parameters
+ClutteredEnvPathOpt.plot_circles([.5; .6], [.5; 0.5], [pi/2; pi/2], d1 = 0.13, d2 = 0.13, p1=[0; 0.05], p2 = [0;-0.16])  # left foot base
+png("./test/Circles/Circles LB Centers 0.02 Neg 0.18 Radius 0.13")
+ClutteredEnvPathOpt.plot_circles([.5; .5], [.5; 0.42], [0; 0], d1 = 0.13, d2 = 0.13, p1=[0; 0.02], p2 = [0;-0.18])
+png("./test/Circles/Circles LB Centers 0.02 Neg 0.18 Radius 0.13")
+
+ClutteredEnvPathOpt.plot_circles([.6; .5], [.5; 0.5],[pi/2; pi/2], d1 = 0.2, d2 = 0.2, p1=[0, -0.07], p2 = [0,+0.27])  # right foot base
