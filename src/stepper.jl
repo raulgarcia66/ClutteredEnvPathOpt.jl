@@ -130,21 +130,21 @@ function get_M_A_b(points, free_faces)
 end
 
 """
-    plot_circles(x, y, theta; R1=0.20, R2=0.20, p1=[0, 0.07], p2=[0, -0.27])
+    plot_circles(x, y, theta; d1=0.20, d2=0.20, p1=[0, 0.07], p2=[0, -0.27])
 
 Description.
 """
-function plot_circles(x, y, theta; R1=0.20, R2=0.20, p1=[0, 0.07], p2=[0, -0.27])
+function plot_circles(x, y, theta; d1=0.20, d2=0.20, p1=[0, 0.07], p2=[0, -0.27])
     angles = LinRange(0,2*pi, 100)
     #plot()
     for i = 2:length(x)
         plot()
         if i % 2 == 1
-            circlex1 = R1*cos.(angles) .+ ( x[i-1] + cos(theta[i-1])*(-p1[1]) - sin(theta[i-1])*(-p1[2]) )
-            circley1 = R1*sin.(angles) .+ ( y[i-1] + sin(theta[i-1])*(-p1[1]) + cos(theta[i-1])*(-p1[2]) )
+            circlex1 = d1*cos.(angles) .+ ( x[i-1] + cos(theta[i-1])*(-p1[1]) - sin(theta[i-1])*(-p1[2]) )
+            circley1 = d1*sin.(angles) .+ ( y[i-1] + sin(theta[i-1])*(-p1[1]) + cos(theta[i-1])*(-p1[2]) )
 
-            circlex2 = R2*cos.(angles) .+ ( x[i-1] + cos(theta[i-1])*(-p2[1]) - sin(theta[i-1])*(-p2[2]) )
-            circley2 = R2*sin.(angles) .+ ( y[i-1] + sin(theta[i-1])*(-p2[1]) + cos(theta[i-1])*(-p2[2]) )
+            circlex2 = d2*cos.(angles) .+ ( x[i-1] + cos(theta[i-1])*(-p2[1]) - sin(theta[i-1])*(-p2[2]) )
+            circley2 = d2*sin.(angles) .+ ( y[i-1] + sin(theta[i-1])*(-p2[1]) + cos(theta[i-1])*(-p2[2]) )
             #scatter!([x[i-1]; x[i]], [y[i-1]; y[i]])
             scatter!([x[i-1]], [y[i-1]], color = "blue")
             scatter!([x[i]], [y[i]], color = "red")
@@ -153,11 +153,11 @@ function plot_circles(x, y, theta; R1=0.20, R2=0.20, p1=[0, 0.07], p2=[0, -0.27]
                 [0.075 * sin(theta[i-1]); 0.075 * sin(theta[i])])
                 )
         else
-            circlex1 = R1*cos.(angles) .+ ( x[i-1] + cos(theta[i-1])*(p1[1]) - sin(theta[i-1])*(p1[2]) )
-            circley1 = R1*sin.(angles) .+ ( y[i-1] + sin(theta[i-1])*(p1[1]) + cos(theta[i-1])*(p1[2]) )
+            circlex1 = d1*cos.(angles) .+ ( x[i-1] + cos(theta[i-1])*(p1[1]) - sin(theta[i-1])*(p1[2]) )
+            circley1 = d1*sin.(angles) .+ ( y[i-1] + sin(theta[i-1])*(p1[1]) + cos(theta[i-1])*(p1[2]) )
 
-            circlex2 = R2*cos.(angles) .+ ( x[i-1] + cos(theta[i-1])*(p2[1]) - sin(theta[i-1])*(p2[2]) )
-            circley2 = R2*sin.(angles) .+ ( y[i-1] + sin(theta[i-1])*(p2[1]) + cos(theta[i-1])*(p2[2]) )
+            circlex2 = d2*cos.(angles) .+ ( x[i-1] + cos(theta[i-1])*(p2[1]) - sin(theta[i-1])*(p2[2]) )
+            circley2 = d2*sin.(angles) .+ ( y[i-1] + sin(theta[i-1])*(p2[1]) + cos(theta[i-1])*(p2[2]) )
             #scatter!([x[i-1]; x[i]], [y[i-1]; y[i]])
             scatter!([x[i-1]], [y[i-1]], color = "red")
             scatter!([x[i]], [y[i]], color = "blue")
@@ -168,9 +168,9 @@ function plot_circles(x, y, theta; R1=0.20, R2=0.20, p1=[0, 0.07], p2=[0, -0.27]
         end
         plot!(circlex1, circley1, color="dodgerblue")
         plot!(circlex2, circley2, color="maroon")
-        display(plot!(legend=false, xlims=(-0.1,1.1), ylims=(-0.1,1.1)))
+        display(plot!(legend=false, xlims=(-0.05,1.05), ylims=(-0.05,1.05)))
     end
-    # display(plot!(legend=false, xlims=(-0.1,1.1), ylims=(-0.1,1.1)))
+    # display(plot!(legend=false, xlims=(-0.05,1.05), ylims=(-0.05,1.05)))
 end
 
 """
@@ -225,7 +225,8 @@ Compute optimal footstep path. Adapted from Deits and Tedrake 2014.
 function solve_steps(obstacles, N, f1, f2, g, Q_g, Q_r, q_t; 
     method="merged", partition="CDT", merge_faces=true, relax=false,
     MIPGap=0.05, TimeLimit=180, LogFile="",
-    d1=0.2, d2=0.2, p1=[0, 0.07], p2=[0, -0.27])
+    d1=0.2, d2=0.2, p1=[0, 0.07], p2=[0, -0.27]) #,
+    # delta_x_y_max=0.1)
 
     if partition == "CDT"
         _, points, graph, _, free_faces = ClutteredEnvPathOpt.construct_graph_delaunay(obstacles, merge_faces=merge_faces)
@@ -238,7 +239,6 @@ function solve_steps(obstacles, N, f1, f2, g, Q_g, Q_r, q_t;
         # model = JuMP.Model(Gurobi.Optimizer)
         model = JuMP.Model(JuMP.optimizer_with_attributes(Gurobi.Optimizer, "LogFile" => LogFile))
     else
-        # TODO: Add LogFile parameter to save log
         # TODO: Set MIPGap to large value. Sub optimal solutions still look good
         # model = JuMP.Model(JuMP.optimizer_with_attributes(Gurobi.Optimizer,"MIPGap"=>MIPGap,"TimeLimit"=>TimeLimit,"LogFile"=>LogFile))
         model = JuMP.Model(JuMP.optimizer_with_attributes(Gurobi.Optimizer,"MIPGap"=>MIPGap,"TimeLimit"=>TimeLimit,"LogFile"=>LogFile,"LogToConsole"=>0))
@@ -327,7 +327,7 @@ function solve_steps(obstacles, N, f1, f2, g, Q_g, Q_r, q_t;
         end
     end
 
-    # Max step distance
+    # Max step distance. Change to two consecutive (alternating) feet. Distance betweem should be capped at 0.1.
     # for j in 3:2:(N-1)
     #     JuMP.@constraint(model, [delta_x_y_max; f_no_theta[j] - f_no_theta[j - 2]] in SecondOrderCone())
     #     JuMP.@constraint(model, [delta_x_y_max; f_no_theta[j + 1] - f_no_theta[j - 1]] in SecondOrderCone())
@@ -433,5 +433,10 @@ function solve_steps(obstacles, N, f1, f2, g, Q_g, Q_r, q_t;
     stats = (termination_status(model), objective_value(model; result=1), solve_time(model), relative_gap(model), simplex_iterations(model), barrier_iterations(model),
             node_count(model), LightGraphs.nv(graph), length(merged_cover), length(cover), length(free_faces), num_free_face_ineq, method)
 
+    # TODO: Compute cost of each objective term
+    # last_f_cost = ((f[N] - g)' * Q_g * (f[N] - g))
+    # between_f_cost = sum((f[j + 1] - f[j])' * Q_r * (f[j + 1] - f[j]) for j in 1:(N-1))
+    # trim_cost = sum(q_t * t)
+    # costs = (last_f_cost, trim_cost, between_f_cost)
     return value.(x; result=1), value.(y; result=1), value.(θ; result=1), value.(t; result=1), value.(z; result=1), stats
 end
