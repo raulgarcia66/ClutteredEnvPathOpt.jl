@@ -413,12 +413,12 @@ function solve_steps(obstacles, N, f1, f2, g, Q_g, Q_r, q_t;
     JuMP.optimize!(model)
 
     if method == "merged" && valid_cover_merged
-        println("\n\nUsed merged cover.\n")
+        println("\n\nUsed merged cover.")
     elseif method != "bigM" && valid_cover 
-        println("\n\nUsed full cover.\n")
+        println("\n\nUsed full cover.")
         method = "full"
     else
-        println("\n\nUsed big-M constraints.\n")
+        println("\n\nUsed big-M constraints.")
         method = "bigM"
     end
 
@@ -433,10 +433,5 @@ function solve_steps(obstacles, N, f1, f2, g, Q_g, Q_r, q_t;
     stats = (termination_status(model), objective_value(model; result=1), solve_time(model), relative_gap(model), simplex_iterations(model), barrier_iterations(model),
             node_count(model), LightGraphs.nv(graph), length(merged_cover), length(cover), length(free_faces), num_free_face_ineq, method)
 
-    # TODO: Compute cost of each objective term
-    # last_f_cost = ((f[N] - g)' * Q_g * (f[N] - g))
-    # between_f_cost = sum((f[j + 1] - f[j])' * Q_r * (f[j + 1] - f[j]) for j in 1:(N-1))
-    # trim_cost = sum(q_t * t)
-    # costs = (last_f_cost, trim_cost, between_f_cost)
     return value.(x; result=1), value.(y; result=1), value.(θ; result=1), value.(t; result=1), value.(z; result=1), stats
 end
