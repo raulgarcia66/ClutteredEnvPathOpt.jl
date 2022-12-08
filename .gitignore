@@ -12,6 +12,7 @@
 *.txt
 *.csv
 /test/dataanalysisoriginal.jl
+!/**/obstacle files/*.txt
 
 /Images Float Error
 /Old Tests and Images
