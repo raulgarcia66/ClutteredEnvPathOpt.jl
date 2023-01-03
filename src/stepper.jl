@@ -223,9 +223,9 @@ end
 Compute optimal footstep path. Adapted from Deits and Tedrake 2014.
 """
 function solve_steps(obstacles, N, f1, f2, g, Q_g, Q_r, q_t; 
-    method="merged", partition="CDT", merge_faces=true, relax=false,
-    MIPGap=0.05, TimeLimit=180, LogFile="",
-    d1=0.2, d2=0.2, p1=[0, 0.07], p2=[0, -0.27]) #,
+    method="merged", partition="CDT", merge_faces=false, relax=false,
+    MIPGap=0.05, TimeLimit=180, LogFile="", LogToConsole=0,
+    d1=0.1, d2=0.1, p1=[0.0, 0.0], p2=[0.0, -0.14]) #,
     # delta_x_y_max=0.1)
 
     if partition == "CDT"
@@ -241,7 +241,7 @@ function solve_steps(obstacles, N, f1, f2, g, Q_g, Q_r, q_t;
     else
         # TODO: Set MIPGap to large value. Sub optimal solutions still look good
         # model = JuMP.Model(JuMP.optimizer_with_attributes(Gurobi.Optimizer,"MIPGap"=>MIPGap,"TimeLimit"=>TimeLimit,"LogFile"=>LogFile))
-        model = JuMP.Model(JuMP.optimizer_with_attributes(Gurobi.Optimizer,"MIPGap"=>MIPGap,"TimeLimit"=>TimeLimit,"LogFile"=>LogFile,"LogToConsole"=>0))
+        model = JuMP.Model(JuMP.optimizer_with_attributes(Gurobi.Optimizer,"MIPGap"=>MIPGap,"TimeLimit"=>TimeLimit,"LogFile"=>LogFile,"LogToConsole"=>LogToConsole))
         # model = JuMP.Model(JuMP.optimizer_with_attributes(Gurobi.Optimizer,"Heuristics"=>0,"Cuts"=>0,"Presolve"=>0,"MIPGap"=>.01,"TimeLimit"=>180))
     end
 
@@ -430,7 +430,9 @@ function solve_steps(obstacles, N, f1, f2, g, Q_g, Q_r, q_t;
         error("The model was not solved correctly.\n")
     end
 
-    stats = (termination_status(model), objective_value(model; result=1), solve_time(model), relative_gap(model), simplex_iterations(model), barrier_iterations(model),
+    # stats = (termination_status(model), objective_value(model; result=1), solve_time(model), relative_gap(model), simplex_iterations(model), barrier_iterations(model),
+    #         node_count(model), LightGraphs.nv(graph), length(merged_cover), length(cover), length(free_faces), num_free_face_ineq, method)
+    stats = (termination_status(model), objective_value(model; result=1), solve_time(model), relative_gap(model),
             node_count(model), LightGraphs.nv(graph), length(merged_cover), length(cover), length(free_faces), num_free_face_ineq, method)
 
     return value.(x; result=1), value.(y; result=1), value.(θ; result=1), value.(t; result=1), value.(z; result=1), stats
