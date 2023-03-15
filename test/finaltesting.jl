@@ -1105,9 +1105,9 @@ for partition in partitions
     if partition == "CDT"
         for merge_face in merge_faces
             for method in methods
-                file_name = "./Experiments/Problem Sizes/Problem Size Stats Seed Range $seed_start to $seed_end Num Obs $num_obs Method $method Partition $partition Merge Face $merge_face.txt"
+                file_name = "./Experiments/Problem Sizes/Problem Size Stats Seed Range All Seeds Num Obs $num_obs Method $method Partition $partition Merge Face $merge_face.txt"
                 f = open(file_name, "w")   # write or append appropriately
-                write(f, "Seed Range = $seed_range, Num Obs Range = $num_obs_range\nMethod = $method\tPartition = $partition\tMerge Face = $merge_face\n")
+                write(f, "Num Obs Range = $num_obs_range, Method = $method, Partition = $partition, Merge Face = $merge_face\n")
                 flush(f)
                 close(f)
                 stats = problem_size_stats(seed_range, num_obs_range, file_name=file_name, method=method, partition=partition, merge_faces=merge_face)
@@ -1117,7 +1117,7 @@ for partition in partitions
         for method in methods
             file_name = "./Experiments/Problem Sizes/Problem Size Stats Seed Range $seed_start to $seed_end Num Obs $num_obs Method $method Partition $partition.txt"
             f = open(file_name, "w")   # write or append appropriately
-            write(f, "Seed Range = $seed_range, Num Obs Range = $num_obs_range\nMethod = $method\tPartition = $partition\n")
+            write(f, "Num Obs Range = $num_obs_range, Method = $method, Partition = $partition, Merge Face = $merge_face\n")
             flush(f)
             close(f)
             stats = problem_size_stats(seed_range, num_obs_range, file_name=file_name, method=method, partition=partition)
@@ -1142,27 +1142,43 @@ method = "merged"  # either merged or full or both
 method = "bigM"
 relax = false
 
+# Set parameters
 N = 25  # number of steps   # prev runs were 30 and 20. Chose 25 because some obstacle courses are almost mazes
-f1 = [0.0, 0.1, 0.0]  # initial footstep pose 1 ([x, y, theta])
+f1 = [0.0, 0.08, 0.0]  # initial footstep pose 1 ([x, y, theta])
 f2 = [0.0, 0.0, 0.0]  # initial footstep pose 2 ([x, y, theta])
-goal = [1, 1, 0]  # goal pose
-Q_g = 10*Matrix{Float64}(I, 3, 3)  # weight between final footstep and goal pose
-Q_r = Matrix{Float64}(I, 3, 3)  # weight between footsteps
+goal = [1.0, 1.0, 0.0]  # goal pose
+Q_g = [20.0 0.0 0.0; 0.0 20.0 0.0; 0.0 0.0 1.0]  # weight between final footstep and goal pose
+Q_r = [1.0 0.0 0.0; 0.0 1.0 0.0; 0.0 0.0 0.1]  # weight between footsteps
 q_t = -0.05  # weight for trimming unused steps
 # Optional named arguments
-# d1 = 0.2 <- radius of reference foot circle
-# d2 = 0.2 <- radius of moving foot circle
-# p1 = [0, 0.07] <- center of reference foot circle
-# p2 = [0, -0.27] <- center of moving foot circle
+d1 = 0.1  # radius of reference foot circle
+d2 = 0.1  # radius of moving foot circle
+p1 = [0.0, 0.0]  # center of reference foot circle
+p2 = [0.0, -0.14]  # center of moving foot circle
+TimeLimit = Inf
+# TimeLimit = 120
 # delta_x_y_max = 0.10  # max stride norm in space (no longer used)
 # delta_θ_max = pi/4  # max difference in θ (no longer used)
-# relax = false <- if true, solve as continuous relaxation
+# MIPGap = 0.01  # 0.01 is 1 percent
+# LogFile modified below
+Presolve = 0  # -1 auto, 0 off, 1 conservative, 2 aggressive
+Cuts = -1  # -1 auto, 0 off, 1 moderate, 2 aggressive, 3 very aggressive
+Heuristics = 0.05  # 0.05 default; ratio of time spent on heuristics
 
-# f = open(file_name, "a")   # file is created outside of function
+# Add suffix to file name accordingly
+file_name = "./Experiments/No Heuristics/Solve Time Stats Method $method Partition $partition Merge Face $merge_faces No Presolve.txt"
+f = open(file_name, "w")   # write or append appropriately
+write(f, "Method = $method, Partition = $partition, Merge Face = $merge_faces\n") #Experimenting cuts, heuristics, presolve\n")
+
+write(f, "N = $N\nf1 = $f1\nf2 = $f2\ngoal = $goal\nQ_g = $Q_g\nQ_r = $Q_r\nq_t = $q_t\n")
+write(f, "d1 = $d1\nd2 = $d2\np1 = $p1\np2 = $p2\nTimeLimit = $TimeLimit\n")
+write(f, "Cuts = $Cuts\nHeuristics = $Heuristics\nPresolve = $Presolve\n")
 # write(f, "Seed\tNum_obs\tNum_footsteps\tFootsteps_used\tTerm_status\tObj_val\tSolve_time\tRel_gap\tSimplex_iterations\tBarrier_iterations\tNodes_explored")
-# write(f, "\tNum_vertices\tBC_merged_size\tBC_full_size\tNum_free_faces\tNum_free_face_inequalities\n")
-# times = zeros(length(seed_range) * length(num_obs_range))
-# i = 1
+write(f, "Seed\tNum_obs\tNum_footsteps\tFootsteps_used\tTerm_status\tObj_val\tSolve_time\tRel_gap\tNodes_explored")
+write(f, "\tNum_vertices\tBC_merged_size\tBC_full_size\tNum_free_faces\tNum_free_face_inequalities\tLast_f_cost\tBetween_f_cost\tTrim_cost\n")
+flush(f)
+
+close(f)
 
 # FOR LOOPS START HERE
 # f = open(file_name, "a")
@@ -1179,41 +1195,56 @@ obs_file_name = "./test/obstacle files/Seed $seed.txt"
 obstacles = gen_obstacle_from_file(seed, num_obs, obs_file_name, display_plot=false)
 # obstacles = ClutteredEnvPathOpt.gen_field(obstacles)
 
-logfiles = false
+logfiles = true
 if logfiles
-    LogFile = "./Experiments/Log Files/Seed $seed Num Obs $num_obs Method $method Partition $partition Merge Face $merge_faces.txt"
+    LogFile = "./Experiments/No Heuristics/Seed $seed Num Obs $num_obs Method $method Partition $partition Merge Face $merge_faces No Presolve.txt"
+    # LogFile = "./Warm Start Set 4/Warm Start Input Seed $seed Num Obs $num_obs Method $method Partition $partition Merge Face $merge_faces.txt"
 else
     LogFile = ""
 end
 
-x, y, θ, t, z, stats = solve_steps(obstacles, N, f1, f2, goal, Q_g, Q_r, q_t, 
-                    method=method, partition=partition, merge_faces=merge_faces, relax=relax, LogFile=LogFile) # (x,y,θ,t,stats)
-term_status, obj_val, solve_time, rel_gap, simplex_iters, barrier_iters, node_count, num_vertices, merged_size, full_size, num_free_faces, num_free_face_ineq, method_used = stats
+x, y, θ, t, z, stats = solve_steps(obstacles, N, f1, f2, goal, Q_g, Q_r, q_t,
+                    method=method, partition=partition, merge_faces=merge_faces, relax=relax, LogFile=LogFile,
+                    TimeLimit=TimeLimit, d1=d1, d2=d2, p1=p1, p2=p2, LogToConsole=1)#, MIPGap=0.01)  # omit MIPGap for my default of 0.05
+# term_status, obj_val, solve_time, rel_gap, simplex_iters, barrier_iters, node_count, num_vertices, merged_size, full_size, num_free_faces, num_free_face_ineq, method_used = stats
+term_status, obj_val, solve_time, rel_gap, node_count, num_vertices, merged_size, full_size, num_free_faces, num_free_face_ineq, method_used = stats
 
-z[22,1] # 1, rid B
-z[22,2] # 1, rid B
-z[22,3] # 0, rid A
-z[22,4] # 0, rid A
-# BC is (Set[7,3], Set[1]), (Set[8], Set[2]), (Set[5], Set[4,7,2,3]), (Set[4], Set[6,7,2])
-# We rid Set[1] ∪ Set[2] ∪ Set[5] ∪ Set[4] and are left with Set[3,6,7,8]
-# Set[3,6,8] and Set[6,7,8] are minimally infeasible sets of size 3
+last_f_cost = (([x[N]; y[N]; θ[N]] - goal)' * Q_g * ([x[N]; y[N]; θ[N]] - goal))
+between_f_cost = sum(([x[j+1]; y[j+1]; θ[j+1]] - [x[j]; y[j]; θ[j]])' * Q_r * ([x[j+1]; y[j+1]; θ[j+1]] - [x[j]; y[j]; θ[j]]) for j in 1:(N-1))
+trim_cost = sum(q_t * t)
 
-# if method_used == method
-#     times[i] = solve_time   # time
-# else
-#     times[i] = -1
-# end
+# Warm starting
+# x_warm, y_warm, θ_warm, t_warm = copy(x), copy(y), copy(θ), copy(t)
+method2 = "merged"
+LogFile = "./Warm Start Set 4/Warm Start Seed $seed Num Obs $num_obs Method $method2 Partition $partition Merge Face $merge_faces.txt"
+x, y, θ, t, z, stats = solve_steps(obstacles, N, f1, f2, goal, Q_g, Q_r, q_t, x_warm, y_warm, θ_warm, t_warm,
+                    method=method2, partition=partition, merge_faces=merge_faces, relax=relax, LogFile=LogFile,
+                    TimeLimit=TimeLimit, d1=d1, d2=d2, p1=p1, p2=p2, LogToConsole=1, MIPGap=0.01)
+term_status, obj_val, solve_time, rel_gap, node_count, num_vertices, merged_size, full_size, num_free_faces, num_free_face_ineq, method_used = stats
+
+last_f_cost = (([x[N]; y[N]; θ[N]] - goal)' * Q_g * ([x[N]; y[N]; θ[N]] - goal))
+between_f_cost = sum(([x[j+1]; y[j+1]; θ[j+1]] - [x[j]; y[j]; θ[j]])' * Q_r * ([x[j+1]; y[j+1]; θ[j+1]] - [x[j]; y[j]; θ[j]]) for j in 1:(N-1))
+trim_cost = sum(q_t * t)
+
+# Analyzing IB-representability of merged faces
+# z[22,1] # 1, rid B
+# z[22,2] # 1, rid B
+# z[22,3] # 0, rid A
+# z[22,4] # 0, rid A
+# # BC is (Set[7,3], Set[1]), (Set[8], Set[2]), (Set[5], Set[4,7,2,3]), (Set[4], Set[6,7,2])
+# # We rid Set[1] ∪ Set[2] ∪ Set[5] ∪ Set[4] and are left with Set[3,6,7,8]
+# # Set[3,6,8] and Set[6,7,8] are minimally infeasible sets of size 3
+
 num_to_trim = length(filter(tj -> tj > 0.5, t[3:end]))
 footsteps_used = (num_to_trim % 2 == 0) ? N - num_to_trim : N - num_to_trim - 1
 
-# write(f, "$seed\t$num_obs\t$N\t$footsteps_used\t$(term_status)\t$obj_val\t$(times[i])\t$rel_gap\t$simplex_iters\t$barrier_iters\t$node_count")
-# write(f, "\t$num_vertices\t$merged_size\t$full_size\t$num_free_faces\t$num_free_face_ineq\n")
-# flush(f)
-
-# i += 1
+# write(f, "$seed\t$num_obs\t$N\t$footsteps_used\t$(term_status)\t$obj_val\t$solve_time\t$rel_gap\t$simplex_iters\t$barrier_iters\t$node_count")
+write(f, "$seed\t$num_obs\t$N\t$footsteps_used\t$(term_status)\t$obj_val\t$solve_time\t$rel_gap\t$node_count")
+write(f, "\t$num_vertices\t$merged_size\t$full_size\t$num_free_faces\t$num_free_face_ineq\t$last_f_cost\t$between_f_cost\t$trim_cost\n")
+flush(f)
+close(f)
 
 # Trim excess steps
-# num_to_trim = length(filter(tj -> tj > 0.5, t[3:end]))
 if num_to_trim % 2 == 0
     x = vcat(x[1:2], x[num_to_trim + 3 : end]);
     y = vcat(y[1:2], y[num_to_trim + 3 : end]);
@@ -1230,13 +1261,6 @@ elseif term_status == MOI.TIME_LIMIT
     plot!(title="Nonoptimal Solution Seed $seed")
 end
 display(plot!())
-# plot_circles(x, y, θ, p1=p1, p2=p2)
-# png("./Experiments/Footstep Images/Footsteps Seed $seed Num Obs $num_obs Method $method Partition $partition Merge Face $merge_faces")
-
-# Analyze circle parameters
-ClutteredEnvPathOpt.plot_circles([.5; .6], [.5; 0.5], [pi/2; pi/2], d1 = 0.13, d2 = 0.13, p1=[0; 0.05], p2 = [0;-0.16])  # left foot base
-png("./test/Circles/Circles LB Centers 0.02 Neg 0.18 Radius 0.13")
-ClutteredEnvPathOpt.plot_circles([.5; .5], [.5; 0.42], [0; 0], d1 = 0.13, d2 = 0.13, p1=[0; 0.02], p2 = [0;-0.18])
-png("./test/Circles/Circles LB Centers 0.02 Neg 0.18 Radius 0.13")
-
-ClutteredEnvPathOpt.plot_circles([.6; .5], [.5; 0.5],[pi/2; pi/2], d1 = 0.2, d2 = 0.2, p1=[0, -0.07], p2 = [0,+0.27])  # right foot base
+png("./Experiments/No Cuts Heuristics/Footsteps Seed $seed Num Obs $num_obs Method $method Partition $partition Merge Face $merge_faces Bare Bone")
+display(plot!(title=""))
+png("./Experiments/No Cuts Heuristics/Footsteps Seed $seed Num Obs $num_obs Method $method Partition $partition Merge Face $merge_faces Bare Bone No Title")
