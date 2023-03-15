@@ -9,18 +9,19 @@ using JuMP, Gurobi, PiecewiseLinearOpt
 """
     get_M_A_b_easy(obstacles)
 
-Description.
+Computes big-M data by evaluating extreme points of unit cell.
 """
 function get_M_A_b_easy(obstacles)
+    # TODO: This accepts obstacles and computes points and free faces, where as get_M_A_b accepts points and free_faces
     Ms = []
     As = []
     bs = []
-    acc = [0] # accumulator # try using reduce() instead
+    acc = [0] # accumulator   # try using reduce() instead
 
     _, points, _, _, free_faces = ClutteredEnvPathOpt.construct_graph(obstacles)
 
     for face in free_faces
-        v = Polyhedra.convexhull(map(i -> collect(points[i]), face)...)
+        v = Polyhedra.convexhull(map(i -> collect(points[i]), face)...)   # collect() turns x => y into a vector [x; y]
         polygon = Polyhedra.polyhedron(
             v,
             Polyhedra.DefaultLibrary{Rational{Int64}}(Gurobi.Optimizer)
@@ -28,10 +29,6 @@ function get_M_A_b_easy(obstacles)
         halfspaces = Polyhedra.hrep(polygon).halfspaces
         temp = acc[end]
         push!(acc, temp + length(halfspaces))
-        
-        # for i in v.points
-        #     println("$i $face")
-        # end
 
         for hs in halfspaces
             A = hs.a'
@@ -44,7 +41,6 @@ function get_M_A_b_easy(obstacles)
             push!(bs, b)
         end
     end
-    # acc = acc[2:end]
     
     return vcat(Ms...), vcat(As...), vcat(bs...), acc
 end
@@ -52,7 +48,7 @@ end
 """
     get_M_A_b(points, free_faces)
 
-Description.
+Computes big-M data by solving LP over unit cell.
 """
 function get_M_A_b(points, free_faces)
     Ms = []
@@ -132,7 +128,7 @@ end
 """
     plot_circles(x, y, theta; d1=0.20, d2=0.20, p1=[0, 0.07], p2=[0, -0.27])
 
-Description.
+Plots circles defining reachable region for each footstep onto individual plots.
 """
 function plot_circles(x, y, theta; d1=0.20, d2=0.20, p1=[0, 0.07], p2=[0, -0.27])
     angles = LinRange(0,2*pi, 100)
@@ -174,9 +170,9 @@ function plot_circles(x, y, theta; d1=0.20, d2=0.20, p1=[0, 0.07], p2=[0, -0.27]
 end
 
 """
-    plot_PWL_sin()
+    plot_PWL_sin(break_pts)
 
-Description.
+Plots PWL approximation of sine given breakpoints.
 """
 function plot_PWL_sin(break_pts)
     plot(0:0.1:2pi, sin.(0:0.1:2pi), lw=3, title="Piecewise Linear Sine Approximation")
@@ -188,9 +184,9 @@ function plot_PWL_sin(break_pts)
 end
 
 """
-    plot_PWL_cos()
+    plot_PWL_cos(break_pts)
 
-Description.
+Plots PWL approximation of cosine given breakpoints.
 """
 function plot_PWL_cos(break_pts)
     plot(0:0.1:2pi, cos.(0:0.1:2pi), lw=3, title="Piecewise Linear Cosine Approximation")
@@ -218,9 +214,16 @@ end
 # delta_θ_max = pi/4 <- max difference in θ (no longer used)
 # relax <- if true, solve as continuous relaxation
 """
-    solve_steps(obstacles, N, f1, f2, g, Q_g, Q_r, q_t; method="merged", partition="CDT", merge_faces=true, d1=0.2, d2=0.2, p1=[0, 0.07], p2=[0, -0.27], relax=false)
+    solve_steps(obstacles, N, f1, f2, g, Q_g, Q_r, q_t;
+                method="merged", partition="CDT", merge_faces=true, relax=false, 
+                MIPGap=0.05, TimeLimit=180, LogFile="", LogToConsole=0,
+                d1=0.1, d2=0.1, p1=[0.0, 0.0], p2=[0.0, -0.14])
 
-Compute optimal footstep path. Adapted from Deits and Tedrake 2014.
+Compute optimal footstep path for a set of given obstacles and parameters. Adapted from Deits and Tedrake 2014.
+Methods:
+1) "full" : Independent Branching with full biclique cover computed by our algorithm
+1) "merged" : Independent Branching with biclique cover after applying merging procedure to full biclique cover
+1) "big-M" : big-M approach
 """
 function solve_steps(obstacles, N, f1, f2, g, Q_g, Q_r, q_t; 
     method="merged", partition="CDT", merge_faces=false, relax=false,
