@@ -1,3 +1,5 @@
+import Plots
+
 """
     find_biclique_cover(skeleton, faces)
 
@@ -21,7 +23,6 @@ function find_biclique_cover(skeleton::LabeledGraph{T}, faces::Set{Vector{T}})::
         node = Set([A => B])
     else
         node = Set{Pair{Set{T}, Set{T}}}()
-        println("A or B are empty.\nSkeleton vertices are $(skeleton.labels)")
     end
 
     if !isempty(union(A,C))
@@ -55,8 +56,8 @@ end
 Same as find_biclique_cover, with the added features of plotting the new skeletons and
 recording separator information at each call.
 """
-function find_biclique_cover_debug(skeleton::LabeledGraph{T}, faces::Set{Vector{T}}, points::Vector{Any}, obstacles, file_name)::Set{Pair{Set{T}, Set{T}}} where {T}
-    ClutteredEnvPathOpt.plot_edges(skeleton, points, obstacles)
+function find_biclique_cover_debug(skeleton::LabeledGraph{T}, faces::Set{Vector{T}}, points::Vector{Pair{Rational{Int}}}, obstacles, file_name)::Set{Pair{Set{T}, Set{T}}} where {T}
+    ClutteredEnvPathOpt.plot_edges(skeleton, points)
     f = open(file_name, "a")
     for (i,face) in enumerate(faces)
         write(f, "Face $i: $face\n")
@@ -209,6 +210,10 @@ function biclique_merger(cover::Set{Pair{Set{T}, Set{T}}}, feg::LabeledGraph{T})
     # Loop until we are unable to find any merges
     merge_found = true
     while merge_found
+        if length(cover) == 1
+            break
+        end
+        
         for i = 1:length(cover)
             for j = i+1:length(cover)
                 # TODO: Check if this is right
@@ -609,7 +614,7 @@ end
     _find_feg_separator_lt_no_empty_visual(skeleton, face_pairs, locations)
 Finds (C, A, B) and plots the edges found between A and B.
 """
-function _find_feg_separator_lt_no_empty_visual(skeleton::LabeledGraph{T}, face_pairs::Set{Set{Pair{T, T}}}, points::Vector{Any})::Tuple{Set{T}, Set{T}, Set{T}} where {T}
+function _find_feg_separator_lt_no_empty_visual(skeleton::LabeledGraph{T}, face_pairs::Set{Set{Pair{T, T}}}, points::Vector{Pair{Rational{Int}}})::Tuple{Set{T}, Set{T}, Set{T}} where {T}
     (C,A,B) = _find_feg_separator_lt_no_empty(skeleton, face_pairs)
 
     if isempty(A) || isempty(B)
@@ -622,17 +627,19 @@ function _find_feg_separator_lt_no_empty_visual(skeleton::LabeledGraph{T}, face_
     Plots.plot()
     Plots.scatter!(map(point -> point.first, points), map(point -> point.second, points))
 
+    # println("Set A: $A")
     for a in A
         Plots.scatter!([points[a].first], [points[a].second], color=:red)
     end
+    # println("Set B: $B")
     for b in B
-        Plots.scatter!([points[b].first], [points[b].second], color=:yellow)
+        Plots.scatter!([points[b].first], [points[b].second], color=:blue)
     end
 
     for edge in new_edges
         (x1,y1) = points[edge.first]
         (x2,y2) = points[edge.second]
-        Plots.plot!([x1, x2], [y1, y2], color=:green, linestyle=:dash)
+        Plots.plot!([x1, x2], [y1, y2], color=:limegreen)
     end
 
     display(Plots.plot!(legend=:false,xlims=(-.05,1.05),ylims=(-0.05,1.05), title="Biclique"))
@@ -644,7 +651,7 @@ end
     _find_biclique_cover_visual(skeleton, faces, locations)
 Finds a biclique cover and plots the edges of each biclique.
 """
-function _find_biclique_cover_visual(skeleton::LabeledGraph{T}, faces::Set{Vector{T}}, points::Vector{Any})::Set{Pair{Set{T}, Set{T}}} where {T}
+function _find_biclique_cover_visual(skeleton::LabeledGraph{T}, faces::Set{Vector{T}}, points::Vector{Pair{Rational{Int}}})::Set{Pair{Set{T}, Set{T}}} where {T}
     face_pairs = _find_face_pairs(faces)
     feg = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, face_pairs)
 
@@ -653,17 +660,16 @@ function _find_biclique_cover_visual(skeleton::LabeledGraph{T}, faces::Set{Vecto
     end
 
     (C, A, B) = _find_feg_separator_lt_no_empty_visual(skeleton, face_pairs, points)
-    # println("Set A: $A\nSet B: $B\nSet C: $C")
 
     if !isempty(A) && !isempty(B)
         node = Set([A => B])
     else
         node = Set{Pair{Set{T}, Set{T}}}()
     end
+
     if !isempty(union(A,C))
         skeleton_ac, faces_ac = _find_skeleton_faces(union(A, C), skeleton, faces)
         if !isempty(faces_ac)
-            # println("\nSet A: $A\nSet B: $B\nSet C: $C\nA ∪ C")
             left = _find_biclique_cover_visual(skeleton_ac, faces_ac, points)
         else
             left = Set{Pair{Set{T}, Set{T}}}()
@@ -671,10 +677,10 @@ function _find_biclique_cover_visual(skeleton::LabeledGraph{T}, faces::Set{Vecto
     else
         left = Set{Pair{Set{T}, Set{T}}}()
     end
+
     if !isempty(union(B,C))
         skeleton_bc, faces_bc = _find_skeleton_faces(union(B, C), skeleton, faces)
         if !isempty(faces_bc)
-            # println("\nSet A: $A\nSet B: $B\nSet C: $C\nB ∪ C")
             right = _find_biclique_cover_visual(skeleton_bc, faces_bc, points)
         else
             right = Set{Pair{Set{T}, Set{T}}}()

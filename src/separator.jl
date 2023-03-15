@@ -29,10 +29,10 @@ function find_feg_separator_lt(skeleton::LabeledGraph{T}, faces::Set{Set{Pair{T,
 
     for pair in new_vertices
         if (pair.first in c_star_star)
-            bad_face_vertecies =  reduce((x, y) -> union!(x, Set([y.first, y.second])), pair.second, init=Set{Number}())
+            bad_face_vertices =  reduce((x, y) -> union!(x, Set([y.first, y.second])), pair.second, init=Set{Number}())
 
-            a_star_star_boundry = filter(vertex -> vertex in a_star_star, bad_face_vertecies)
-            b_star_star_boundry = filter(vertex -> vertex in b_star_star, bad_face_vertecies)
+            a_star_star_boundry = filter(vertex -> vertex in a_star_star, bad_face_vertices)
+            b_star_star_boundry = filter(vertex -> vertex in b_star_star, bad_face_vertices)
             
             if length(a_star_star_boundry) < length(b_star_star_boundry)
                 setdiff!(a, a_star_star_boundry)
