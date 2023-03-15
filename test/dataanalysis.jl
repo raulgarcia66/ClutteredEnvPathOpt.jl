@@ -34,7 +34,8 @@ file_name = "./Experiments/Solve Times/Solve Time Stats Seed Range All Num Obs $
 #                 ) |> 
 #                 DataFrame
 
-# Seed	Num_obs	Num_footsteps	Footsteps_used	Term_status	Obj_val	Solve_time	Rel_gap	Simplex_iterations	Barrier_iterations	Nodes_explored	Num_vertices	BC_merged_size	BC_full_size	Num_free_faces	Num_free_face_inequalities	Last_f_cost	Between_f_cost	Trim_cost
+# Seed	Num_obs	Num_footsteps	Footsteps_used	Term_status	Obj_val	Solve_time	Rel_gap	Simplex_iterations	Barrier_iterations
+# Nodes_explored	Num_vertices	BC_merged_size	BC_full_size	Num_free_faces	Num_free_face_inequalities	Last_f_cost	Between_f_cost	Trim_cost
 header=[:seed, :num_obs, :num_footsteps, :footsteps_used, :term_status, :obj_val,
         :solve_time, :rel_gap, :simplex_iter, :barrier_iter, :simplex_nodes, :num_vertices,
         :BC_merged, :BC_full, :num_free_faces, :num_free_face_ineq, :last_f_cost, :between_f_cost, :trim_cost]
@@ -151,10 +152,6 @@ master_dict[num_obs]["CDT"]["faces_not_merged"]["full"]["df"]
 ############################################################################################
 ############################ Merge dictionaries one at a time ##############################
 # # Adds "summary" DataFrame of the three methods
-
-header=[:seed, :num_obs, :num_footsteps, :footsteps_used, :term_status, :obj_val,
-        :solve_time, :rel_gap, :simplex_iter, :barrier_iter, :simplex_nodes, :num_vertices, :BC_merged,
-        :BC_full, :num_free_faces, :num_free_face_ineq, :last_f_cost, :between_f_cost, :trim_cost]
 
 num_obs = 1
 partition = "CDT"
@@ -305,7 +302,6 @@ master_dict[num_obs]["CDT"]["faces_not_merged"]["winner_count"]
 
 master_dict[num_obs]["CDT"]["faces_not_merged"]
 df = master_dict[num_obs]["CDT"]["faces_not_merged"]["merged"]["df"]
-df[df.term_status .== "OPTIMAL", :]
 
 num_obs_range = 1:3
 for num_obs in num_obs_range
