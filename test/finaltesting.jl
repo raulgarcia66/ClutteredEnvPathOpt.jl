@@ -365,7 +365,12 @@ function biclique_cover_merger_stats(seed_range, num_obs_range; file_name="Bicli
     return percent_vec, tuples, cover_vec, merged_cover_vec, num_free_faces_vec
 end
 
-# TODO: Have not run this. Fix and add possible columns before running
+star_4 = union(Set([3,4,6,8,12,15,16,20,22,23,24,25,34,36,42,46,47,54,64,66,70,73,75,
+                77,78,83,92,94,95,97,98,99,100]), Set(101:120))
+star_3 = Set([1,5,9,13,14,17,33,37,39,45,51,53,55,62,80,89,96])
+star_special = Set([201,202,203])
+# seeds = union(star_4, star_3)
+seeds = sort( collect( setdiff(union(star_4, star_3), Set(119) ) ) )
 
 seed_range = seeds 
 num_obs = 3
@@ -524,13 +529,13 @@ function solve_time_stats(seed_range, num_obs_range; file_name="Solve Time Stats
 
 end
 
-# 70 test cases selected
+# 69 test cases selected
 star_4 = union(Set([3,4,6,8,12,15,16,20,22,23,24,25,34,36,42,46,47,54,64,66,70,73,75,
                 77,78,83,92,94,95,97,98,99,100]), Set(101:120))
 star_3 = Set([1,5,9,13,14,17,33,37,39,45,51,53,55,62,80,89,96])
 star_special = Set([201,202,203])
 # seeds = union(star_4, star_3)
-seeds = sort( collect( union(star_4, star_3)))
+seeds = sort( collect( setdiff(union(star_4, star_3), Set(119) ) ) )
 
 # Previous
 # seed_start = 1
@@ -538,7 +543,7 @@ seeds = sort( collect( union(star_4, star_3)))
 # seed_range = seed_start:seed_end
 # seed_range = sort(collect(Set([94,98])))
 seed_range = seeds
-num_obs = 1
+num_obs = 3
 num_obs_range = num_obs:num_obs
 # N = 25   # #IMPORTANT: needs to match parameter in solve_time_stats()
 # partitions = ["CDT", "HP"]
@@ -548,8 +553,8 @@ merge_faces = [false]
 # merge_faces = [true]
 # methods = ["merged", "full", "bigM"]
 # methods = ["merged"]
-# methods = ["full"]
-methods = ["bigM"]
+methods = ["full"]
+# methods = ["bigM"]
 relax = false
 for partition in partitions
     if partition == "CDT"
@@ -561,7 +566,7 @@ for partition in partitions
                 # file_name = "./Experiments/Solve Times Relaxed/Relaxed Solve Time Stats Seed Range $seed_start to $seed_end Num Obs $num_obs Method $method Partition $partition Merge Face $merge_face.txt"
                 f = open(file_name, "w")   # write or append appropriately
 
-                # TODO: Need to remove seed_range
+                # Remove seed_range
                 # write(f, "Seed Range = $seed_range, Num Obs Range = $num_obs_range, Num Footsteps=$N\nMethod = $method\tPartition = $partition\tMerge Face = $merge_face\n")
                 write(f, "Num Obs Range = $num_obs_range, Method = $method, Partition = $partition, Merge Face = $merge_face\n")
                 flush(f)
@@ -587,26 +592,37 @@ end
 
 
 # Experiments run: seeds, num_obs, partition, merge_faces, methods
-# DONE: star_seeds, 1, CDT, false, merged
-# HOLD ON: star_seeds, 1, CDT, false, full
-# star_seeds, 1, CDT, false, bigM
-# DON'T: star_seeds, 1, CDT, true, merged (need to rerun after fixing issue)
-# DON'T: star_seeds, 1, CDT, true, full (need to rerun after addressing issue)
-# DON'T: star_seeds, 1, CDT, true, bigM (need to rerun after addressing issue)
+# ✓: star_seeds, 1, CDT, false, merged
+# ✓: star_seeds, 1, CDT, false, full
+# ✓: star_seeds, 1, CDT, false, bigM
+# ⚠: star_seeds, 1, CDT, true, merged (need to rerun after fixing issue)
+# ⚠: star_seeds, 1, CDT, true, full (need to rerun after addressing issue)
+# ⚠: star_seeds, 1, CDT, true, bigM (need to rerun after addressing issue)
 
-# star_seeds, 2, CDT, false, merged
-# HOLD ON: star_seeds, 2, CDT, false, full
-# star_seeds, 2, CDT, false, bigM
-# DON'T: star_seeds, 2, CDT, true, merged
-# DON'T: star_seeds, 2, CDT, true, full
-# DON'T: star_seeds, 2, CDT, true, bigM
+# ✓: star_seeds, 2, CDT, false, merged
+# ✓: star_seeds, 2, CDT, false, full
+# ✓: star_seeds, 2, CDT, false, bigM
+# ⚠: star_seeds, 2, CDT, true, merged
+# ⚠: star_seeds, 2, CDT, true, full
+# ⚠: star_seeds, 2, CDT, true, bigM
 
-# star_seeds, 3, CDT, false, merged
-# HOLD ON: star_seeds, 3, CDT, false, full
-# star_seeds, 3, CDT, false, bigM
-# DON'T: star_seeds, 3, CDT, true, merged
-# DON'T:: star_seeds, 3, CDT, true, full
-# DON'T: star_seeds, 3, CDT, true, bigM
+# ✓ star_seeds, 3, CDT, false, merged
+# ✓: star_seeds, 3, CDT, false, full
+# ✓: star_seeds, 3, CDT, false, bigM
+# ⚠: star_seeds, 3, CDT, true, merged
+# ⚠:: star_seeds, 3, CDT, true, full
+# ⚠: star_seeds, 3, CDT, true, bigM
+
+######################################################################################
+######################################################################################
+
+# Analyze circle parameters
+ClutteredEnvPathOpt.plot_circles([.5; .6], [.5; 0.5], [pi/2; pi/2], d1 = 0.13, d2 = 0.13, p1=[0; 0.05], p2 = [0;-0.16])  # left foot base
+png("./test/Circles/Circles LB Centers 0.02 Neg 0.18 Radius 0.13")
+ClutteredEnvPathOpt.plot_circles([.5; .5], [.5; 0.42], [0; 0], d1 = 0.13, d2 = 0.13, p1=[0; 0.02], p2 = [0;-0.18])
+png("./test/Circles/Circles LB Centers 0.02 Neg 0.18 Radius 0.13")
+
+ClutteredEnvPathOpt.plot_circles([.6; .5], [.5; 0.5],[pi/2; pi/2], d1 = 0.2, d2 = 0.2, p1=[0, -0.07], p2 = [0,+0.27])  # right foot base
 
 ######################################################################################
 ################################# Parameter Tuning ###################################
@@ -982,15 +998,15 @@ function compute_problem_size(obstacles, N, f1, f2, g, Q_g, Q_r, q_t; method="me
     # Solve
     # JuMP.optimize!(model)
 
-    if method == "merged" && valid_cover_merged
-        println("\n\nUsed merged cover.\n\n")
-    elseif method != "bigM" && valid_cover 
-        println("\n\nUsed full cover.\n\n")
-        method = "full"
-    else
-        println("\n\nUsed big-M constraints.\n\n")
-        method = "bigM"
-    end
+    # if method == "merged" && valid_cover_merged
+    #     println("\n\nUsed merged cover.\n\n")
+    # elseif method != "bigM" && valid_cover 
+    #     println("\n\nUsed full cover.\n\n")
+    #     method = "full"
+    # else
+    #     println("\n\nUsed big-M constraints.\n\n")
+    #     method = "bigM"
+    # end
 
     stats = Dict("all_cont_variables" => all_cont_variables, "all_bin_variables" => all_bin_variables,
                  "disjunctive_cont_variables" => disjunctive_cont_variables, "disjunctive_bin_variables" => disjunctive_bin_variables,
@@ -1005,12 +1021,12 @@ end
 function problem_size_stats(seed_range, num_obs_range; file_name="Problem Size Stats.txt", method="merged", partition="CDT", merge_faces=true)
 
     # Set parameters
-    N = 20  # number of steps
-    f1 = [0.0, 0.1, 0.0]  # initial footstep pose 1
+    N = 25  # number of steps
+    f1 = [0.0, 0.08, 0.0]  # initial footstep pose 1
     f2 = [0.0, 0.0, 0.0]  # initial footstep pose 2
-    goal = [1, 1, 0]  # goal pose
-    Q_g = 10*Matrix{Float64}(I, 3, 3)  # weight between final footstep and goal pose
-    Q_r = Matrix{Float64}(I, 3, 3)  # weight between footsteps
+    goal = [1.0, 1.0, 0.0]  # goal pose
+    Q_g = [20.0 0.0 0.0; 0.0 20.0 0.0; 0.0 0.0 1.0]  # weight between final footstep and goal pose
+    Q_r = [1.0 0.0 0.0; 0.0 1.0 0.0; 0.0 0.0 0.1]  # weight between footsteps
     q_t = -.05  # weight for trimming unused steps
     # Optional named arguments
     # d1 = 0.1 # radius of reference foot circle
@@ -1023,6 +1039,7 @@ function problem_size_stats(seed_range, num_obs_range; file_name="Problem Size S
     f = open(file_name, "a")   # file is created outside of function
     # write(f, "Seed\tNum_obs\tTime\n")
     write(f, "Seed\tNum_obs\tDisjunctive_cont_var\tDisjunctive_bin_var\tDisjunctive_ineq_cons\tDisjunctive_eq_cons\tAll_cont_var\tAll_bin_var\tNum_vertices\tBC_merged_size\tBC_full_size\tNum_free_face_ineq\tNum_free_faces\n")
+    flush(f)
     # some_success_indicator = zeros(length(seed_range) * length(num_obs_range))
     # i = 1
     for seed = seed_range
@@ -1060,16 +1077,26 @@ function problem_size_stats(seed_range, num_obs_range; file_name="Problem Size S
     close(f)
 end
 
-seed_start = 1
-seed_end = 50
-seed_range = seed_start:seed_end
-num_obs = 1
+# 70 test cases selected
+star_4 = union(Set([3,4,6,8,12,15,16,20,22,23,24,25,34,36,42,46,47,54,64,66,70,73,75,
+                77,78,83,92,94,95,97,98,99,100]), Set(101:120))
+star_3 = Set([1,5,9,13,14,17,33,37,39,45,51,53,55,62,80,89,96])
+star_special = Set([201,202,203])
+# seeds = union(star_4, star_3)
+seeds = sort( collect( setdiff(union(star_4, star_3), Set(119) ) ) )
+
+# seed_start = 1
+# seed_end = 50
+# seed_range = seed_start:seed_end
+seed_range = seeds
+num_obs = 3
 num_obs_range = num_obs:num_obs
+# num_obs_range = 1:3
 # partitions = ["CDT", "HP"]
 partitions = ["CDT"]
 # merge_faces = [true, false]
-merge_faces = [true]
-# merge_faces = [false]
+# merge_faces = [true]
+merge_faces = [false]
 methods = ["merged", "full", "bigM"]
 # methods = ["merged"]
 # methods = ["full"]
@@ -1100,19 +1127,19 @@ end
 
 ######################################################################################
 ######################################################################################
+################################ Individual instances ################################
 
-
-seed = 5
+seed = 47
 # seed_range = [5,17,39,46,51,62,66,70,78]
-num_obs = 1
+num_obs = 2
 # num_obs_range = num_obs:num_obs
 N = 25   # should match parameter in solve_time_stats()
 partition = "CDT"
-# merge_faces = false
-merge_faces = true
-method = "merged"
+merge_faces = false
+# merge_faces = true
+method = "merged"  # either merged or full or both
 # method = "full"
-# method = "bigM"
+method = "bigM"
 relax = false
 
 N = 25  # number of steps   # prev runs were 30 and 20. Chose 25 because some obstacle courses are almost mazes
