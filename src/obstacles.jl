@@ -4,15 +4,14 @@ import GLPK
 import Random
 import Statistics
 import Triangulate
-# using Pipe
-# import Plots
+using Pipe
 
 """
-    gen_obstacle(max_side_len)
+    gen_obstacle(vertices...)
 
 Creates an obstacle from a given set of points in the unit square.
 """
-function gen_obstacle(vertices...)
+function gen_obstacle(vertices...)  # TODO: Rewrite for type T
     # Points can be given in any order since they are ordered clockwise within the polyhedron generated
 
     if length(vertices) < 4
@@ -40,11 +39,11 @@ function gen_obstacle(vertices...)
 end
 
 """
-    gen_obstacle_from_file()
+    gen_obstacle_from_file(seed, num_obs, file_name; display_plot, save_plot)
 
-Description.
+Generates obstacles from files. A file may contain multiple obstacles. Currently only accepts Rational{Int} data.
 """
-function gen_obstacle_from_file(seed, num_obs, file_name; display_plot=true, save_plot=false)
+function gen_obstacle_from_file(seed, num_obs, file_name; display_plot::Bool=true, save_plot::Bool=false)
     obstacles = []
     obs_counter = 0
 
@@ -80,12 +79,10 @@ function gen_obstacle_from_file(seed, num_obs, file_name; display_plot=true, sav
         points = Vector{Rational{Int}}[]
     end
 
-    obstacles = ClutteredEnvPathOpt.gen_field(obstacles)   # maybe just apply remove_overlaps directly
-    # Hardcoded
+    obstacles = ClutteredEnvPathOpt.gen_field(obstacles)
+
     if display_plot
-        plot(title="Obstacles Seed $seed")
-        ClutteredEnvPathOpt.plot_field(obstacles)   # requires an active plot (believe I have plot_field!, so need to edit plot_field)
-        display(plot!())
+        ClutteredEnvPathOpt.plot_field(obstacles, title ="Obstacles Seed $seed", display_plot=display_plot)
         if save_plot
             # png("./test/obstacle files/Seed $seed")
             png("$(filename[1:end-3])")
@@ -101,6 +98,7 @@ end
 Creates an obstacle with four extreme points from a grid of points in the unit square.
 """
 function gen_obstacle_four(points_per_dim::Int)
+    # TODO: Allow for data point to be type T
     points_per_dim = max(points_per_dim, 6)  # Need at least 6 interior points
     nums = LinRange(0//1, 1//1, points_per_dim+2)[2:end-1]  # Do not want obstacles touching the unit square boundaries
     
@@ -115,7 +113,7 @@ function gen_obstacle_four(points_per_dim::Int)
     v = Polyhedra.convexhull(top_left, top_right, bottom_left, bottom_right)
     poly = Polyhedra.polyhedron(v, Polyhedra.DefaultLibrary{Rational{Int64}}(GLPK.Optimizer))
     Polyhedra.removevredundancy!(poly)
-    # Loop below assures the polyhedron has 4 extreme points (sometimes the 4th is a convex comb.) for pairwise IB purposes
+    # Loop below assures the polyhedron has 4 extreme points (sometimes the 4th is a convex comb.)
     while Polyhedra.npoints(poly) < 4
         top_right = [ nums[x_index + 3 + rand(-1:1)] ; nums[y_index + 3 + rand(-1:1)] ]
         v = Polyhedra.convexhull(top_left, top_right, bottom_left, bottom_right)
@@ -128,13 +126,14 @@ function gen_obstacle_four(points_per_dim::Int)
 end
 
 """
-    gen_field_random(num_obstacles; custom, seed)
+    gen_field_random(num_obstacles; points_per_dim, seed)
 
 Creates an obstacle course, an array of obstacles in the unit square. If
 obstacles overlap, the convex hull of their combined extreme points will be taken
 instead.
 """
 function gen_field_random(num_obstacles::Int; points_per_dim::Int = 20, seed::Int=1) where {T}
+    # TODO: T is not used
     Random.seed!(seed)
     obstacles = map(_n -> gen_obstacle_four(points_per_dim), 1:num_obstacles)
 
@@ -145,9 +144,9 @@ end
     gen_field(obstacles)
 
 Creates an obstacles course from a collection of obstacles by removing overlaps.
+Other postprocessing may be applied.
 """
 function gen_field(obstacles)
-    # TODO: May just remove this function
     remove_overlaps(obstacles)
 end
 
@@ -371,7 +370,8 @@ function find_intersections(obstacles)
 end
 
 """
-    find_points(obs)
+    find_points(obs; with_faces)
+
 Compute the points corresponding to obstacle extreme points and the four corners
 of the unit square. Returns the points, and possibly the obstacle face vertices and edges.
 Function assumes obstacles have rational data.
@@ -392,8 +392,8 @@ function find_points(obs; with_faces::Bool=false)
             vertex_num += 1
             push!(vertices_in_ob, vertex_num)
 
-            # if (point[1] => point[2]) in [0//1 => 0//1 ; 0//1 => 1//1; 1//1 => 1//1; 1//1 => 0//1]
-            # TODO: Describe what's going on here
+            # Determine if a corner obstacle is adjacent to both boundaries of the unit cell. If not, then there
+            # is a free free with an extreme point in the corner which needs to be included in the points vector.
             if (point[1] => point[2]) == (0//1 => 0//1)
                 if Polyhedra.in([point[1] + 1//42 ; point[2]], ob) && Polyhedra.in([point[2] ; point[2] + 1//42], ob)
                     push!(obs_pts_in_corner, vertex_num)
@@ -416,7 +416,7 @@ function find_points(obs; with_faces::Bool=false)
     end
 
     points = [points; 0//1 => 0//1 ; 0//1 => 1//1; 1//1 => 1//1; 1//1 => 0//1]
-    unique!(points)  # The duplicate points after the first appearance are removed. This should be fine as obstacle vertices will be unique with each other
+    unique!(points)  # The duplicate points after the first appearance are removed. This should be fine as obstacle vertices will be unique with each other.
 
     end_vertices = Set([j for j = (length(points) - length(obs_pts_in_corner) + 1):length(points)])
     vertices_needing_swap = setdiff(Set(obs_pts_in_corner), end_vertices)
@@ -711,8 +711,8 @@ function construct_graph(obs)
     end, unique_faces)
 
 
-    # Swap obstacle (sub)faces with whole faces, then remove inside nodes and inside edges
-    # Chad Subset Approach
+    ### Swap obstacle (sub)faces with whole faces, then remove inside nodes and inside edges
+    ### Chad Subset Approach
 
     # Remove inside vertices
     if inside_quant > 0
@@ -737,7 +737,7 @@ function construct_graph(obs)
         return face_points
     end, obs_euclid_points)
 
-    # Find all vertices associated with an obstacle face and remove inside edges
+    ### Find all vertices associated with an obstacle face and remove inside edges
 
     boundary_edges = fill([], length(obs))  # store boundary edges of each obstacle
     for i = 1:length(obs)
@@ -781,7 +781,7 @@ function construct_graph(obs)
     #     end
     # end
 
-    # Now need to order points on obstacle faces counter-clockwise (they're then returned clockwise)
+    ### Now need to order points on obstacle faces counter-clockwise (they're then returned clockwise)
 
     # Start with left-most point (if multiple, use bottom-most)
     starting_points = []
@@ -872,7 +872,7 @@ end
 """
     _find_neighbors(points, mapped)
 
-Given a list of points and an association of halfspace lines to points that lie
+Given a list of points and a mapping of halfspace lines to points that lie
 on the line, return an array where res[i] <- the neighbors of node i.
 """
 function _find_neighbors(points::Vector{Pair{Rational{Int}}}, mapped::Vector{Vector{Pair{Rational{Int}}}})
@@ -926,18 +926,16 @@ end
 
 
 """
-    construct_graph_delaunay(obs)
+    construct_graph_delaunay(obs; merge_faces)
 
 Generate the constrained Delaunay triangulation partition of the free space.
 Returns a tuple containing the obstacles, a list of the location of the nodes' coordinates,
 the graph, a set of every face of obstacle space, and a set of every face of free space.
 (Each face is a clockwise-ordered vector of vertices).
 """
-function construct_graph_delaunay(obs; merge_faces=true)
+function construct_graph_delaunay(obs; merge_faces::Bool=false)
 
-    # points are x => pairs; obtacles faces are ordered vertices; S is a vector of edges
-    # TODO: This will likely change once problem is fixed
-    # obs_pts_in_corner are obstacle vertices that are unit cell corner points (need to be removed)
+    # points is a vector of x => y pairs; obtacles_faces is a vector of ordered vertices; S is a vector of edges
     points, obstacle_faces, S, num_pts_to_drop = ClutteredEnvPathOpt.find_points(obs; with_faces=true)
 
     # Initialize triangulate structure
@@ -978,7 +976,7 @@ function construct_graph_delaunay(obs; merge_faces=true)
     points = points[1:end-num_pts_to_drop]   # first remove non-free-face points
     graph = LightGraphs.SimpleGraph(length(points))
 
-    # Add edges; Use output matrix of edges instead?
+    # Add edges
     for j = 1:size(triangles,2)
         LightGraphs.add_edge!(graph, triangles[1,j] => triangles[2,j])
         LightGraphs.add_edge!(graph, triangles[1,j] => triangles[3,j])
