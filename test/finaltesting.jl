@@ -52,7 +52,6 @@ ClutteredEnvPathOpt.plot_edges(skeleton, points, plot_name = "Skeleton", col="bl
 feg = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(free_faces))
 ClutteredEnvPathOpt.plot_edges(feg, points, plot_name = "Finite Element Graph of S", col="black", vertices=feg.labels)
 
-
 # Plot obstacles
 ClutteredEnvPathOpt.plot_field(obstacles, title="Obstacles")
 # points = ClutteredEnvPathOpt.find_points(obstacles)
@@ -96,6 +95,7 @@ ClutteredEnvPathOpt.plot_edges(skeleton, points, plot_name = "Skeleton", col="bl
 # plot!(title="",axis=([], false))
 png("$partition Skeleton Seed $seed Num Obs $num_obs Merged Faces $merge_faces")
 # png("$partition Skeleton Seed $seed Num Obs $num_obs Merged Faces $merge_faces No Axis")
+png("./Seed 47/Seed $seed Num Obs $num_obs Skeleton")
 
 feg = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(free_faces))
 ClutteredEnvPathOpt.plot_edges(feg, points, plot_name = "Finite Element Graph of S",col="black", vertices=feg.labels)
@@ -104,13 +104,15 @@ ClutteredEnvPathOpt.plot_edges(feg, points, plot_name = "G_S",col="black", verti
 png("$partition FEG of S Seed $seed Num Obs $num_obs Merged Faces $merge_faces")
 # png("$partition FEG of S Seed $seed Num Obs $num_obs Merged Faces $merge_faces No Axis")
 savefig("Poster $partition FEG of S Seed $seed Num Obs $num_obs Merged Faces $merge_faces.pdf")
+png("./Seed 47/Seed $seed Num Obs $num_obs FEG")
 
 # Plot conflict graph
 conflict = LightGraphs.complement(feg.graph)
 conflict_lg = LabeledGraph(conflict, feg.labels)
-ClutteredEnvPathOpt.plot_edges(conflict_lg, points, plot_name = "Conflict Graph", col="black", with_labels=false)
+ClutteredEnvPathOpt.plot_edges(conflict_lg, points, plot_name = "Conflict Graph", col="black", with_labels=true)
 png("$partition Conflict Graph Seed $seed Num Obs $num_obs Merged Faces $merge_faces")
 savefig("Poster $partition Conflict Graph Seed $seed Num Obs $num_obs Merged Faces $merge_faces.pdf")
+png("./Seed 47/Seed $seed Num Obs $num_obs Conflict Graph")
 
 # feg_obs = ClutteredEnvPathOpt._find_finite_element_graph(skeleton, ClutteredEnvPathOpt._find_face_pairs(obstacle_faces))
 # ClutteredEnvPathOpt.plot_edges(feg_obs, points, plot_name = "Finite Element Graph Obstacle Faces")
@@ -138,8 +140,8 @@ ClutteredEnvPathOpt.plot_edges(missing_edges_lg, points, plot_name = "Missing Ed
 png("$partitition Missing Edges Seed $seed Num Obs $num_obs Merged Faces $merge_faces")
 
 # Plot biclique
-ClutteredEnvPathOpt.plot_biclique_cover(feg, points, merged_cover; with_all=true, name="Partition $partition Merge Faces $merge_faces Biclique", save_plots=true)
-
+ClutteredEnvPathOpt.plot_biclique_cover(feg, points, merged_cover; with_all=true, name="Seed $seed Num Obs $num_obs Partition $partition Merge Faces $merge_faces Biclique", save_plots=true)
+ClutteredEnvPathOpt.plot_biclique_cover(feg, points, merged_cover; with_all=true, name="./Seed 47/Seed $seed Num Obs $num_obs Merge Faces $merge_faces Biclique", save_plots=true)
 
 
 # file_name = "Biclique Cover Debug Output Seed $seed Num Obs $num_obs Free Unedited.txt"
@@ -153,6 +155,16 @@ ClutteredEnvPathOpt.plot_biclique_cover(feg, points, merged_cover; with_all=true
 (C,A,B), skeleton_ac, faces_ac, skeleton_bc, faces_bc = ClutteredEnvPathOpt.find_biclique_cover_one_iter(skeleton, free_faces)
 feg_S_ac = ClutteredEnvPathOpt._find_finite_element_graph(skeleton_ac, ClutteredEnvPathOpt._find_face_pairs(faces_ac))
 feg_S_bc = ClutteredEnvPathOpt._find_finite_element_graph(skeleton_bc, ClutteredEnvPathOpt._find_face_pairs(faces_bc))
+
+###### Quick graph plots with colored vertices by partition
+ClutteredEnvPathOpt.plot_edges(skeleton, points, (A,B,C), plot_name = "Finite Element Graph of S",vertices=skeleton.labels,col="black")
+ClutteredEnvPathOpt.plot_edges(skeleton, points, (A,B,C), plot_name = "Finite Element Graph of S",col="black")
+png("./Seed 47/Seed $seed Num Obs $num_obs FEG Colored Vertices")
+ClutteredEnvPathOpt.plot_edges(skeleton_ac, points, (A,B,C), plot_name = "Finite Element Graph of S_ac",vertices=feg_S_ac.labels,col="black")
+png("./Seed 47/Seed $seed Num Obs $num_obs FEG_ac Colored Vertices")
+ClutteredEnvPathOpt.plot_edges(skeleton_bc, points, (A,B,C), plot_name = "Finite Element Graph of S_bc",vertices=feg_S_bc.labels,col="black")
+png("./Seed 47/Seed $seed Num Obs $num_obs FEG_bc Colored Vertices")
+######
 
 ClutteredEnvPathOpt.plot_edges(skeleton_ac, points, plot_name = "Skeleton S_ac",vertices=skeleton_ac.labels,col="black")
 # plot!(title="",axis=([], false))
@@ -355,21 +367,20 @@ end
 
 # TODO: Have not run this. Fix and add possible columns before running
 
-file_name = "Biclique Cover Merging Stats Partition $partition.txt"
-file_name_dt = "Biclique Cover Merging Stats Partition CDT.txt"
-file_name_hp = "Biclique Cover Merging Stats Partition HP.txt"
-percent_decreases_dt, tuples_dt, c_sizes_dt, mc_sizes_dt, num_free_faces_dt = biclique_cover_merger_stats(seed_range, num_obs_range, file_name=file_name_dt, partition="CDT")
-percent_decreases_hp, tuples_hp, c_sizes_hp, mc_sizes_hp, num_free_faces_hp = biclique_cover_merger_stats(seed_range, num_obs_range, file_name=file_name_hp, partition="HP")
-size_diff_cover = c_sizes_hp - c_sizes_dt
-size_diff_merged_cover = mc_sizes_hp - mc_sizes_dt
-size_diff_free_faces = num_free_faces_hp - num_free_faces_dt
+seed_range = seeds 
+num_obs = 3
+num_obs_range = num_obs:num_obs
+partition = "CDT"
+merge_faces = false
 
-maximum(size_diff_free_faces) # 68
-minimum(size_diff_free_faces) # 0
-Statistics.mean(size_diff_free_faces) # 17.79
-count(t-> t > 0, size_diff_free_faces) # 373
-count(t-> t < 0, size_diff_free_faces) # 0
-count(t-> t == 0, size_diff_free_faces) # 27
+# file_name = "Biclique Cover Merging Stats Partition $partition.txt"
+file_name_dt = "./Experiments/Problem Sizes/Biclique Cover Merging Stats Num Obs $num_obs Partition CDT.txt"
+# file_name_hp = "Biclique Cover Merging Stats Partition HP.txt"
+percent_decreases_dt, tuples_dt, c_sizes_dt, mc_sizes_dt, num_free_faces_dt = biclique_cover_merger_stats(seed_range, num_obs_range, file_name=file_name_dt)
+# percent_decreases_hp, tuples_hp, c_sizes_hp, mc_sizes_hp, num_free_faces_hp = biclique_cover_merger_stats(seed_range, num_obs_range, file_name=file_name_hp, partition="HP")
+# size_diff_cover = c_sizes_hp - c_sizes_dt
+# size_diff_merged_cover = mc_sizes_hp - mc_sizes_dt
+# size_diff_free_faces = num_free_faces_hp - num_free_faces_dt
 
 # maximum(size_diff_free_faces) # 68
 # minimum(size_diff_free_faces) # 0
@@ -406,7 +417,7 @@ count(t-> t == 0, size_diff_free_faces) # 27
 ################################# Solve Time Stats ###################################
 
 # method <- "merged" for the compact biclique cover, "full" for the original biclique cover, "bigM" for big-M constraints
-function solve_time_stats(seed_range, num_obs_range; file_name="Solve Time Stats.txt", method="merged", partition="CDT", merge_faces=true, relax=false, logfiles=false)
+function solve_time_stats(seed_range, num_obs_range; file_name="Solve Time Stats.txt", method="merged", partition="CDT", merge_faces=false, relax=false, logfiles=false)
     # file_name = "Solve Time Stats.txt" #Seed Range = $seed_range, Num Obs Range = $num_obs_range.txt"
     # f = open(file_name, "a")
     # write(f, "Method = $method, Seed Range = $seed_range, Num Obs Range = $num_obs_range\n")
