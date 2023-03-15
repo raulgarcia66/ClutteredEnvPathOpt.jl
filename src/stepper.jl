@@ -61,7 +61,7 @@ function get_M_A_b(points, free_faces)
     unitcell = Polyhedra.polyhedron(u)
 
     for face in free_faces
-        v = Polyhedra.convexhull(map(i -> collect(points[i]), face)...)
+        v = Polyhedra.convexhull(map(i -> collect(points[i]), face)...)   # collect() turns x => y into a vector [x; y]
         polygon = Polyhedra.polyhedron(
             v,
             Polyhedra.DefaultLibrary{Rational{Int64}}(Gurobi.Optimizer)
@@ -74,55 +74,21 @@ function get_M_A_b(points, free_faces)
             A = hs.a'
             b = hs.β
 
-            # sub_model = JuMP.Model(Gurobi.Optimizer)
-            # JuMP.set_silent(sub_model)
             sub_model = JuMP.Model(JuMP.optimizer_with_attributes(Gurobi.Optimizer, "OutputFlag" => 0))
-            #sub_x = JuMP.@variable(sub_model, [1:2])
             JuMP.@variable(sub_model, sub_x[1:2])
             JuMP.@constraint(sub_model, sub_x in unitcell)
-            #JuMP.@constraint(sub_model, sub_x in safe_regions)
             JuMP.@objective(sub_model, Max, A * sub_x)
-
             JuMP.optimize!(sub_model)
 
-            #return value.(sub_x)
             M = JuMP.objective_value(sub_model)
 
             push!(Ms, M)
             push!(As, A)
             push!(bs, b)
         end
-
-        # A = vcat([hs.a for hs in halfspaces]...)
-        # b = vcat([hs.β for hs in halfspaces]...)
-
-        # M = map(hs ->
-        #     begin
-        #         A = hs.a
-        #         b = hs.β
-
-        #         sub_model = JuMP.Model(Gurobi.Optimizer)
-        #         #sub_x = JuMP.@variable(sub_model, [1:2])
-        #         JuMP.@variable(sub_model, sub_x[1:2])
-        #         JuMP.@constraint(sub_model, sub_x in polygon)   # TODO "no method matching copy" error WHY DOES THIS ONLY WORK THE FIRST TIME
-        #         JuMP.@objective(sub_model, Max, A' * sub_x)
-
-        #         stat = JuMP.optimize!(sub_model)
-
-        #         #return value.(sub_x)
-        #         return JuMP.objective_value(sub_model)
-        #     end,
-        #     halfspaces
-        # )
-
-        # push!(Ms, M)
-        # push!(As, A)
-        # push!(bs, b)
     end
-    # acc = acc[2:end]
 
     return vcat(Ms...), vcat(As...), vcat(bs...), acc
-    #return Ms, As, bs, acc
 end
 
 """
@@ -164,7 +130,7 @@ function plot_circles(x, y, theta; d1=0.20, d2=0.20, p1=[0, 0.07], p2=[0, -0.27]
         end
         plot!(circlex1, circley1, color="dodgerblue")
         plot!(circlex2, circley2, color="maroon")
-        display(plot!(legend=false, xlims=(-0.05,1.05), ylims=(-0.05,1.05)))
+        display(plot!(legend=false, xlims=(-0.05,1.05), ylims=(-0.05,1.05)))   # TODO: Don't hardcode xlims/ylims
     end
     # display(plot!(legend=false, xlims=(-0.05,1.05), ylims=(-0.05,1.05)))
 end
@@ -226,7 +192,7 @@ Methods:
 1) "big-M" : big-M approach
 """
 function solve_steps(obstacles, N, f1, f2, g, Q_g, Q_r, q_t; 
-    method="merged", partition="CDT", merge_faces=false, relax=false,
+    method::String="merged", partition::String="CDT", merge_faces::Bool=false, relax::Bool=false,
     MIPGap=0.05, TimeLimit=180, LogFile="", LogToConsole=0,
     d1=0.1, d2=0.1, p1=[0.0, 0.0], p2=[0.0, -0.14]) #,
     # delta_x_y_max=0.1)
@@ -243,9 +209,9 @@ function solve_steps(obstacles, N, f1, f2, g, Q_g, Q_r, q_t;
         model = JuMP.Model(JuMP.optimizer_with_attributes(Gurobi.Optimizer, "LogFile" => LogFile))
     else
         # TODO: Set MIPGap to large value. Sub optimal solutions still look good
-        # model = JuMP.Model(JuMP.optimizer_with_attributes(Gurobi.Optimizer,"MIPGap"=>MIPGap,"TimeLimit"=>TimeLimit,"LogFile"=>LogFile))
-        model = JuMP.Model(JuMP.optimizer_with_attributes(Gurobi.Optimizer,"MIPGap"=>MIPGap,"TimeLimit"=>TimeLimit,"LogFile"=>LogFile,"LogToConsole"=>LogToConsole))
-        # model = JuMP.Model(JuMP.optimizer_with_attributes(Gurobi.Optimizer,"Heuristics"=>0,"Cuts"=>0,"Presolve"=>0,"MIPGap"=>.01,"TimeLimit"=>180))
+        model = JuMP.Model(JuMP.optimizer_with_attributes(Gurobi.Optimizer, "MIPGap"=>MIPGap, "TimeLimit"=>TimeLimit,"LogFile"=>LogFile)) # "MIPGap"=>MIPGap
+        # model = JuMP.Model(JuMP.optimizer_with_attributes(Gurobi.Optimizer,"MIPGap"=>MIPGap,"TimeLimit"=>TimeLimit,"LogFile"=>LogFile,"LogToConsole"=>LogToConsole))
+        # model = JuMP.Model(JuMP.optimizer_with_attributes(Gurobi.Optimizer,"Presolve"=>0, "MIPGap"=>MIPGap,"LogFile"=>LogFile, "TimeLimit"=>TimeLimit)) # "Heuristics"=>0, "Presolve"=>0, "MIPGap"=>.01
     end
 
     # model has scalar variables x, y, θ, binary variable t
