@@ -3,6 +3,7 @@ import Statistics
 import LightGraphs
 import Polyhedra
 import GLPK
+# TODO: plot xlim/ylim currently hardcoded and data types still Rational{Int}
 
 """
     plot_faces(faces, points; plot_name, col, new_plot, individually)
@@ -46,11 +47,11 @@ function plot_faces(faces::Set{Vector{T}}, points::Vector{Pair{Rational{Int}}}; 
 end
 
 """
-    plot_edges(lg, points; plot_name, col, new_plot)
+    plot_edges(lg, points; plot_name, col, new_plot, vertices, with_labels)
 
 Given a LabeledGraph, plots its nodes and edges in the unit square.
 """
-function plot_edges(lg::LabeledGraph{T}, points::Vector{Pair{Rational{Int}}}; plot_name::String="Edges", col::String="colorful", new_plot::Bool=true, vertices::Dict{T,T}=Dict{T,T}(), with_labels=true) where {T}
+function plot_edges(lg::LabeledGraph{T}, points::Vector{Pair{Rational{Int}}}; plot_name::String="Edges", col::String="colorful", new_plot::Bool=true, vertices::Dict{T,T}=Dict{T,T}(), with_labels::Bool=true) where {T}
     if new_plot
         Plots.plot()
     end
@@ -67,18 +68,17 @@ function plot_edges(lg::LabeledGraph{T}, points::Vector{Pair{Rational{Int}}}; pl
         end
     end
 
-    # ClutteredEnvPathOpt.plot_intersections(obstacles, vertices=vertices)
     ClutteredEnvPathOpt.plot_points(points, vertices=vertices, with_labels=with_labels)
 
     display(Plots.plot!(title=plot_name, xlims=(-0.05,1.05), ylims=(-0.05,1.05), legend=false))
 end
 
 """
-    plot_edges(lg, points; plot_name, col, new_plot)
+    plot_edges(lg, points, partition; plot_name, col, new_plot, vertices, with_labels)
 
 Given a LabeledGraph, plots its nodes and edges in the unit square by partition.
 """
-function plot_edges(lg::LabeledGraph{T}, points::Vector{Pair{Rational{Int}}}, partition::Tuple{Set{Int},Set{Int},Set{Int}}; plot_name::String="Edges", col::String="colorful", new_plot::Bool=true, vertices::Dict{T,T}=Dict{T,T}(), with_labels=true) where {T}
+function plot_edges(lg::LabeledGraph{T}, points::Vector{Pair{Rational{Int}}}, partition::Tuple{Set{Int},Set{Int},Set{Int}}; plot_name::String="Edges", col::String="colorful", new_plot::Bool=true, vertices::Dict{T,T}=Dict{T,T}(), with_labels::Bool=true) where {T}
     if new_plot
         Plots.plot()
     end
@@ -95,16 +95,16 @@ function plot_edges(lg::LabeledGraph{T}, points::Vector{Pair{Rational{Int}}}, pa
         end
     end
 
-    # ClutteredEnvPathOpt.plot_intersections(obstacles, vertices=vertices)
     ClutteredEnvPathOpt.plot_points(points, partition, vertices=vertices, with_labels=with_labels)
 
     display(Plots.plot!(title=plot_name, xlims=(-0.05,1.05), ylims=(-0.05,1.05), legend=false))
 end
 
 """
-    plot_biclique_cover(lg, points, cover; with_all)
+    plot_biclique_cover(lg, points, cover; with_all, name, save_plots)
 
-Given a LabeledGraph and a biclique cover, plot each biclique.
+Given a LabeledGraph and a biclique cover, plot each biclique (green edges). Remaining edges in conflict
+graph can also be plotted (grey edges).
 """
 function plot_biclique_cover(lg::LabeledGraph{T}, points::Vector{Pair{Rational{Int}}}, cover::Set{Pair{Set{T}, Set{T}}}; with_all::Bool=false, name::String="Biclique", save_plots::Bool=false) where {T}
     e_bar = LightGraphs.edges(LightGraphs.complement(lg.graph))
@@ -254,10 +254,11 @@ function plot_borders()
 end
 
 """
-    plot_intersections(field)
+    plot_intersections(field; vertices)
 
 Plots and labels the points where the lines that make up the obstacles'
-halfspaces intersect to the existing active plot.
+halfspaces intersect to the existing active plot. Optional argument to plot
+a subset of vertices.
 """
 function plot_intersections(field; vertices::Dict{T,T}=Dict{T,T}()) where {T}
     intersections, _, inside_quant = find_intersections(field)
@@ -268,12 +269,12 @@ function plot_intersections(field; vertices::Dict{T,T}=Dict{T,T}()) where {T}
     end
 
     if !isempty(vertices)
-        points_filtered = []
-        for v in keys(vertices)
-            push!(points_filtered, intersections[v])
-        end
-        # TODO: Rewrite above as below
-        # points_filtered = map(v -> intersections[v], keys(vertices))
+        # points_filtered = []   # this approach makes it type Vector{Any}, whereas map() makes in Vector{T} where T is the element type of intersections
+        # for v in keys(vertices)
+        #     push!(points_filtered, intersections[v])
+        # end
+        # points_filtered = @pipe filter(v -> v in keys(vertices), 1:length(intersections)) |> intersections[_]   # type Vector{T} and in order
+        points_filtered = map(v -> intersections[v], collect(keys(vertices)))
         x = map(point -> point.first, points_filtered)
         y = map(point -> point.second, points_filtered)
         Plots.scatter!(x,y, color="red", series_annotations=([Plots.text(string(x), :right, 8, "courier") for x in keys(vertices)]))
@@ -282,33 +283,25 @@ function plot_intersections(field; vertices::Dict{T,T}=Dict{T,T}()) where {T}
         y = map(point -> point.second, intersections)
         Plots.scatter!(x,y, color="red", series_annotations=([Plots.text(string(x), :right, 8, "courier") for x in 1:length(points)]))
     end
-
-    # TODO: Delete this once certain it works
-    # if !isempty(vertices)
-    #     intersections = @pipe filter(v -> v in keys(vertices), 1:length(intersections)) |> intersections[_]
-    # end
-
-    # x = map(point -> point[1], intersections)
-    # y = map(point -> point[2], intersections)
-
-    # # Plots.scatter!(x,y, color="red3", series_annotations=([Plots.text(string(x), :right, 8, "courier") for x in 1:length(x)]))
-    # Plots.scatter!(x,y, color="red", series_annotations=([Plots.text(string(x), :right, 8, "courier") for x in 1:length(x)]))
 end
 
 """
-    plot_points(points; vertices)
+    plot_points(points; vertices, with_labels)
 
 Plots and labels points given. Optional argument to plot a subset of vertices.
+Requires active plot.
 """
-function plot_points(points::Vector{Pair{Rational{Int}}}; vertices::Dict{Int,Int}=Dict{Int,Int}(), with_labels=true)
-    
+function plot_points(points::Vector{Pair{Rational{Int}}}; vertices::Dict{Int,Int}=Dict{Int,Int}(), with_labels::Bool=true)
+    # TODO: Make plot_points!() for this method
     Plots.plot!(legend=false)
 
     if !isempty(vertices)
-        points_filtered = []
-        for v in keys(vertices)
-            push!(points_filtered, points[v])
-        end
+        # points_filtered = []   # this approach makes it type Vector{Any}, whereas map() makes in Vector{T} where T is the element type of intersections
+        # for v in keys(vertices)
+        #     push!(points_filtered, points[v])
+        # end
+        # points_filtered = @pipe filter(v -> v in keys(vertices), 1:length(intersections)) |> intersections[_]   # type Vector{T} and in order
+        points_filtered = map(v -> intersections[v], collect(keys(vertices)))
         x = map(point -> point.first, points_filtered)
         y = map(point -> point.second, points_filtered)
         if with_labels
@@ -329,12 +322,13 @@ function plot_points(points::Vector{Pair{Rational{Int}}}; vertices::Dict{Int,Int
 end
 
 """
-    plot_points(points; vertices)
+    plot_points(points, partition; vertices, with_labels)
 
 Plots and labels points given by partition. Optional argument to plot a subset of vertices.
+Requires active plot.
 """
-function plot_points(points::Vector{Pair{Rational{Int}}}, partition::Tuple{Set{Int},Set{Int},Set{Int}}; vertices::Dict{Int,Int}=Dict{Int,Int}(), with_labels=true)
-    
+function plot_points(points::Vector{Pair{Rational{Int}}}, partition::Tuple{Set{Int},Set{Int},Set{Int}}; vertices::Dict{Int,Int}=Dict{Int,Int}(), with_labels::Bool=true)
+    # TODO: Make plot_points!() for this method
     Plots.plot!(legend=false)
     A,B,C = partition
 
@@ -368,13 +362,13 @@ function plot_points(points::Vector{Pair{Rational{Int}}}, partition::Tuple{Set{I
         x_C = map(point -> point.first, points_filtered_C)
         y_C = map(point -> point.second, points_filtered_C)
         if with_labels
-            Plots.scatter!(x_A,y_A, color="red", markersize=7, series_annotations=([Plots.text(string(x), :top, 15) for x in v_filtered_A]))
-            Plots.scatter!(x_B,y_B, color="blue", markersize=7, series_annotations=([Plots.text(string(x), :top, 15) for x in v_filtered_B]))
-            Plots.scatter!(x_C,y_C, color="green", markersize=7, series_annotations=([Plots.text(string(x), :top, 15) for x in v_filtered_C]))
+            Plots.scatter!(x_A, y_A, color="red", markersize=7, series_annotations=([Plots.text(string(x), :top, 15) for x in v_filtered_A]))
+            Plots.scatter!(x_B, y_B, color="blue", markersize=7, series_annotations=([Plots.text(string(x), :top, 15) for x in v_filtered_B]))
+            Plots.scatter!(x_C, y_C, color="green", markersize=7, series_annotations=([Plots.text(string(x), :top, 15) for x in v_filtered_C]))
         else
-            Plots.scatter!(x_A,y_A, color="red", markersize=7)
-            Plots.scatter!(x_B,y_B, color="blue", markersize=7)
-            Plots.scatter!(x_C,y_C, color="green", markersize=7)
+            Plots.scatter!(x_A, y_A, color="red", markersize=7)
+            Plots.scatter!(x_B, y_B, color="blue", markersize=7)
+            Plots.scatter!(x_C, y_C, color="green", markersize=7)
         end
     else
         # x = map(point -> point.first, points)
@@ -407,34 +401,28 @@ end
 Plots footsteps of optimal path along with arrows indicating orientation.
 """
 function plot_steps(obstacles, x, y, θ)
-    plot()
     ClutteredEnvPathOpt.plot_field(obstacles);
     scatter!(x[1:2:end], y[1:2:end], color="red", markersize=5, series_annotations=([Plots.text(string(x), :right, 8, "courier") for x in 1:2:length(x)]));
     scatter!(x[2:2:end], y[2:2:end], color="blue", markersize=5, series_annotations=([Plots.text(string(x), :right, 8, "courier") for x in 2:2:length(x)]));
     quiver!(x, y, quiver=(0.075 * cos.(θ), 0.075 * sin.(θ)))
-    # plot!(title="Footsteps")
-    # display(plot!(title="Footsteps"))
 end
 
 """
-    plot_new(n, name; custom, seed, save_image)
+    plot_new(n, plot_name; seed, save_image, partition, merge_faces)
 
-Generates a new obstacle course with n obstacles. If custom = true, obstacles will be
-created from an array containing the points for each obstacle. If save_image = true,
-the course will be plotted and saved to an image.
+Plots and generates associated data for a randomly generated set of n obstacles.
 """
-function plot_new(n::Int, name::String; seed::Int=1, save_image::Bool=false, partition::String="CDT", merge_faces=true)
+function plot_new(n::Int, plot_name::String; seed::Int=1, save_image::Bool=false, partition::String="CDT", merge_faces::Bool=false)
     obs = gen_field_random(n, seed = seed)
 
     if save_image
-        Plots.plot()
         plot_field(obs)
         points = ClutteredEnvPathOpt.find_points(obs)
-        ClutteredEnvPathOpt.plot_points(points)
+        plot_points(points)
         #plot_lines(obs)
         #plot_borders()
         #plot_intersections(obs)
-        Plots.png(name)
+        Plots.png(plot_name)
         display(Plots.plot!(title="Field"))
     end
 
@@ -446,24 +434,21 @@ function plot_new(n::Int, name::String; seed::Int=1, save_image::Bool=false, par
 end
 
 """
-    plot_new(n, name; custom, seed, save_image)
+    plot_new(obstacles, plot_name; save_image, partition, merge_faces)
 
-Generates a new obstacle course with n obstacles. If custom = true, obstacles will be
-created from an array containing the points for each obstacle. If save_image = true,
-the course will be plotted and saved to an image.
+Plots and generates associated data for a given set of obstacles.
 """
-function plot_new(obstacles, name::String; save_image::Bool=false, partition::String="CDT", merge_faces=true)
-    obs = gen_field(obstacles)   # maybe just apply remove_overlaps directly
+function plot_new(obstacles, plot_name::String; save_image::Bool=false, partition::String="CDT", merge_faces::Bool=true)
+    obs = gen_field(obstacles)
 
     if save_image
-        Plots.plot()
         plot_field(obs)
         points = ClutteredEnvPathOpt.find_points(obs)
-        ClutteredEnvPathOpt.plot_points(points)
+        plot_points(points)
         #plot_lines(obs)
         #plot_borders()
         #plot_intersections(obs)
-        Plots.png(name)
+        Plots.png(plot_name)
         display(Plots.plot!(title="Field"))
     end
 
