@@ -17,7 +17,6 @@ using PiecewiseLinearOpt
 num_obs = 2;
 seed = 25;
 obstacles = ClutteredEnvPathOpt.gen_field_random(num_obs, seed = seed)
-plot();
 ClutteredEnvPathOpt.plot_field(obstacles)
 points = ClutteredEnvPathOpt.find_points(obstacles)
 ClutteredEnvPathOpt.plot_points(points)
@@ -135,8 +134,7 @@ skeleton = LabeledGraph(g)
 all_faces = Set{Vector{Int64}}(union(obstacle_faces, free_faces))
 
 # Plot obstacles
-plot(title="Obstacles");
-ClutteredEnvPathOpt.plot_field(obstacles)
+ClutteredEnvPathOpt.plot_field(obstacles, title="Obstacles")
 # points = ClutteredEnvPathOpt.find_points(obstacles)
 # ClutteredEnvPathOpt.plot_points(points, vertices=skeleton.labels)
 # ClutteredEnvPathOpt.plot_lines(obstacles)
@@ -288,8 +286,7 @@ function biclique_cover_validity_tests(seed_range, num_obs_range; faces::String=
                 println("Test Failed")
 
                 if with_plots
-                    plot(title="Obstacles");
-                    ClutteredEnvPathOpt.plot_field(obstacles)
+                    ClutteredEnvPathOpt.plot_field(obstacles, title="Obstacles")
                     # points = ClutteredEnvPathOpt.find_points(obstacles)
                     ClutteredEnvPathOpt.plot_points(points)
                     # ClutteredEnvPathOpt.plot_lines(obstacles)
@@ -1007,7 +1004,7 @@ end
 function points_in_mapped_ordered(obstacles, mapped)
     for hs in mapped
         plot(legend=false,xlims=(-0.05,1.05),ylims=(-0.05,1.05));
-        ClutteredEnvPathOpt.plot_field(obstacles)
+        ClutteredEnvPathOpt.plot_field!(obstacles)
         ClutteredEnvPathOpt.plot_lines(obstacles)
         for point in hs
             display(scatter!([point.first], [point.second]))
@@ -1029,7 +1026,6 @@ end
 # Check if neighbors are correct----------------------------------------------------
 function plot_neighbors(obstacles, neighbors, points)
     for (i,point) in enumerate(points)
-        plot();
         ClutteredEnvPathOpt.plot_field(obstacles)
         ClutteredEnvPathOpt.plot_lines(obstacles)
         display(scatter!([point.first],[point.second],title="Point $i"))

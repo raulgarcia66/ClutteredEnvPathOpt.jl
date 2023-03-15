@@ -174,21 +174,24 @@ function plot_biclique_cover(lg::LabeledGraph{T}, points::Vector{Pair{Rational{I
 end
 
 """
-    plot_field(field)
+    plot_field(field; title, display_plot)
 
-Plots the obstacles to the existing active plot. Requires active plot.
+Plots the obstacles onto a new plot.
 """
-function plot_field(field)
-    # TODO: Add plot initializer. Need to update every where plot_field is used with plot_field!
+function plot_field(field; title::String="", display_plot::Bool=false)
+    Plots.plot(title=title)
     for i = 1:length(field)
         Plots.plot!(field[i], xlims = (-0.05,1.05), ylim = (-0.05, 1.05))
+    end
+    if display_plot
+        display(Plots.plot!())
     end
 end
 
 """
     plot_field!(field)
 
-Plots the obstacles to the existing active plot. Requires active plot.
+Plots the obstacles onto the existing active plot.
 """
 function plot_field!(field)
     for i = 1:length(field)
