@@ -297,8 +297,49 @@ master_dict[num_obs]["CDT"]["faces_not_merged"]["summary"]
 master_dict[num_obs]["CDT"]["faces_not_merged"]["winner_count"]
 # master_dict[num_obs]["CDT"]["faces_not_merged"]["winner_count_1v1"]
 
+
+# Analysis on solve time gaps
+for num_obs = 1:3
+    df = master_dict[num_obs]["CDT"]["faces_not_merged"]["summary"]
+
+    df_merged = df[df.winner .== "merged", :]
+    # filter!(:term_status_bigM => ==("OPTIMAL"), df_merged)
+    df_merged[:, :solve_time_bigM] - df_merged[:,:solve_time_merged]
+    # ratios = (df_merged[:, :solve_time_bigM] - df_merged[:,:solve_time_merged]) ./ df_merged[:, :solve_time_bigM]
+    println("\nNum Obs $num_obs Method merged")
+    frac = df_merged[:,:solve_time_merged] ./ df_merged[:, :solve_time_bigM]
+    display(frac)
+
+    df_full = df[df.winner .== "full", :]
+    # filter!(:term_status_bigM => ==("OPTIMAL"), df_full)
+    df_full[:, :solve_time_bigM] - df_full[:,:solve_time_full]
+    # ratios = (df_full[:, :solve_time_bigM] - df_full[:,:solve_time_full]) ./ df_full[:, :solve_time_bigM]
+    println("\nNum Obs $num_obs Method full")
+    frac = df_full[:,:solve_time_full] ./ df_full[:, :solve_time_bigM]
+    display(frac)
+end
+
+df = master_dict[num_obs]["CDT"]["faces_not_merged"]["summary"]
+df_merged = df[df.winner .== "merged", :]
+# filter!(:term_status_bigM => ==("OPTIMAL"), df_merged)
+df_merged[:, :solve_time_bigM] - df_merged[:,:solve_time_merged]
+
+for num_obs = 1:3
+    df_m = master_dict[num_obs]["CDT"]["faces_not_merged"]["merged"]["df"]
+    df_f = master_dict[num_obs]["CDT"]["faces_not_merged"]["full"]["df"]
+    df_b = master_dict[num_obs]["CDT"]["faces_not_merged"]["bigM"]["df"]
+
+    temp = copy(df_m)
+    select!(temp, :simplex_nodes)
+    temp.simplex_nodes_full = df_f[:,:simplex_nodes]
+    temp.simplex_nodes_bigM = df_b[:,:simplex_nodes]
+
+    display(describe(temp))
+    # combine(temp :simplex_nodes => mean, :simplex_nodes_full => mean, :simplex_nodes_bigM => mean)
+end
+
 ############################################################################################
-########################### Manually compute means for optimals ############################
+####################### Manually compute means and std for optimals ########################
 
 master_dict[num_obs]["CDT"]["faces_not_merged"]
 df = master_dict[num_obs]["CDT"]["faces_not_merged"]["merged"]["df"]
@@ -331,16 +372,16 @@ for num_obs in num_obs_range
     println("Num Obs $num_obs \n $opt_solve_stats")
 end
 
-##### What is the block below used for?
-num_obs = 1
+##### BC cover sizes
+num_obs = 3
 df_sum = master_dict[num_obs]["CDT"]["faces_not_merged"]["summary"]
-combine(df_sum, :BC_merged => mean, :num_free_faces => mean, :num_free_face_ineq => mean, :num_vertices => mean)
-combine(df_sum, :BC_merged => x -> sqrt(var(x)), :num_free_faces => x -> sqrt(var(x)),
-        :num_free_face_ineq => x -> sqrt(var(x)), :num_vertices => x -> sqrt(var(x)))
+combine(df_sum, :BC_merged => mean, :BC_full => mean, :BC_reduction => mean, :num_free_faces => mean, :num_free_face_ineq => mean, :num_vertices => mean)
+combine(df_sum, :BC_merged => x -> sqrt(var(x)), :BC_full => x -> sqrt(var(x)), :BC_reduction => x -> sqrt(var(x)),
+        :num_free_faces => x -> sqrt(var(x)), :num_free_face_ineq => x -> sqrt(var(x)), :num_vertices => x -> sqrt(var(x)))
 
 master_dict[num_obs]["CDT"]["faces_not_merged"]["winner_count"]
 
-file_name = "./Experiments/Problem Sizes/Problem Size Stats Seed Range All Seeds Num Obs $num_obs Method $method Partition $partition Merge Face $merge_face.txt"
+# file_name = "./Experiments/Problem Sizes/Problem Size Stats Seed Range All Seeds Num Obs $num_obs Method $method Partition $partition Merge Face $merge_face.txt"
 
 
 ##############################################################################################
