@@ -196,7 +196,7 @@ end
 
 Returns true if any obstacles in the set are overlapping.
 """
-function has_overlaps(obstacles)::Bool
+function has_overlaps(obstacles)
     for i = 1:length(obstacles)
         for j = 1:length(obstacles)
             if i != j
@@ -875,7 +875,7 @@ end
 Given a list of points and an association of halfspace lines to points that lie
 on the line, return an array where res[i] <- the neighbors of node i.
 """
-function _find_neighbors(points::Vector{Pair{Rational{Int}}}, mapped::Vector{Vector{Pair{Rational{Int}}}})::Vector{Vector{Int}}
+function _find_neighbors(points::Vector{Pair{Rational{Int}}}, mapped::Vector{Vector{Pair{Rational{Int}}}})
     # This function should only be used in construct_graph(), before "inside" points are removed
     neighbors = Dict()
 
