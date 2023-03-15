@@ -564,3 +564,28 @@ temp[:,1:3]
 temp[:,4:6]
 temp[:,7:9]
 temp[:,10:end]
+
+############################################################################################
+########################################## Plots ###########################################
+
+# For quick reference
+master_dict[2]["CDT"]["faces_not_merged"]
+master_dict[2]["CDT"]["faces_not_merged"]["merged"]["df"]
+master_dict[2]["CDT"]["faces_not_merged"]["summary"]
+master_dict[2]["CDT"]["faces_notmerged"]["winner_count"]
+master_dict[3]["CDT"]["faces_not_merged"]["winner_count_1v1"]
+# Select experiment
+num_obs = 3
+partition = "CDT"
+faces = "faces_not_merged"
+df = copy(master_dict[num_obs][partition][faces]["summary"])
+
+##### Violin plots
+@df df violin(["IB original" "IB merged" "Big-M"], [:solve_time_full :solve_time_merged :solve_time_bigM], lw=0, color = [:dodgerblue :limegreen :firebrick1], label = ["IB Original" "IB Merged" "Big-M"]);
+plot!(title="Number of Obstacles: $num_obs", yaxis="Solve Time (sec)")
+png("./Data Analysis Plots/Solve Time Violin Plot Obstacles $num_obs Partition $partition $faces")
+@df df boxplot!(["IB original" "IB merged" "Big-M"], [:solve_time_full :solve_time_merged :solve_time_bigM], fillalpha=0.5, lw=2, label=:none, color=:plum) #, lw=3, color = [:dodgerblue :limegreen :firebrick1], lw=3)
+png("./Data Analysis Plots/Solve Time Violin with Box Plot Obstacles $num_obs Partition $partition $faces")
+@df df dotplot!(["IB original" "IB merged" "Big-M"], [:solve_time_full :solve_time_merged :solve_time_bigM], marker=(:black,stroke(0)), label=:none) #, lw=3, color = [:dodgerblue :limegreen :firebrick1], lw=3)
+png("./Data Analysis Plots/Solve Time Violin with Box and Dot Plot Obstacles $num_obs Partition $partition $faces")
+png("./Data Analysis Plots/Solve Time Violin with Dot Plot Obstacles $num_obs Partition $partition $faces")
