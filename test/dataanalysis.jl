@@ -297,6 +297,20 @@ master_dict[num_obs]["CDT"]["faces_not_merged"]["summary"]
 master_dict[num_obs]["CDT"]["faces_not_merged"]["winner_count"]
 # master_dict[num_obs]["CDT"]["faces_not_merged"]["winner_count_1v1"]
 
+# Look at cases won by IB
+for num_obs = 1:3
+    df = master_dict[num_obs]["CDT"]["faces_not_merged"]["summary"]
+    df_merged = df[df.winner .== "merged", :]
+    df_full = df[df.winner .== "full", :]
+
+    println("\nNum obs $num_obs Method merged")
+    display(df_merged.seed)
+    println("Num obs $num_obs Method full")
+    display(df_full.seed)
+end
+# 1 obstacle. Merged = [15,20,33,54]. Full = [25,47,64,116]
+# 2 ostacles. Merged = [101]. Full = [89,99,103]
+# 3 obstacles. Merged = [66,103,114,115]. Full = []
 
 # Analysis on solve time gaps
 for num_obs = 1:3
@@ -304,7 +318,7 @@ for num_obs = 1:3
 
     df_merged = df[df.winner .== "merged", :]
     # filter!(:term_status_bigM => ==("OPTIMAL"), df_merged)
-    df_merged[:, :solve_time_bigM] - df_merged[:,:solve_time_merged]
+    # diff = df_merged[:, :solve_time_bigM] - df_merged[:,:solve_time_merged]
     # ratios = (df_merged[:, :solve_time_bigM] - df_merged[:,:solve_time_merged]) ./ df_merged[:, :solve_time_bigM]
     println("\nNum Obs $num_obs Method merged")
     frac = df_merged[:,:solve_time_merged] ./ df_merged[:, :solve_time_bigM]
@@ -312,7 +326,7 @@ for num_obs = 1:3
 
     df_full = df[df.winner .== "full", :]
     # filter!(:term_status_bigM => ==("OPTIMAL"), df_full)
-    df_full[:, :solve_time_bigM] - df_full[:,:solve_time_full]
+    # diff = df_full[:, :solve_time_bigM] - df_full[:,:solve_time_full]
     # ratios = (df_full[:, :solve_time_bigM] - df_full[:,:solve_time_full]) ./ df_full[:, :solve_time_bigM]
     println("\nNum Obs $num_obs Method full")
     frac = df_full[:,:solve_time_full] ./ df_full[:, :solve_time_bigM]
@@ -324,6 +338,7 @@ df_merged = df[df.winner .== "merged", :]
 # filter!(:term_status_bigM => ==("OPTIMAL"), df_merged)
 df_merged[:, :solve_time_bigM] - df_merged[:,:solve_time_merged]
 
+# Analysis on simplex iterations
 for num_obs = 1:3
     df_m = master_dict[num_obs]["CDT"]["faces_not_merged"]["merged"]["df"]
     df_f = master_dict[num_obs]["CDT"]["faces_not_merged"]["full"]["df"]
@@ -574,13 +589,15 @@ master_dict[2]["CDT"]["faces_not_merged"]["merged"]["df"]
 master_dict[2]["CDT"]["faces_not_merged"]["summary"]
 master_dict[2]["CDT"]["faces_notmerged"]["winner_count"]
 master_dict[3]["CDT"]["faces_not_merged"]["winner_count_1v1"]
+
 # Select experiment
-num_obs = 3
 partition = "CDT"
 faces = "faces_not_merged"
-df = copy(master_dict[num_obs][partition][faces]["summary"])
 
 ##### Violin plots
+num_obs = 1
+df = copy(master_dict[num_obs][partition][faces]["summary"])
+
 @df df violin(["IB original" "IB merged" "Big-M"], [:solve_time_full :solve_time_merged :solve_time_bigM], lw=0, color = [:dodgerblue :limegreen :firebrick1], label = ["IB Original" "IB Merged" "Big-M"]);
 plot!(title="Number of Obstacles: $num_obs", yaxis="Solve Time (sec)")
 png("./Data Analysis Plots/Solve Time Violin Plot Obstacles $num_obs Partition $partition $faces")
@@ -589,3 +606,18 @@ png("./Data Analysis Plots/Solve Time Violin with Box Plot Obstacles $num_obs Pa
 @df df dotplot!(["IB original" "IB merged" "Big-M"], [:solve_time_full :solve_time_merged :solve_time_bigM], marker=(:black,stroke(0)), label=:none) #, lw=3, color = [:dodgerblue :limegreen :firebrick1], lw=3)
 png("./Data Analysis Plots/Solve Time Violin with Box and Dot Plot Obstacles $num_obs Partition $partition $faces")
 png("./Data Analysis Plots/Solve Time Violin with Dot Plot Obstacles $num_obs Partition $partition $faces")
+
+##### Histograms
+num_obs = 3
+df = copy(master_dict[num_obs][partition][faces]["summary"])
+
+for split = 1:7
+    rows = (split != 7) ? ((1 + (split-1)*10):(split*10)) : ((1 + (split-1)*10):69)
+    groupedbar([df[rows,"solve_time_merged"] df[rows,"solve_time_full"] df[rows,"solve_time_bigM"]],
+        xlabel="Seed", ylabel="Sol'n time", labels = ["IB" "IB_orig" "BigM"], title = "$num_obs Obstacle(s)",
+        bar_position=:dodge, xticks=(1:10, df[rows,"seed"])
+        )
+    display(plot!())
+    png("./Data Analysis Plots/Histogram num obs $num_obs split $split")
+end
+
